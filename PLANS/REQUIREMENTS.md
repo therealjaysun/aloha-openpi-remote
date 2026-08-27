@@ -33,6 +33,7 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | `OPENPI_WSL_DISTRO` | empty | Empty means detect single Ubuntu or ask; never guess among multiple | 02 |
 | `OPENPI_DATA_HOME` | empty | Empty uses upstream cache; otherwise absolute writable WSL POSIX path | 02 |
 | `OPENPI_MIN_FREE_GIB` | `40` | Integer `1..1024`; required on checkout and checkpoint-cache filesystems | 02 |
+| `OPENPI_JAX_MEM_FRACTION` | `0.90` | Enum `0.75`, `0.80`, `0.85`, `0.90`, or `0.95`; JAX GPU preallocation fraction, tune only from measured inference | 02 |
 | `LOCAL_POLICY_HOST` | `127.0.0.1` | Literal loopback only | 03 |
 | `LOCAL_POLICY_PORT` | `8000` | Integer `1..65535`; must be free before tunnel | 03 |
 | `REMOTE_POLICY_HOST` | `127.0.0.1` | Literal loopback only unless a separately approved routing remedy is documented | 02,03 |

@@ -607,6 +607,7 @@ def server(session: RemoteSession) -> None:
         str(config.policy_port),
         str(config.server_startup_timeout_seconds),
         config.data_home,
+        config.jax_mem_fraction,
         candidate,
     ]
     _write_launch_receipt(config, candidate, target)

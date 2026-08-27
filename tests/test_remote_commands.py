@@ -296,6 +296,26 @@ def test_candidate_gate_accepts_exact_clean_pushed_scan(monkeypatch: pytest.Monk
     assert _candidate_sha() == sha
 
 
+def test_server_passes_jax_memory_fraction_to_wsl(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(remote_module, "_candidate_sha", lambda: "a" * 40)
+    session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04", jax_mem_fraction="0.85"))
+    target = RemoteTarget("powershell", "Ubuntu-24.04")
+    monkeypatch.setattr(session, "discover_target", lambda: target)
+    scripts = []
+
+    def fake_run_wsl(*args: object, **kwargs: object) -> str:
+        scripts.append(str(args[1]))
+        return "__ALOHA_SERVER__=ready" if len(scripts) == 2 else ""
+
+    monkeypatch.setattr(session, "run_wsl", fake_run_wsl)
+    remote_module.server(session)
+    fraction = base64.b64encode(b"0.85").decode()
+    candidate = base64.b64encode(("a" * 40).encode()).decode()
+    assert f'arg5="$(printf %s {fraction} | base64 -d)"' in scripts[0]
+    assert f'arg6="$(printf %s {candidate} | base64 -d)"' in scripts[0]
+
+
 def test_stop_uses_the_original_receipt_target(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
     launched = RemoteConfig(ssh_alias="original-gpu", remote_dir="/srv/original", policy_port=8123)

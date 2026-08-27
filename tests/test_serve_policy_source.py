@@ -45,6 +45,8 @@ def test_wsl_start_wrapper_has_exact_two_profile_routes_and_loopback() -> None:
     assert "killall" not in source
     assert "--require-jax-platform=gpu" in source
     assert "--require-jax-device=3090" in source
+    assert '"XLA_PYTHON_CLIENT_MEM_FRACTION=$jax_mem_fraction"' in source
+    assert "0.75|0.80|0.85|0.90|0.95" in source
     assert "process_record launch" in source
     assert 'kill -TERM "$pid"' not in source
 

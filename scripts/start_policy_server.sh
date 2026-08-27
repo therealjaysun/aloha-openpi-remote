@@ -8,7 +8,8 @@ host="${2-}"
 port="${3-}"
 startup_timeout="${4-}"
 data_home="${5-}"
-expected_sha="${6-}"
+jax_mem_fraction="${6-}"
+expected_sha="${7-}"
 state_dir="$repo_root/.runtime"
 record="$state_dir/server.json"
 lifecycle_state="$HOME/.local/state/aloha-openpi-remote"
@@ -25,6 +26,10 @@ lifecycle_state="$HOME/.local/state/aloha-openpi-remote"
 }
 [[ "$expected_sha" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid expected project SHA.' >&2; exit 1; }
 [[ -z "$data_home" || "$data_home" == /* ]] || { echo 'OPENPI_DATA_HOME must be empty or absolute.' >&2; exit 1; }
+case "$jax_mem_fraction" in
+    0.75|0.80|0.85|0.90|0.95) ;;
+    *) echo 'OPENPI_JAX_MEM_FRACTION must be one of: 0.75, 0.80, 0.85, 0.90, 0.95.' >&2; exit 1 ;;
+esac
 
 case "$profile" in
     pi0_aloha_sim)
@@ -71,6 +76,7 @@ log_relative=".runtime/server-${expected_sha:0:12}-$profile.log"
 command=(
     env
     "OPENPI_DATA_HOME=$data_home"
+    "XLA_PYTHON_CLIENT_MEM_FRACTION=$jax_mem_fraction"
     JAX_PLATFORMS=cuda
     CUDA_VISIBLE_DEVICES=0
     "$repo_root/.venv/bin/python"
@@ -116,4 +122,4 @@ done
 
 "$repo_root/scripts/check_policy_server.sh" "$profile" "$host" "$port" "$expected_sha" >/dev/null
 trap - EXIT
-echo "Policy server ready: profile=$profile source_sha=$expected_sha log=$log_relative"
+echo "Policy server ready: profile=$profile jax_mem_fraction=$jax_mem_fraction source_sha=$expected_sha log=$log_relative"

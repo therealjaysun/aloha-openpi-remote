@@ -12,6 +12,7 @@ DEFAULT_POLICY_PROFILE = "pi0_aloha_sim"
 _KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 _UINT = re.compile(r"[0-9]+\Z")
 _SSH_ALIAS = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
+_JAX_MEM_FRACTIONS = ("0.75", "0.80", "0.85", "0.90", "0.95")
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,7 @@ class RemoteConfig:
     remote_dir: str = "~/src/openpi"
     wsl_distro: str = ""
     data_home: str = ""
+    jax_mem_fraction: str = "0.90"
     policy_host: str = "127.0.0.1"
     policy_port: int = 8000
     policy_profile: PolicyProfile = POLICY_PROFILES[DEFAULT_POLICY_PROFILE]
@@ -164,6 +166,7 @@ def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str]
         "OPENPI_REMOTE_DIR",
         "OPENPI_WSL_DISTRO",
         "OPENPI_DATA_HOME",
+        "OPENPI_JAX_MEM_FRACTION",
         "REMOTE_POLICY_HOST",
         "REMOTE_POLICY_PORT",
         "OPENPI_POLICY_PROFILE",
@@ -182,6 +185,10 @@ def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str]
     distro = values.get("OPENPI_WSL_DISTRO", "")
     if distro and (distro.startswith("-") or any(ord(character) < 32 for character in distro)):
         raise ValueError("OPENPI_WSL_DISTRO must be one printable distro name and cannot start with '-'")
+    jax_mem_fraction = values.get("OPENPI_JAX_MEM_FRACTION", "0.90")
+    if jax_mem_fraction not in _JAX_MEM_FRACTIONS:
+        choices = ", ".join(_JAX_MEM_FRACTIONS)
+        raise ValueError(f"OPENPI_JAX_MEM_FRACTION must be one of: {choices}")
     host = values.get("REMOTE_POLICY_HOST", "127.0.0.1")
     if host != "127.0.0.1":
         raise ValueError("REMOTE_POLICY_HOST must be literal loopback 127.0.0.1")
@@ -208,6 +215,7 @@ def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str]
         remote_dir=_remote_path("OPENPI_REMOTE_DIR", values.get("OPENPI_REMOTE_DIR", "~/src/openpi"), allow_tilde=True),
         wsl_distro=distro,
         data_home=_remote_path("OPENPI_DATA_HOME", values.get("OPENPI_DATA_HOME", ""), allow_empty=True),
+        jax_mem_fraction=jax_mem_fraction,
         policy_host=host,
         policy_port=port,
         policy_profile=get_policy_profile(values.get("OPENPI_POLICY_PROFILE", DEFAULT_POLICY_PROFILE)),
