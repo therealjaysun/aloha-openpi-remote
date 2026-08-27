@@ -7,6 +7,6 @@
 - **Validation:** `make test`; `make lint`; `bash -n scripts/*.sh`; `make secret-scan`; inspect local and remote workflow YAML/permissions; verify no workflow ran on the baseline push; enable Actions only after the hardened branch is remote; open PR 1 and verify runnable public checks.
 - **Acceptance:** Ordinary PR CI needs no GPU/PC/secrets and imports no simulator/model stack for pure tests; existing test coverage is not weakened; unavailable upstream private-runner checks are labeled unavailable, never passed; vulnerability reporting and contribution scope are clear; no guessed reviewers.
 - **Planned commits:** `docs: add project governance`; `ci: add lightweight public checks`.
-- **Actual findings:** Upstream test workflow requires `openpi-verylarge`, which a public derivative cannot assume. `gitleaks`, ShellCheck, and FFmpeg are not currently installed locally; Ruff and pytest executables exist outside the planned project venv.
-- **Remaining blockers:** Install the selected secret scanner during implementation; `make secret-scan` must fail closed when it is unavailable. GitHub Actions cannot run until origin exists.
-- **Completion status:** Planned.
+- **Actual findings:** Upstream test workflow requires `openpi-verylarge`, which a public derivative cannot assume, so it is guarded to the official repository and skips explicitly here. Gitleaks 8.30.1 is installed locally; `make secret-scan` passes and fails closed when Gitleaks is unavailable. Repository Actions is enabled only for GitHub-owned actions and the two exact third-party SHAs used by the workflows, with SHA pinning required and default workflow permissions read-only. PR 1 hosted `secret-scan` passed; upstream `Run Tests` and `pre-commit` skipped as designed.
+- **Remaining blockers:** None for Phase 00.
+- **Completion status:** Complete; PR 1 remains open for human review.

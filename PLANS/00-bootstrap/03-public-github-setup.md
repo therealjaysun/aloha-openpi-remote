@@ -8,8 +8,8 @@
 - **Acceptance:** Repo is public, project-related, owned by authenticated account; `origin` is it; `upstream` remains official; URL recorded; baseline pushed with no sensitive/generated files and no inherited workflow execution; Actions remain disabled pending subphase 00.05.
 - **Planned commit:** `chore(repo): record public repository`.
 - **Actual findings:** Authentication is valid for the verified account. The planned name was available, so `https://github.com/therealjaysun/aloha-openpi-remote` was created public and attached as `origin`; official OpenPI remains `upstream`. Actions was disabled and verified before `main` was pushed at `215abfb217dbac7d5f1273282331b9b1866c0479`.
-- **Remaining blockers:** None for repository creation. Actions remains intentionally disabled until hardened phase branches are pushed and repository workflow permissions are set read-only.
-- **Completion status:** Repository creation complete; safe enablement/PR verification continues in subphase 00.05.
+- **Remaining blockers:** None.
+- **Completion status:** Complete. Hardened branches were pushed while Actions was disabled; subphase 00.05 then enabled selected immutable-SHA actions with read-only workflow permissions and verified PR 1.
 
 Recovery execution outline (replace `OWNER` only from `gh api`, never by guess):
 

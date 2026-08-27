@@ -13,11 +13,11 @@
 - **Test commands:** `git status --short`; `git remote -v`; `git submodule status`; `make lint`; `make test`; `make secret-scan`; `git diff --check`; `gh pr view --json url,state,isDraft,baseRefName,headRefName`.
 - **Risks:** Invalid GitHub auth, repository name collision, accidental staging of `.DS_Store`/secrets, upstream CODEOWNERS notifying unrelated maintainers, replacing upstream CI with weaker checks.
 - **Rollback:** Revert the unmerged phase branch or remove the local project remote after verification; restore remote names; never rewrite `main` or upstream history. Deleting a public repository requires separate explicit user approval.
-- **Current status:** Implementation complete locally; publication is in progress with Actions intentionally disabled until the hardened branches are present.
-- **Actual results:** Official history/submodules are preserved; `upstream` remains official; public `origin` is `https://github.com/therealjaysun/aloha-openpi-remote`; `main` is pushed at the pinned upstream SHA; Gitleaks 8.30.1 passed the project range, staged changes, and all non-ignored candidates; governance, PR template, and immutable-action workflows are present.
-- **Deviations:** GitHub authentication delayed publication but did not block local Phase 01. The branch stack is being repaired with a parent merge so the validated Phase 01 commit remains in history.
-- **PR:** Pending until hardened branches are pushed and Actions is safely enabled.
-- **Final commit SHA:** Publication safeguard commit `076becccc075f44ad79f33044e0d7f205861cf20`; repository-evidence update is branch HEAD.
+- **Current status:** Complete; public repository, hardened CI, and PR 1 are verified.
+- **Actual results:** Official history/submodules are preserved; `upstream` remains official; public `origin` is `https://github.com/therealjaysun/aloha-openpi-remote`; `main` is pinned to upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`. Gitleaks 8.30.1 passed the project range, staged changes, and all non-ignored candidates. Actions permits only selected immutable-SHA actions, requires SHA pinning, and grants read-only default workflow permissions. Hosted `secret-scan` passed; derivative-inapplicable upstream private-runner jobs skipped explicitly.
+- **Deviations:** GitHub authentication delayed publication but did not block local Phase 01. The validated Phase 01 commit was preserved by merging this parent branch instead of rewriting it.
+- **PR:** [#1](https://github.com/therealjaysun/aloha-openpi-remote/pull/1), open for human review, base `main`, head `codex/00-bootstrap`, not draft.
+- **Final commit SHA:** Publication safeguard `076becccc075f44ad79f33044e0d7f205861cf20`; repository evidence `27d7cabe394ea56db80c0b99871bc43b8abe0ccb`; this final evidence update is branch HEAD.
 
 ## Machine handoff
 

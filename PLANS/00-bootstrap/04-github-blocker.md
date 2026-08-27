@@ -8,7 +8,7 @@
 - **Acceptance:** Valid auth and a verified public project repository; no token output captured.
 - **Planned commit:** `chore(repo): resolve GitHub setup blocker`.
 - **Actual findings:** Resolved on 2026-08-26 local time: authenticated `gh` network/keychain validation passed, the expected repository name was available, and the public repository was created and verified without exposing token material.
-- **Remaining blockers:** None. Local branches ready for publication are `codex/00-bootstrap` and `codex/01-mac-simulation`; Actions remains deliberately disabled during the first pushes.
+- **Remaining blockers:** None. Both local branches were published after the fail-closed scan; Actions was then safely enabled and both PRs opened.
 - **Completion status:** Resolved.
 
 Exact recovery:
@@ -19,4 +19,4 @@ gh auth status
 gh api user --jq .login
 ```
 
-Then resume `03-public-github-setup.md`. GitHub publication is not a gate for local implementation. Local phase branches/commits ready to push: none (planning-only turn; update this line as work proceeds).
+Recovery is no longer required. GitHub publication remains independent of Mac simulation and future PC access.
