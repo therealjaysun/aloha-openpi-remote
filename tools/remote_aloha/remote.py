@@ -82,11 +82,11 @@ def build_wsl_command(route: str, distro: str, command_timeout: int | None = Non
     if not distro or distro.startswith("-") or any(ord(character) < 32 for character in distro):
         raise ValueError("a safe explicit WSL distro is required for a Windows route")
     encoded_distro = base64.b64encode(distro.encode()).decode("ascii")
-    launcher = f"""
+    launcher = rf"""
 $ErrorActionPreference = 'Stop'
 $distro = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{encoded_distro}'))
 $payload = [Console]::In.ReadToEnd()
-$payload | wsl.exe --distribution $distro --exec {linux_command}
+$payload | wsl.exe --distribution $distro --exec bash -c "tr -d '\r' | {linux_command}"
 exit $LASTEXITCODE
 """.strip()
     return powershell_command(launcher)

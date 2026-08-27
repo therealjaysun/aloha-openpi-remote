@@ -48,12 +48,13 @@ def test_wsl_command_keeps_distro_and_payload_out_of_outer_windows_quoting() -> 
     encoded_distro = decoded.split("FromBase64String('", 1)[1].split("')", 1)[0]
     assert base64.b64decode(encoded_distro).decode() == distro
     assert "[Console]::In.ReadToEnd()" in decoded
-    assert "$payload | wsl.exe --distribution $distro --exec bash -s --" in decoded
+    assert "$payload | wsl.exe --distribution $distro --exec bash -c \"tr -d '\\r' | bash -s --\"" in decoded
     assert build_wsl_command("bash", "") == "bash -s --"
     assert build_wsl_command("bash", "", 19) == "timeout --signal=TERM --kill-after=30s 19s bash -s --"
     for route in ("powershell", "cmd"):
-        assert "--exec timeout --signal=TERM --kill-after=30s 19s bash -s --" in _decode_powershell(
-            build_wsl_command(route, "Ubuntu", 19)
+        assert (
+            "--exec bash -c \"tr -d '\\r' | timeout --signal=TERM --kill-after=30s 19s bash -s --\""
+            in _decode_powershell(build_wsl_command(route, "Ubuntu", 19))
         )
     with pytest.raises(ValueError, match="explicit WSL distro"):
         build_wsl_command("cmd", "")
