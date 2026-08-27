@@ -13,12 +13,12 @@
 - **Test commands:** `make tunnel`; `make smoke-policy` per profile; `make stop`; `lsof -nP -iTCP:8000 -sTCP:LISTEN`; remote listener/routing checks; unit tests.
 - **Risks:** Wrong shell quoting, stale PID, local port collision, Windows-to-WSL localhost forwarding differences, mirrored networking exposure, leaking identifiers in logs.
 - **Rollback:** Stop only validated tunnel PID; revert scripts; do not remove SSH keys/config or alter firewall/networking.
-- **Current status:** Plan complete; implementation not started. Pure client/routing/lifecycle work is unblocked; hardware acceptance is blocked on SSH/server.
-- **Actual results:** No alias, tunnel, route, port, or smoke test exists.
+- **Current status:** Plan complete; implementation not started. SSH trust and the Windows cmd→Ubuntu-24.04 WSL route are proven; tunnel/client work waits for a policy that returns valid actions.
+- **Actual results:** The private alias, strict key/host trust, bounded SSH, remote cmd route, explicit WSL distro, and WSL loopback policy health are proven in Phase 02. No Mac local-forward lifecycle or tunneled inference has run.
 - **Deviations:** None.
 - **PR:** Pending.
 - **Final commit SHA:** Pending.
 
 ## Machine handoff
 
-Both machines stay on, but Codex continues from the Mac. The user only visits the PC if Windows→WSL routing diagnostics produce `PC CONSOLE ACTION REQUIRED` with an explicit recovery step.
+When Phase 03 resumes, both machines stay on and Codex continues from the Mac. At the current E-PC-CONVERT blocker, the RTX PC is safely stopped and may remain off.

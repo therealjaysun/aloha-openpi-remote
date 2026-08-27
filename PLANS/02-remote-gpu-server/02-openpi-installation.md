@@ -7,8 +7,8 @@
 - **Validation:** Remote `git status`, remotes, SHA, submodules; `uv run python` imports OpenPI/JAX; `jax.devices()` contains GPU; disk/cache checks.
 - **Acceptance:** Exact secret-scanned project SHA runs in an isolated WSL env and contains the audited upstream base; no CPU-only fallback; sufficient disk and no unexplained partial download; no driver/system security changes; rerun is safe.
 - **Planned commit:** `feat(remote): install pinned OpenPI in WSL`.
-- **Actual findings:** Setup accepted the exact secret-scanned candidate, created its marked managed checkout, verified both submodules, installed pinned CPython 3.11.16, resolved all 279 locked packages, and preserved the partial dependency cache. The first `uv sync --locked` stopped safely while building `evdev==1.9.2` because Ubuntu's Linux input headers were absent; the doctor now checks that prerequisite before setup. Upstream officially supports Ubuntu 22.04, so Ubuntu 24.04 must still pass the completed locked install and GPU checks. The lock includes JAX CUDA 12 and torch 2.7.1.
-- **Remaining blockers:** Install `linux-libc-dev`, pass the amended doctor, resume the idempotent locked sync, and verify JAX uses the RTX 3090 rather than CPU fallback.
-- **Completion status:** Mac implementation complete; hardware acceptance blocked.
+- **Actual findings:** Setup accepted the exact secret-scanned candidate, created its marked managed checkout, verified both submodules, installed pinned CPython 3.11.16, resolved all 279 locked packages, and preserved the checkpoint cache. The initial `evdev==1.9.2` header failure was repaired with Ubuntu's userspace Linux headers; the rerun completed and JAX identified the RTX 3090 rather than falling back to CPU. The lock includes JAX CUDA 12 and torch 2.7.1.
+- **Remaining blockers:** None for the locked JAX installation. PyTorch checkpoint conversion is separately blocked in 02.04 by system RAM.
+- **Completion status:** Complete; exact-candidate setup and JAX GPU validation passed.
 
 The environment step follows the official [uv locked sync behavior](https://docs.astral.sh/uv/concepts/projects/sync/); project and cache paths stay in the WSL filesystem per [Microsoft's WSL filesystem guidance](https://learn.microsoft.com/en-us/windows/wsl/filesystems).

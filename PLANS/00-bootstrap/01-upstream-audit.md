@@ -8,8 +8,8 @@
 - **Acceptance:** All 17 specification questions have evidence; missing upstream files are explicit; no remembered command substitutes for source.
 - **Planned commit:** `docs(audit): pin upstream OpenPI contracts`.
 - **Actual findings:** Research is complete; the verified contract table follows.
-- **Remaining blockers:** None for research; runtime compatibility remains untested.
-- **Completion status:** Research complete; implementation record pending.
+- **Remaining blockers:** None for research. Runtime testing later proved the pinned JAX policy cannot complete first inference on this exact setup; see E-PC-JAX in `PLANS/REQUIREMENTS.md`.
+- **Completion status:** Complete.
 
 ## Verified findings
 

@@ -11,7 +11,7 @@ Codex remains in the Mac project workspace. PC-side work runs remotely over the 
 | P2 — Remote setup | 02 remote validation–03 | Codex runs bounded diagnostics and SSH commands here | On; WSL/OpenPI/server run the exact candidate SHA | Stay at Mac unless Codex reports a Windows-admin blocker |
 | B1 — Both machines | 04–05 | MuJoCo, client, tunnel, video, local telemetry | Policy server and GPU telemetry | Keep PC on/awake; no routine console work |
 | P3 — Final validation | 06 | Tests, docs, security scan, PR work | On only for final GPU/inference checks | Turn on if it was powered down; reply `PC ready` |
-| OFF — Shutdown | After final validation | Stop tunnel/runtime | Stop server/GPU sampler, then PC may power off | Wait for `PC SAFE TO POWER OFF` |
+| OFF — Shutdown | After final validation or a durable blocker | Stop tunnel/runtime | Stop server/GPU sampler, then PC may power off | Wait for `PC SAFE TO POWER OFF` |
 
 ## Notifications Codex will send
 
@@ -40,7 +40,7 @@ Sent only after host trust, bounded batch SSH, shell routing, WSL, and basic GPU
 
 ### `PC SAFE TO POWER OFF`
 
-Sent only after `make stop` attempts cleanup for every owned component and verifies the Mac tunnel plus WSL policy/GPU-metrics processes are stopped. Any live, mismatched, or unverifiable process makes `make stop` nonzero and suppresses this notification. Powering off earlier preserves data already written but interrupts the active phase; the next session must restart server and tunnel.
+Sent after final validation or a durable external blocker, but only when `make stop` attempts cleanup for every owned component and verifies the Mac tunnel plus WSL policy/GPU-metrics processes are stopped. Any live, mismatched, or unverifiable process makes `make stop` nonzero and suppresses this notification. Powering off earlier preserves data already written but interrupts the active phase; the next session must restart server and tunnel.
 
 ## One-time handoff checklist
 

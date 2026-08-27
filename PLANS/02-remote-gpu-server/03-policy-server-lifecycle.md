@@ -8,8 +8,8 @@
 - **Acceptance:** Safe idempotent lifecycle; bounded startup; loopback bind; profile reported; no CPU inference; stop cannot kill an unrelated PID.
 - **Planned commits:** `fix(server): allow loopback policy binding`; `feat(remote): manage selectable policy profiles`.
 - **Actual findings:** The upstream-compatible default remains `0.0.0.0`, while the wrapper requires literal `127.0.0.1`. `--env=ALOHA_SIM` selects task-specific π₀; `--env=ALOHA` selects `pi05_aloha` with `pi05_base`, which provides the native π₀.₅ option but is not sim-task-fine-tuned. Start/check/stop share a user-state lifecycle lock; the background child closes the lock descriptor; an atomic mode-600 record binds PID start identity, command hash, profile, port, source SHA, and log; Linux PIDfd signaling closes the PID-reuse race. A second SSH session revalidates record, listener owner, loopback bind, and health. Real π₀ startup, loopback health, and cross-session survival passed on the RTX 3090. JAX inference OOM persisted at 75%, 90%, and 95% preallocation and with the documented on-demand and minimum-footprint allocators. The one-camera smoke input was still encoding two generated black views whose masks were false; the wrapper now removes only fully masked views before inference and records that mode in handshake metadata, preserving valid-image inputs and mask positions while reducing the compiled prefix.
-- **Remaining blockers:** Re-run real π₀ inference with masked-view compaction, then repeat lifecycle acceptance for π₀.₅.
-- **Completion status:** Mac implementation and pure lifecycle checks complete; hardware acceptance blocked.
+- **Remaining blockers:** π₀.₅ lifecycle was not attempted because π₀ could not return an action and the PyTorch fallback could not be converted on the available system RAM.
+- **Completion status:** π₀ hardware lifecycle and safe cleanup passed; full two-profile acceptance is blocked at inference.
 
 Representative commands after verification:
 

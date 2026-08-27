@@ -7,8 +7,8 @@
 - **Validation:** Fresh-shell command walkthrough on each available machine; link check; compare every documented target/flag/default to source and `make help`; search for private identifiers/paths.
 - **Acceptance:** `REQUIREMENTS.md` DOC01–DOC22 pass or carry exact external blockers; preferred quick start works or stops with one exact next command; both profiles are selectable; substantial upstream differences are listed; no stale/invented/manual step.
 - **Planned commit:** `docs(setup): document complete Mac and RTX workflow`.
-- **Actual findings:** Upstream README accurately documents model install but explicitly does not support macOS; project docs must clearly separate the Mac client venv from WSL model venv.
-- **Remaining blockers:** Implementation commands and real evidence.
+- **Actual findings:** The project-owned README now separates the Mac simulation from WSL inference, links the pinned original OpenPI README, documents both selectable profiles, and states the current memory blocker without claiming successful inference.
+- **Remaining blockers:** Phases 03–05 commands/results and the final troubleshooting/release walkthrough.
 - **Completion status:** Planned.
 
 Planned profile examples:

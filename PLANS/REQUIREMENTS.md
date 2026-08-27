@@ -6,14 +6,14 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 
 | ID | Requirement | Owner | Evidence | Status |
 | --- | --- | --- | --- | --- |
-| G01 | Mac runs MuJoCo/gym-aloha/client; RTX 3090 WSL runs all π inference | 01,02 | process/device evidence | Pending |
+| G01 | Mac runs MuJoCo/gym-aloha/client; RTX 3090 WSL runs all π inference | 01,02 | process/device evidence | Blocked: no action returned; Mac simulation and WSL GPU placement pass, E-PC-JAX |
 | G02 | Default task is `gym_aloha/AlohaTransferCube-v0`; inference only, no training | 01,04 | config/run manifest | Pass: E-MAC01 |
-| G03 | `pi0_aloha_sim` is the task-specific default; `pi05_aloha_base` is optional and explicitly experimental | 02–06 | server metadata and docs | Pass locally: E-MAC02; hardware acceptance pending |
-| G04 | Policy hosts are loopback; Mac reaches WSL only through authenticated SSH local forwarding | 02,03,06 | listener/routing checks | Pending |
-| G05 | Machine values are discovered, not invented; private OS/SSH identity stays untracked | 00,02,03,06 | scan and doctor output | Pending |
+| G03 | `pi0_aloha_sim` is the task-specific default; `pi05_aloha_base` is optional and explicitly experimental | 02–06 | server metadata and docs | Pass through Phase 02: E-MAC02, E-PC-JAX |
+| G04 | Policy hosts are loopback; Mac reaches WSL only through authenticated SSH local forwarding | 02,03,06 | listener/routing checks | Blocked: Mac tunnel pending; WSL loopback passed E-PC-JAX |
+| G05 | Machine values are discovered, not invented; private OS/SSH identity stays untracked | 00,02,03,06 | scan and doctor output | Pass through Phase 02: E-PC-SETUP |
 | G06 | Every shell script starts `set -euo pipefail`, quotes arguments, cleans temporary files, is rerunnable, and emits actionable failures | 00–06 | syntax/unit review | Pending |
 | G07 | `.env` is ignored; `.env.example` contains placeholders only; profile mapping is fixed and never evaluated as code | 00,02,06 | config tests and scan | Pass through Phase 02: E-MAC02 |
-| G08 | Exact upstream pin and Mac/WSL project SHA are recorded before remote tests | 00,02–06 | Git evidence | Pass locally: E-MAC02; WSL equality pending |
+| G08 | Exact upstream pin and Mac/WSL project SHA are recorded before remote tests | 00,02–06 | Git evidence | Pass through Phase 02: E-PC-SETUP |
 | G09 | Weights, checkpoints, caches, raw logs/telemetry, videos, and machine paths remain ignored | 00–06 | tracked/candidate scan | Pass through Phase 02: E-MAC02 |
 | G10 | All seven PRs remain open for human review; no merge/auto-merge/automatic dependent-branch deletion | 00,06 | GitHub PR evidence | Pending |
 | MK01 | Stable targets exist: `doctor doctor-mac doctor-pc setup-mac setup-pc server tunnel smoke-sim smoke-policy run metrics stop test lint secret-scan pr-status` | 00–06 | `make help` and invocations | Pending |
@@ -89,19 +89,19 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | DR03 | Git status and remotes | 00 | doctor output | Pass: E-GH |
 | DR04 | GitHub CLI and authentication | 00 | E-GH | Pass: E-GH |
 | DR05 | Public repository configuration | 00 | E-GH | Pass: E-GH |
-| DR06 | Python and `uv` | 01,02 | doctor output | Pass on Mac: E-MAC01; WSL remains Phase 02 |
+| DR06 | Python and `uv` | 01,02 | doctor output | Pass on Mac and WSL: E-MAC01, E-PC-SETUP |
 | DR07 | MuJoCo importability | 01 | native venv probe | Pass: E-MAC01 |
 | DR08 | `gym_aloha` importability | 01 | native venv probe | Pass: E-MAC01 |
-| DR09 | SSH alias availability | 02,03 | E-PC | Blocked: alias absent |
-| DR10 | Bounded SSH connectivity with verified host key | 02,03 | E-PC | Blocked: PC/alias unavailable |
-| DR11 | Remote shell type: WSL Bash, PowerShell, or cmd.exe | 02,03 | E-PC | Blocked: PC unavailable |
-| DR12 | WSL availability | 02 | E-PC | Blocked: PC unavailable |
-| DR13 | Explicit/detected WSL distro and version | 02 | E-PC | Blocked: PC unavailable |
-| DR14 | RTX 3090 detection | 02 | E-PC | Blocked: PC unavailable |
-| DR15 | NVIDIA driver and CUDA/JAX visibility | 02 | E-PC | Blocked: PC unavailable |
-| DR16 | Remote repo/cache disk margin | 02 | E-PC | Blocked: PC unavailable |
-| DR17 | Configured local/remote port conflicts | 02,03 | listener checks | Pending |
-| DR18 | WSL project installation and exact SHA | 02 | E-PC | Blocked: PC unavailable |
+| DR09 | SSH alias availability | 02,03 | E-PC-SETUP | Pass: E-PC-SETUP |
+| DR10 | Bounded SSH connectivity with verified host key | 02,03 | E-PC-SETUP | Pass: E-PC-SETUP |
+| DR11 | Remote shell type: WSL Bash, PowerShell, or cmd.exe | 02,03 | E-PC-SETUP | Pass: Windows cmd route, E-PC-SETUP |
+| DR12 | WSL availability | 02 | E-PC-SETUP | Pass: E-PC-SETUP |
+| DR13 | Explicit/detected WSL distro and version | 02 | E-PC-SETUP | Pass: explicitly selected Ubuntu 24.04, E-PC-SETUP |
+| DR14 | RTX 3090 detection | 02 | E-PC-SETUP | Pass: E-PC-SETUP |
+| DR15 | NVIDIA driver and CUDA/JAX visibility | 02 | E-PC-SETUP | Pass: E-PC-SETUP |
+| DR16 | Remote repo/cache disk margin | 02 | E-PC-SETUP | Pass: E-PC-SETUP |
+| DR17 | Configured local/remote port conflicts | 02,03 | listener checks | Blocked: Mac tunnel port pending; WSL port gate passed E-PC-SETUP |
+| DR18 | WSL project installation and exact SHA | 02 | E-PC-SETUP | Pass: E-PC-SETUP |
 | DR19 | Public-repository secret hygiene | 00,06 | fail-closed scan | Pass through Phase 01: E-GH |
 
 Every failed doctor row names the failed check and one exact next command; it does not silently fall back.
@@ -121,11 +121,11 @@ Every failed doctor row names the failed check and one exact next command; it do
 | RO09 | Time waiting for action chunks | 04,05 | JSONL/summary | Pending |
 | RO10 | Connection failures | 05 | JSONL/summary | Pending |
 | RO11 | Retry events | 05 | JSONL/summary | Pending |
-| RO12 | GPU memory | 02,05 | GPU JSONL/summary | Pending |
-| RO13 | GPU utilization samples | 02,05 | GPU JSONL/summary | Pending |
+| RO12 | GPU memory | 02,05 | GPU JSONL/summary | Blocked: successful-run summary pending; failed-request samples exist, E-PC-JAX |
+| RO13 | GPU utilization samples | 02,05 | GPU JSONL/summary | Blocked: successful-run summary pending; failed-request samples exist, E-PC-JAX |
 | RO14 | Relevant raw OpenPI server logs copied to ignored run directory | 05 | ignored artifact/hash | Pending |
-| RO15 | Project and upstream OpenPI commits | 02,04,05 | metadata/summary | Pending |
-| RO16 | Environment package versions | 01,02,05 | metadata/summary | Pass for Mac: E-MAC01; WSL remains Phase 02 |
+| RO15 | Project and upstream OpenPI commits | 02,04,05 | metadata/summary | Pass through Phase 02: E-PC-SETUP |
+| RO16 | Environment package versions | 01,02,05 | metadata/summary | Pass on Mac and WSL through Phase 02: E-MAC01, E-PC-SETUP |
 
 Infrastructure passes when valid chunks drive complete simulator episodes without schema/network termination and artifacts/metrics persist. Cube-transfer success is always a separate result.
 
@@ -134,24 +134,24 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | ID | Requirement | Owner | Evidence | Status |
 | --- | --- | --- | --- | --- |
 | R01 | Finite connect, metadata, and inference timeouts | 03 | focused client tests | Pending |
-| R02 | Bounded initial server startup retries | 02 | lifecycle tests | Pending |
+| R02 | Bounded initial server startup retries | 02 | lifecycle tests | Pass locally and for real π₀ startup: E-MAC02, E-PC-JAX |
 | R03 | Graceful Ctrl+C shutdown | 04,05 | interrupt test | Pending |
 | R04 | Tunnel cleanup | 03,05 | owned-process test | Pending |
-| R05 | Remote server/sampler cleanup | 02,05 | owned-process test | Pending |
-| R06 | Duplicate server protection | 02 | lifecycle test | Pending |
+| R05 | Remote server/sampler cleanup | 02,05 | owned-process test | Blocked: sampler pending; policy-server cleanup passed E-PC-STOP |
+| R06 | Duplicate server protection | 02 | lifecycle test | Pass locally: E-MAC02 |
 | R07 | Duplicate tunnel protection | 03 | lifecycle test | Pending |
 | R08 | Timestamped ignored run directories | 04,05 | artifact check | Pending |
 | R09 | Shape validation | 03,04 | contract tests | Pass for Phase 02 boundary: E-MAC02 |
 | R10 | Dtype validation | 03,04 | contract tests | Pass for Phase 02 boundary: E-MAC02 |
 | R11 | NaN/infinity validation | 03,04 | contract tests | Pass for Phase 02 boundary: E-MAC02 |
 | R12 | Configuration validation | 01–04 | config tests | Pass through Phase 02: E-MAC02 |
-| R13 | Checkpoint download status and non-destructive partial-cache handling | 02,05 | lifecycle/failure evidence | Pending |
-| R14 | Port conflict diagnostics | 02,03 | lifecycle tests | Pending |
+| R13 | Checkpoint download status and non-destructive partial-cache handling | 02,05 | lifecycle/failure evidence | Blocked: π₀.₅ pending; π₀ passed E-PC-SETUP |
+| R14 | Port conflict diagnostics | 02,03 | lifecycle tests | Pass locally: E-MAC02; real WSL port gate passed E-PC-SETUP |
 | R15 | Native macOS rendering diagnostics | 01 | smoke/failure evidence | Pass: E-MAC01 |
-| R16 | WSL GPU diagnostics and CPU-fallback rejection | 02 | E-PC | Blocked: PC unavailable |
-| R17 | Remote shell detection | 02,03 | three-route tests | Pass locally: E-MAC02; real route pending |
-| R18 | Safe Windows→WSL quoting | 02,03 | PowerShell/cmd tests | Pass locally: E-MAC02; real route pending |
-| R19 | Stale/reused PID detection before signaling | 02,03,05 | lifecycle tests | Pass locally: E-MAC02; WSL lifecycle pending |
+| R16 | WSL GPU diagnostics and CPU-fallback rejection | 02 | E-PC-SETUP | Pass: E-PC-SETUP |
+| R17 | Remote shell detection | 02,03 | three-route tests | Pass locally and on real cmd route: E-MAC02, E-PC-SETUP |
+| R18 | Safe Windows→WSL quoting | 02,03 | PowerShell/cmd tests | Pass locally and on real cmd route: E-MAC02, E-PC-SETUP |
+| R19 | Stale/reused PID detection before signaling | 02,03,05 | lifecycle tests | Pass locally and for Phase 02 stop: E-MAC02, E-PC-STOP |
 | R20 | Partial run result preservation after failure | 04,05 | interrupt/write-failure tests | Pending |
 
 ## Required pure tests
@@ -216,15 +216,15 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | DOD10 | Final branch contains the complete project | 06 | Pending | — |
 | DOD11 | Mac creates/steps dual-arm ALOHA sim | 01 | Pass | E-MAC01 |
 | DOD12 | Mac renders/saves video | 01 | Pass | E-MAC01 |
-| DOD13 | WSL detects RTX 3090 | 02 | Blocked: PC unavailable | E-PC |
-| DOD14 | Correct selected ALOHA policy loads on RTX 3090 | 02 | Blocked: PC unavailable | E-PC |
-| DOD15 | Server persists after setup SSH exits | 02 | Blocked: PC unavailable | E-PC |
-| DOD16 | Mac reaches server through SSH tunnel | 03 | Blocked: PC unavailable | E-PC |
-| DOD17 | Smoke test returns finite expected action chunk | 02,03 | Blocked: PC unavailable | E-PC |
-| DOD18 | Mac executes returned actions in MuJoCo | 04 | Blocked: PC unavailable | E-PC |
-| DOD19 | At least one complete policy-controlled episode runs | 04 | Blocked: PC unavailable | E-PC |
-| DOD20 | Videos and structured metrics are saved | 04,05 | Blocked: PC unavailable | E-PC |
-| DOD21 | GPU memory and inference latency are reported | 02,05 | Blocked: PC unavailable | E-PC |
+| DOD13 | WSL detects RTX 3090 | 02 | Pass | E-PC-SETUP |
+| DOD14 | Correct selected ALOHA policy loads on RTX 3090 | 02 | Blocked: π₀ loads but no action returns; π₀.₅ untested | E-PC-JAX |
+| DOD15 | Server persists after setup SSH exits | 02 | Blocked: π₀ passes; π₀.₅ untested | E-PC-JAX |
+| DOD16 | Mac reaches server through SSH tunnel | 03 | Blocked: Phase 03 awaits valid inference | E-PC-JAX |
+| DOD17 | Smoke test returns finite expected action chunk | 02,03 | Blocked: first π₀ inference CUDA-OOM | E-PC-JAX |
+| DOD18 | Mac executes returned actions in MuJoCo | 04 | Blocked by DOD17 | E-PC-JAX |
+| DOD19 | At least one complete policy-controlled episode runs | 04 | Blocked by DOD17 | E-PC-JAX |
+| DOD20 | Videos and structured metrics are saved | 04,05 | Blocked by DOD17 for policy runs; Phase 01 sim video passed | E-PC-JAX, E-MAC01 |
+| DOD21 | GPU memory and inference latency are reported | 02,05 | Blocked: failed-request GPU memory exists but no successful latency | E-PC-JAX |
 | DOD22 | Unit tests pass | 00–06 | Pass through Phase 02 locally: E-MAC02 | E-MAC02 |
 | DOD23 | Relevant upstream checks pass or exact infeasible lane is recorded | 00,06 | Pending | — |
 | DOD24 | CPU-only public CI is configured where practical | 00 | Pass: hosted checks are green through Phase 02 | E-GH, E-MAC01, E-MAC02 |
@@ -240,8 +240,11 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | Ref | Rows | Evidence | Exact recovery |
 | --- | --- | --- | --- |
 | E-GH | PH16–PH17, DR03–DR05, DR19, DOC03, DOD04–DOD09, DOD24 | Mac; `2026-08-27T04:54:26Z`; authenticated `gh` checks, repository/remote/SHA inspection, Actions-permission API inspection, fail-closed local Gitleaks 8.30.1 scans, and hosted PR checks passed; public repo `https://github.com/therealjaysun/pi-robotics`; project SHA `d16bd6cf1d086044760315ede59e0b73eca7dabd`; upstream/main SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; PRs 1–2 open, non-draft, green, and without auto-merge; profile N/A; raw artifact N/A | Reverify with `gh auth status && gh repo view therealjaysun/pi-robotics && gh pr checks 1 --repo therealjaysun/pi-robotics && gh pr checks 2 --repo therealjaysun/pi-robotics`. |
-| E-PC | DR09–DR16, DR18, R16, DOD13–DOD21 | Mac; planning audit 2026-08-26; `robot-gpu` not configured and no PC/WSL command was run; no hardware state is claimed; upstream source SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; profile not tested; raw artifact N/A | After a secret-scanned phase 02 candidate SHA exists, power on the PC, reply `PC ready`, complete the fingerprint gate, then run `make doctor-pc`. |
+| E-PC-SETUP | G05, G08, DR06, DR09–DR18, RO15–RO16, R13–R18, DOD13 | Mac→Windows cmd→Ubuntu-24.04 WSL2; `2026-08-27T19:24:40Z`; `OPENPI_WSL_DISTRO=Ubuntu-24.04 make doctor-pc` and `OPENPI_WSL_DISTRO=Ubuntu-24.04 make setup-pc` each exited 0; project/WSL SHA `3c3f849b1033c581d6e649980446362cc99e35f9`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; profile N/A. Strict SSH trust, WSL x86_64, RTX 3090 (24,576 MiB), driver 591.86, disk/port/tools, 279-package locked setup, JAX GPU selection, exact SHAs, and π₀ checkpoint cache passed. Ignored artifacts: `outputs/phase02/20260827T192440.120152Z/06-doctor-pc.log` SHA-256 `4b501e506925d98a65d1cc967f6d64702f764370be7be5c0ff87f49b8e213dab`; `07-setup-pc.log` SHA-256 `63c839a1c520b662da622a9f34572bb76a3d640829dffdb0f22bd591d0ab76f5`. | No setup recovery. Continue with E-PC-JAX; Ubuntu 24.04 remains an explicitly experimental target. |
+| E-PC-JAX | G01, G03–G04, RO12–RO13, R02, DOD14–DOD21 | WSL RTX 3090; `2026-08-27T18:57:30Z`–`2026-08-27T19:29:52Z`; profile `pi0_aloha_sim`; candidate/upstream SHAs as E-PC-SETUP. Bounded `make server` runs exited 0 and `make smoke-policy` exited 1 for JAX 75/90/95% preallocation, on-demand, minimum-footprint platform, and compacted-view 90/95 variants. Checkpoint load, loopback health, cross-session survival, and GPU attribution passed, but every first request failed with CUDA OOM and no action/latency returned; π₀.₅ was not run. Final compacted smoke artifacts: `outputs/phase02/20260827T192605.118736Z/01-policy-smoke.log` SHA-256 `36499d76c2beb096ae7f70f9d7b18122a7134979de6645801c1961c2ec69008f`; `outputs/phase02/20260827T192852.717146Z/01-policy-smoke.log` SHA-256 `cd972cc8ab2397f54ea76065050ce8f1dd8e8c36d71fc4e08855c4cefb4665a9`. | Continue with E-PC-CONVERT; do not add undocumented or experimental JAX allocator flags. |
+| E-PC-CONVERT | G01, DOD14, DOD17 | WSL CPU conversion experiment; `2026-08-27T19:31:02Z`–`2026-08-27T19:36:32Z`; profile/config `pi0_aloha_sim`; candidate/upstream SHAs as E-PC-SETUP. `JAX_PLATFORMS=cpu .venv/bin/python examples/convert_jax_model_to_pytorch.py --checkpoint_dir "$HOME/.cache/openpi/openpi-assets/checkpoints/pi0_aloha_sim" --config_name pi0_aloha_sim --output_path "$HOME/.cache/openpi/openpi-assets/checkpoints/pi0_aloha_sim_pytorch" --precision bfloat16` was kernel-OOM-killed (exit 15); a BF16 restore-only probe was also OOM-killed with roughly 11.7 GiB WSL RAM. Source inspection estimates roughly 24 GiB overlapping converter data before overhead; ≥32 GiB available RAM is an evidence-based practical target, not an upstream-published minimum. Ignored artifacts: `outputs/phase02/20260827T193102.783910Z/06-convert-pi0-pytorch.log` SHA-256 `13b81f95d69ae5b4a110e0d6623a373dd9b758d79141367700c4c412505ffe41`; `outputs/phase02/20260827T193314.715343Z/06-conversion-diagnostic.log` SHA-256 `4c04e7140e6bf1b761749c3d778975f6679fe7f270e879998e7419d298f7e15b`; `outputs/phase02/20260827T193632.062956Z/06-oom-history.log` SHA-256 `8db7dbaa9b18413e364e96a027ecde35e4512f8a8f90d0de29064c8902c7bc4c`. | User action: upgrade the RTX PC or provide an SSH-accessible CPU Ubuntu 22.04 host with ≥32 GiB RAM available to the process and ≥60 GiB disk (64 GB total RAM preferred for Windows/WSL), then reply `conversion host ready`. Codex performs conversion, asset copy, hashing, strict load, backend selection, and both profile smokes. |
+| E-PC-STOP | R05, R19 | Mac→WSL; `2026-08-27T19:29:52Z`; profile `pi0_aloha_sim`; `make stop` exited 0 and identity verification reported the owned policy server stopped; no Mac tunnel or long-lived GPU sampler was started. Ignored artifact: `outputs/phase02/20260827T192952.329288Z/01-server-stop.log` SHA-256 `762b2a1134769cf82a13b0c95cfcc69d46f1d87692c1ec17ee291bc9a4c1e4a0`. | None; PC is safe to power off. |
 | E-MAC01 | G02, MF01, DR01–DR02, DR06–DR08, RO07, RO16, R15, T01–T02, DOD11–DOD12, DOD24 | Mac; `2026-08-27T03:37:18Z`; `make setup-mac && make doctor-mac && make ci`, fresh lightweight-venv `make ci`, and two `make smoke-sim` runs exited 0; project SHA `44e1d5f229c787d7d1af24bf323a968bce33dfcf`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; profile N/A; native arm64 Python 3.10.20; two 900-step totals; p95 11.880/11.750 ms; 300-frame 224×224 video at 50 fps; ignored manifests `outputs/phase01/20260827T033612.389060Z/manifest.json` (`cfd484…d0d3`) and `outputs/phase01/20260827T033659.222401Z/manifest.json` (`8a8394…cfda`) | Rerun `make setup-mac && make doctor-mac && make ci && make smoke-sim` from the logged-in Mac desktop session. |
-| E-MAC02 | G03, G07–G09, PH12, PH15–PH17, R09–R12, R17–R19, T03–T04, T11, DOD07–DOD09, DOD22, DOD24–DOD26 | Mac + GitHub-hosted Linux; `2026-08-27T05:49:13Z`; implementation commit `7f024035822c341acfc705c44842431a6fd57695`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; `make ci` in project and fresh hash-pinned Python 3.10 environments, Ruff/format, generated/static Bash syntax, Python compile, workflow YAML, 42-plan/151-requirement/28-config/link validation, candidate-gate tests, staged/commit/candidate Gitleaks, exact clean pushed-candidate gate, and agent-team contract/operations/test audits passed; 100 tests passed on Mac with the Linux PIDfd launch test skipped; both hosted Linux pure-checks runs and both hosted secret-scan runs passed at evidence head `f76493dcd5b82e3755b8e900745c5aa04d6fc300`, including the PIDfd test; `make smoke-sim` passed 900 steps with p95 13.836 ms and a 300-frame 224×224 50 fps video; ignored manifest `outputs/phase01/20260827T054717.634913Z/manifest.json` (`756922…7e9`); profiles implemented but not run on hardware; draft [PR 3](https://github.com/therealjaysun/pi-robotics/pull/3); raw remote artifact N/A | Power on the PC, reply `PC ready`, complete the fingerprint gate, and run `make doctor-pc`. |
+| E-MAC02 | G03, G07–G09, PH12, PH15–PH17, R09–R12, R17–R19, T03–T04, T11, DOD07–DOD09, DOD22, DOD24–DOD26 | Historical initial Phase 02 staging evidence: Mac + GitHub-hosted Linux; `2026-08-27T05:49:13Z`; implementation commit `7f024035822c341acfc705c44842431a6fd57695`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; 100 tests passed on Mac with the Linux PIDfd launch test skipped; hosted pure checks and secret scan passed. Its 28-key count predates `OPENPI_JAX_MEM_FRACTION`; current validation is recorded separately. | Continue from E-PC-CONVERT; do not repeat the completed power/SSH gate. |
 
 Phase 06 does not convert a blocked row to pass. It reports the blocker and the single exact command or user action that resumes it.
