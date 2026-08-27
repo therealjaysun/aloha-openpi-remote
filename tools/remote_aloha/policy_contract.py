@@ -19,6 +19,7 @@ def validate_server_metadata(metadata: object, profile: PolicyProfile, source_sh
         "action_horizon": profile.action_horizon,
         "action_dimension": profile.action_dimension,
         "source_sha": source_sha,
+        "compact_masked_images": True,
         "jax_platform": "gpu",
     }
     for key, value in expected.items():

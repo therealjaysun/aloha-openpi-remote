@@ -57,6 +57,7 @@ class Args:
     policy_profile: str | None = None
     require_jax_platform: str | None = None
     require_jax_device: str | None = None
+    compact_masked_images: bool = False
 
     # Specifies how to load the policy. If not provided, the default policy for the environment will be used.
     policy: Checkpoint | Default = dataclasses.field(default_factory=Default)
@@ -83,11 +84,16 @@ DEFAULT_CHECKPOINT: dict[EnvMode, Checkpoint] = {
 }
 
 
-def create_default_policy(env: EnvMode, *, default_prompt: str | None = None) -> _policy.Policy:
+def create_default_policy(
+    env: EnvMode, *, default_prompt: str | None = None, compact_masked_images: bool = False
+) -> _policy.Policy:
     """Create a default policy for the given environment."""
     if checkpoint := DEFAULT_CHECKPOINT.get(env):
         return _policy_config.create_trained_policy(
-            _config.get_config(checkpoint.config), checkpoint.dir, default_prompt=default_prompt
+            _config.get_config(checkpoint.config),
+            checkpoint.dir,
+            default_prompt=default_prompt,
+            compact_masked_images=compact_masked_images,
         )
     raise ValueError(f"Unsupported environment mode: {env}")
 
@@ -97,10 +103,17 @@ def create_policy(args: Args) -> _policy.Policy:
     match args.policy:
         case Checkpoint():
             return _policy_config.create_trained_policy(
-                _config.get_config(args.policy.config), args.policy.dir, default_prompt=args.default_prompt
+                _config.get_config(args.policy.config),
+                args.policy.dir,
+                default_prompt=args.default_prompt,
+                compact_masked_images=args.compact_masked_images,
             )
         case Default():
-            return create_default_policy(args.env, default_prompt=args.default_prompt)
+            return create_default_policy(
+                args.env,
+                default_prompt=args.default_prompt,
+                compact_masked_images=args.compact_masked_images,
+            )
 
 
 def _profile_metadata(args: Args) -> dict:
@@ -126,6 +139,7 @@ def _profile_metadata(args: Args) -> dict:
         "action_horizon": 50,
         "action_dimension": 14,
         "source_sha": source_sha,
+        "compact_masked_images": args.compact_masked_images,
     }
 
 

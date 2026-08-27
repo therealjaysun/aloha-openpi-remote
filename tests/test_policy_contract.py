@@ -19,6 +19,7 @@ def test_policy_metadata_and_response_contract(profile_name: str) -> None:
         "action_horizon": 50,
         "action_dimension": 14,
         "source_sha": SHA,
+        "compact_masked_images": True,
         "jax_platform": "gpu",
         "jax_device": "NVIDIA GeForce RTX 3090",
     }
@@ -51,6 +52,7 @@ def test_mismatched_metadata_is_rejected() -> None:
         "action_horizon": 50,
         "action_dimension": 14,
         "source_sha": SHA,
+        "compact_masked_images": True,
         "jax_platform": "gpu",
         "jax_device": "NVIDIA GeForce RTX 3090",
     }

@@ -87,6 +87,7 @@ command=(
     "--policy-profile=$profile"
     --require-jax-platform=gpu
     --require-jax-device=3090
+    --compact-masked-images
     "${prompt[@]}"
 )
 pid="$(.venv/bin/python -m tools.remote_aloha.process_record launch \

@@ -29,6 +29,7 @@ def test_policy_server_host_and_gpu_metadata_patch_is_localized() -> None:
     assert "socket.gethostbyname" not in source
     assert "require_jax_platform" in source
     assert "require_jax_device" in source
+    assert "compact_masked_images" in source
     assert '"action_dimension": 14' in source
 
 
@@ -45,6 +46,7 @@ def test_wsl_start_wrapper_has_exact_two_profile_routes_and_loopback() -> None:
     assert "killall" not in source
     assert "--require-jax-platform=gpu" in source
     assert "--require-jax-device=3090" in source
+    assert "--compact-masked-images" in source
     assert '"XLA_PYTHON_CLIENT_MEM_FRACTION=$jax_mem_fraction"' in source
     assert "0.75|0.80|0.85|0.90|0.95" in source
     assert "process_record launch" in source
@@ -59,6 +61,11 @@ def test_wsl_start_wrapper_has_exact_two_profile_routes_and_loopback() -> None:
     client = Path("tools/remote_aloha/policy_smoke.py").read_text(encoding="utf-8")
     assert '"images": {"cam_high": image}' in client
     assert '"prompt"' not in client
+
+    policy = Path("src/openpi/policies/policy.py").read_text(encoding="utf-8")
+    assert "if self._compact_masked_images:" in policy
+    model = Path("src/openpi/models/pi0.py").read_text(encoding="utf-8")
+    assert "image_keys=tuple(observation.images)" in model
 
 
 def test_runtime_evidence_paths_are_ignored() -> None:

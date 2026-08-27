@@ -33,6 +33,7 @@ class Policy(BasePolicy):
         metadata: dict[str, Any] | None = None,
         pytorch_device: str = "cpu",
         is_pytorch: bool = False,
+        compact_masked_images: bool = False,
     ):
         """Initialize the Policy.
 
@@ -54,6 +55,7 @@ class Policy(BasePolicy):
         self._metadata = metadata or {}
         self._is_pytorch_model = is_pytorch
         self._pytorch_device = pytorch_device
+        self._compact_masked_images = compact_masked_images
 
         if self._is_pytorch_model:
             self._model = self._model.to(pytorch_device)
@@ -69,6 +71,12 @@ class Policy(BasePolicy):
         # Make a copy since transformations may modify the inputs in place.
         inputs = jax.tree.map(lambda x: x, obs)
         inputs = self._input_transform(inputs)
+        if self._compact_masked_images:
+            present = [name for name, mask in inputs["image_mask"].items() if bool(mask)]
+            if not present:
+                raise ValueError("at least one image must be present")
+            inputs["image"] = {name: inputs["image"][name] for name in present}
+            inputs["image_mask"] = {name: inputs["image_mask"][name] for name in present}
         if not self._is_pytorch_model:
             # Make a batch and convert to jax.Array.
             inputs = jax.tree.map(lambda x: jnp.asarray(x)[np.newaxis, ...], inputs)
