@@ -333,16 +333,22 @@ def doctor(session: RemoteSession, target: RemoteTarget | None = None) -> Remote
         label="doctor-pc",
     )
     facts = _markers(output)
-    if facts.get("OS_ID") != "ubuntu" or facts.get("OS_VERSION") != "22.04":
-        raise RemoteError("OpenPI requires the discovered WSL distro to be Ubuntu 22.04")
+    version = facts.get("OS_VERSION")
+    if facts.get("OS_ID") != "ubuntu" or version not in {"22.04", "24.04"}:
+        raise RemoteError("the selected WSL distro must be Ubuntu 22.04 or 24.04")
+    if version == "24.04" and session.config.wsl_distro != target.distro:
+        raise RemoteError("Ubuntu 24.04 is experimental; select it explicitly with OPENPI_WSL_DISTRO")
     if facts.get("WSL2") != "yes" or facts.get("ARCH") != "x86_64":
         raise RemoteError("the selected distro must be x86_64 WSL2")
     if "3090" not in facts.get("GPU_NAME", ""):
         raise RemoteError("RTX 3090 validation failed")
     if facts.get("TOOLS") != "ready":
         raise RemoteError(f"required WSL tools are missing: {facts.get('TOOLS', 'unknown')}")
+    if facts.get("UV") == "missing":
+        raise RemoteError("uv is missing in the selected WSL distro")
     summary = {
-        "os": f"Ubuntu {facts['OS_VERSION']} WSL2",
+        "os": f"Ubuntu {version} WSL2",
+        "openpi_support": "upstream" if version == "22.04" else "experimental",
         "architecture": facts["ARCH"],
         "gpu": facts["GPU_NAME"],
         "gpu_memory_mib": facts.get("GPU_MEMORY_MIB"),

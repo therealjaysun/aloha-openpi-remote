@@ -115,6 +115,33 @@ def test_generated_wsl_bash_is_valid(script: str) -> None:
     subprocess.run(["bash", "-n"], input=script, text=True, check=True)
 
 
+def test_doctor_accepts_selected_ubuntu_2404_and_requires_uv(monkeypatch: pytest.MonkeyPatch) -> None:
+    uv = "uv 0.8.13"
+
+    def run_wsl(*args: object, **kwargs: object) -> str:
+        return "\n".join(
+            [
+                "__ALOHA_OS_ID__=ubuntu",
+                "__ALOHA_OS_VERSION__=24.04",
+                "__ALOHA_WSL2__=yes",
+                "__ALOHA_ARCH__=x86_64",
+                "__ALOHA_GPU_NAME__=NVIDIA GeForce RTX 3090",
+                "__ALOHA_TOOLS__=ready",
+                f"__ALOHA_UV__={uv}",
+            ]
+        )
+
+    monkeypatch.setattr(RemoteSession, "run_wsl", run_wsl)
+    session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04"))
+    target = RemoteTarget("powershell", "Ubuntu-24.04")
+    assert remote_module.doctor(session, target) == target
+    with pytest.raises(RemoteError, match="select it explicitly"):
+        remote_module.doctor(RemoteSession(RemoteConfig()), target)
+    uv = "missing"
+    with pytest.raises(RemoteError, match="uv is missing"):
+        remote_module.doctor(session, target)
+
+
 def test_shell_route_and_distro_selection_are_unambiguous() -> None:
     outputs = {"bash": (1, ""), "powershell": (0, "__ALOHA_ROUTE_POWERSHELL__"), "cmd": (1, "")}
     assert classify_route(outputs) == "powershell"
