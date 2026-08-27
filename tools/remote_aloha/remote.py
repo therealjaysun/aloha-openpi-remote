@@ -320,7 +320,8 @@ printf '__ALOHA_PORT__=%s\n' "$port_state"
 printf '__ALOHA_PYTHON__=%s\n' "$(python3 --version 2>&1 || printf missing)"
 printf '__ALOHA_UV__=%s\n' "$(uv --version 2>/dev/null || printf missing)"
 missing=()
-for tool in base64 curl flock git ss timeout; do command -v "$tool" >/dev/null || missing+=("$tool"); done
+for tool in base64 cc curl flock git ss timeout; do command -v "$tool" >/dev/null || missing+=("$tool"); done
+[[ -r /usr/include/linux/input.h && -r /usr/include/linux/input-event-codes.h ]] || missing+=(linux-input-headers)
 printf '__ALOHA_TOOLS__=%s\n' "${{missing[*]:-ready}}"
 """
 
