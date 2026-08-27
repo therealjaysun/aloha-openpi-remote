@@ -1,13 +1,13 @@
 # Project status
 
-Planning baseline: 2026-08-26. Plans are complete; implementation has not started.
+Planning baseline: 2026-08-26. Plans are complete; Phase 01 implementation and native validation are complete.
 
 Final plan review: 2026-08-26. Independent specification, technical-source, and operations/security audits were reconciled; structural and link validation evidence is recorded by the completing turn.
 
 | Phase | Status | Branch | PR number | PR URL | Base branch | Head branch | Tests | Blockers | Last commit |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 00 Bootstrap | Planned | `codex/00-bootstrap` | — | — | `main` | `codex/00-bootstrap` | Not run | GitHub token invalid; public origin not configured; repository existence unknown | — |
-| 01 Mac simulation | Planned | `codex/01-mac-simulation` | — | — | `codex/00-bootstrap` | `codex/01-mac-simulation` | Not run | Native packages not installed/tested | — |
+| 00 Bootstrap | Prerequisite baseline complete; full phase blocked | `codex/00-bootstrap` | — | — | `main` | `codex/00-bootstrap` | Tracked baseline checks passed | GitHub token invalid; public origin not configured; repository existence unknown | `13426ca` |
+| 01 Mac simulation | Complete locally | `codex/01-mac-simulation` | — | — | `codex/00-bootstrap` | `codex/01-mac-simulation` | 18 tests + Ruff/format/shell + doctor + two 900-step runs passed | PR cannot be published until GitHub auth/origin is restored | `44e1d5f` validated implementation |
 | 02 Remote GPU | Planned | `codex/02-remote-gpu-server` | — | — | `codex/01-mac-simulation` | `codex/02-remote-gpu-server` | Not run | SSH alias and PC access unavailable | — |
 | 03 Connectivity | Planned | `codex/03-secure-connectivity` | — | — | `codex/02-remote-gpu-server` | `codex/03-secure-connectivity` | Not run | Remote shell/routing mode unknown | — |
 | 04 End-to-end | Planned | `codex/04-end-to-end-control` | — | — | `codex/03-secure-connectivity` | `codex/04-end-to-end-control` | Not run | Depends on phases 01–03 | — |
@@ -18,9 +18,9 @@ Final plan review: 2026-08-26. Independent specification, technical-source, and 
 
 - Volatile snapshot at `2026-08-27T03:09:59Z`: Apple Silicon arm64, macOS 26.6.1, 18 GB RAM, 58 GiB workspace disk free. Rerun `make doctor-mac` before capacity decisions.
 - Tools: Python 3.14.5 default, `uv 0.12.1`, `gh 2.89.0`, Docker 28.0.4.
-- Required Python 3.10 environments are not created; simulator imports are absent from the default Python by design.
-- Source baseline: the official clone was clean at `215abfb217dbac7d5f1273282331b9b1866c0479`. The current planning working tree contains this `PLANS/` hierarchy and the README audit banner, plus unrelated untracked `.DS_Store` files that must not be staged.
-- Remotes: current `origin` is official OpenPI; phase 00 must verify and rename it to `upstream` before creating the user's `origin`.
+- Native arm64 Python 3.10.20 now exists only in ignored `examples/aloha_sim/.venv`; the default Python remains untouched and no model/JAX/CUDA stack is installed on Mac.
+- Source baseline remains upstream `215abfb217dbac7d5f1273282331b9b1866c0479`. Baseline commit is `13426ca`; validated Phase 01 implementation is `44e1d5f229c787d7d1af24bf323a968bce33dfcf`.
+- Remotes: official OpenPI is now `upstream`; no user `origin` is configured while GitHub authentication is invalid.
 - Submodules: ALOHA `d1dc83afd89ded4379851257fe5d85632d31d5ec`; LIBERO `f78abd68ee283de9f9be3c8f7e2a9ad60246e95c`.
 - GitHub: authentication check failed because the stored token is invalid. Repository existence was not queried. See [`00-bootstrap/04-github-blocker.md`](00-bootstrap/04-github-blocker.md).
 - SSH: `robot-gpu` is not configured. No remote facts have been guessed.
@@ -37,11 +37,11 @@ Final plan review: 2026-08-26. Independent specification, technical-source, and 
 
 ## Execution cursor
 
-- Active subphase: planning final review complete; implementation has not started.
+- Active subphase: Phase 01 complete; stopped before Phase 02 local staging as requested.
 - Machine gate: M0 — Mac only.
-- Exact next implementation command: `git switch -c codex/00-bootstrap` after confirming the planning changes are ready to become the phase baseline.
+- Exact next implementation command when Phase 02 is authorized: `git switch -c codex/02-remote-gpu-server` from `codex/01-mac-simulation`; complete local staging and secret scanning before powering on the PC.
 - External recovery (non-blocking for local work): `gh auth login -h github.com`.
-- Last verified local SHA: `215abfb217dbac7d5f1273282331b9b1866c0479`; last verified WSL SHA: unknown.
+- Last verified local implementation SHA: `44e1d5f229c787d7d1af24bf323a968bce33dfcf`; last verified WSL SHA: unknown.
 - PR state: all seven pending; when created they remain draft until full phase acceptance or a user-approved named hardware exception.
 
 Update this cursor immediately before pausing for GitHub login, `PC ready`, PC console work, or power-off.

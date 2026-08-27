@@ -13,11 +13,11 @@
 - **Test commands:** `make doctor-mac`; `make setup-mac`; `make smoke-sim`; `make test`; `make lint`; `file examples/aloha_sim/.venv/bin/python`; `ffprobe <generated-video>` when available.
 - **Risks:** Old official lock vs newer macOS; dm-control GLFW library discovery; Python 3.14 default accidentally used; render nondeterminism; disk growth from video.
 - **Rollback:** Remove only the ignored phase venv/output directories; revert phase commits; no system driver/security changes.
-- **Current status:** Plan complete; implementation not started.
-- **Actual results:** Mac arm64/macOS 26.6.1/18 GB detected; default Python 3.14.5 lacks simulator packages; `uv` present; 58 GiB free at `2026-08-27T03:09:59Z` (volatile). No install or simulation ran.
-- **Deviations:** None.
-- **PR:** Pending.
-- **Final commit SHA:** Pending.
+- **Current status:** Complete locally; publication/PR remains blocked only by the existing GitHub authentication issue.
+- **Actual results:** At validated implementation SHA `44e1d5f229c787d7d1af24bf323a968bce33dfcf`, native arm64 Python 3.10.20 imported the pinned simulator, rendered successfully, and completed two repeat runs of seeds 0–2 at 300 steps each. Aggregate step+render+224-conversion p95 was 11.880 ms and 11.750 ms, below the 20 ms gate. Each run decoded a 300-frame 224×224 MP4 at 50 fps. `make ci` passed 18 tests, Ruff, formatting, and shell syntax in both the simulator environment and a fresh nine-package lightweight environment.
+- **Deviations:** The planned Mac-only `imageio-ffmpeg==0.6.0` override was required. macOS 26 no longer resolves the legacy OpenGL path hard-coded by pinned MuJoCo 2.3.7, so setup applies a narrow installed-file path correction while retaining the pinned physics engine; doctor and full simulation validate it on every fresh setup.
+- **PR:** Pending; no user `origin` exists and GitHub authentication remains invalid.
+- **Final commit SHA:** Validated implementation `44e1d5f229c787d7d1af24bf323a968bce33dfcf`; this evidence update is branch HEAD.
 
 ## Machine handoff
 

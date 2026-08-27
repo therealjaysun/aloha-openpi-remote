@@ -7,8 +7,8 @@
 - **Validation:** `uv run --python 3.10`/venv Python reports arm64; import `mujoco`, `dm_control`, `gym_aloha`, `openpi_client`; print sanitized versions; create a minimal MuJoCo model.
 - **Acceptance:** Re-runnable setup; native arm64 packages plus runnable pure project tests; no CUDA/JAX/model install; exact failure and recovery shown on error.
 - **Planned commit:** `feat(sim): add native Mac environment setup`.
-- **Actual findings:** Upstream example explicitly uses Python 3.10. MuJoCo 2.3.x has CPython 3.10 macOS arm64 wheels. dm-control documents Homebrew Python plus GLFW library-path handling. Full OpenPI is unsupported outside Ubuntu.
-- **Remaining blockers:** Actual resolution/import/render test not run.
-- **Completion status:** Planned.
+- **Actual findings:** `make setup-mac` is rerunnable with managed native arm64 Python 3.10.20, the official simulator lock, editable `openpi-client`, and the hashed test lock. `make doctor-mac` passed MuJoCo model creation and a 64×64 native render. `uv pip check` passed and no JAX/model runtime was installed. Pinned `imageio-ffmpeg==0.5.1` had no usable arm64 executable and was narrowly replaced by 0.6.0. Pinned MuJoCo 2.3.7 hard-coded the legacy `/System/Library/OpenGL.framework/OpenGL` path, which macOS 26 no longer resolves; setup corrects it to the current framework location without changing engine version.
+- **Remaining blockers:** None for Phase 01. Rendering must run in the logged-in Mac desktop session, not a headless SSH session.
+- **Completion status:** Complete at validated implementation SHA `44e1d5f229c787d7d1af24bf323a968bce33dfcf`.
 
 Escalation ladder: official lock → compatible current package version in an isolated experimental venv → source build if practical → Rosetta only after native failure is recorded. Create `05-native-blocker.md` if native remains blocked.

@@ -7,7 +7,7 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | ID | Requirement | Owner | Evidence | Status |
 | --- | --- | --- | --- | --- |
 | G01 | Mac runs MuJoCo/gym-aloha/client; RTX 3090 WSL runs all π inference | 01,02 | process/device evidence | Pending |
-| G02 | Default task is `gym_aloha/AlohaTransferCube-v0`; inference only, no training | 01,04 | config/run manifest | Pending |
+| G02 | Default task is `gym_aloha/AlohaTransferCube-v0`; inference only, no training | 01,04 | config/run manifest | Pass: E-MAC01 |
 | G03 | `pi0_aloha_sim` is the task-specific default; `pi05_aloha_base` is optional and explicitly experimental | 02–06 | server metadata and docs | Pending |
 | G04 | Policy hosts are loopback; Mac reaches WSL only through authenticated SSH local forwarding | 02,03,06 | listener/routing checks | Pending |
 | G05 | Machine values are discovered, not invented; private OS/SSH identity stays untracked | 00,02,03,06 | scan and doctor output | Pending |
@@ -17,7 +17,7 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | G09 | Weights, checkpoints, caches, raw logs/telemetry, videos, and machine paths remain ignored | 00–06 | tracked/candidate scan | Pending |
 | G10 | All seven PRs remain open for human review; no merge/auto-merge/automatic dependent-branch deletion | 00,06 | GitHub PR evidence | Pending |
 | MK01 | Stable targets exist: `doctor doctor-mac doctor-pc setup-mac setup-pc server tunnel smoke-sim smoke-policy run metrics stop test lint secret-scan pr-status` | 00–06 | `make help` and invocations | Pending |
-| MF01 | Native fallback evidence records package/version/command/error, checks a compatible version and source install, uses the narrowest adjustment, considers Rosetta only after proven arm64 failure, never silently moves simulation to PC, and creates `05-native-blocker.md` if unresolved | 01 | blocker or native evidence | Pending |
+| MF01 | Native fallback evidence records package/version/command/error, checks a compatible version and source install, uses the narrowest adjustment, considers Rosetta only after proven arm64 failure, never silently moves simulation to PC, and creates `05-native-blocker.md` if unresolved | 01 | blocker or native evidence | Pass: E-MAC01; native execution succeeded after narrower path/FFmpeg fixes, so engine/source/Rosetta escalation was unnecessary |
 
 ## Configuration contract
 
@@ -82,14 +82,14 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 
 | ID | Check | Owner | Evidence | Status |
 | --- | --- | --- | --- | --- |
-| DR01 | macOS version and architecture | 01 | doctor output | Pending |
-| DR02 | Mac memory and disk | 01 | doctor output | Pending |
+| DR01 | macOS version and architecture | 01 | doctor output | Pass: E-MAC01 |
+| DR02 | Mac memory and disk | 01 | doctor output | Pass: E-MAC01 |
 | DR03 | Git status and remotes | 00 | doctor output | Pending |
 | DR04 | GitHub CLI and authentication | 00 | E-GH | Blocked: invalid auth |
 | DR05 | Public repository configuration | 00 | E-GH | Blocked: existence/config unknown until auth works |
-| DR06 | Python and `uv` | 01,02 | doctor output | Pending |
-| DR07 | MuJoCo importability | 01 | native venv probe | Pending |
-| DR08 | `gym_aloha` importability | 01 | native venv probe | Pending |
+| DR06 | Python and `uv` | 01,02 | doctor output | Pass on Mac: E-MAC01; WSL remains Phase 02 |
+| DR07 | MuJoCo importability | 01 | native venv probe | Pass: E-MAC01 |
+| DR08 | `gym_aloha` importability | 01 | native venv probe | Pass: E-MAC01 |
 | DR09 | SSH alias availability | 02,03 | E-PC | Blocked: alias absent |
 | DR10 | Bounded SSH connectivity with verified host key | 02,03 | E-PC | Blocked: PC/alias unavailable |
 | DR11 | Remote shell type: WSL Bash, PowerShell, or cmd.exe | 02,03 | E-PC | Blocked: PC unavailable |
@@ -114,7 +114,7 @@ Every failed doctor row names the failed check and one exact next command; it do
 | RO04 | Policy request count | 04,05 | summary vs JSONL | Pending |
 | RO05 | Model chunk length, execution horizon, and prefetch threshold | 04,05 | metadata/summary | Pending |
 | RO06 | Cold and warmed inference latency | 03,05 | JSONL/summary | Pending |
-| RO07 | Simulation step latency | 01,05 | JSONL/summary | Pending |
+| RO07 | Simulation step latency | 01,05 | JSONL/summary | Pass for Phase 01: E-MAC01 |
 | RO08 | Active control rate and wall-clock episode rate | 04,05 | JSONL/summary | Pending |
 | RO09 | Time waiting for action chunks | 04,05 | JSONL/summary | Pending |
 | RO10 | Connection failures | 05 | JSONL/summary | Pending |
@@ -123,7 +123,7 @@ Every failed doctor row names the failed check and one exact next command; it do
 | RO13 | GPU utilization samples | 02,05 | GPU JSONL/summary | Pending |
 | RO14 | Relevant raw OpenPI server logs copied to ignored run directory | 05 | ignored artifact/hash | Pending |
 | RO15 | Project and upstream OpenPI commits | 02,04,05 | metadata/summary | Pending |
-| RO16 | Environment package versions | 01,02,05 | metadata/summary | Pending |
+| RO16 | Environment package versions | 01,02,05 | metadata/summary | Pass for Mac: E-MAC01; WSL remains Phase 02 |
 
 Infrastructure passes when valid chunks drive complete simulator episodes without schema/network termination and artifacts/metrics persist. Cube-transfer success is always a separate result.
 
@@ -145,7 +145,7 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | R12 | Configuration validation | 01–04 | config tests | Pending |
 | R13 | Checkpoint download status and non-destructive partial-cache handling | 02,05 | lifecycle/failure evidence | Pending |
 | R14 | Port conflict diagnostics | 02,03 | lifecycle tests | Pending |
-| R15 | Native macOS rendering diagnostics | 01 | smoke/failure evidence | Pending |
+| R15 | Native macOS rendering diagnostics | 01 | smoke/failure evidence | Pass: E-MAC01 |
 | R16 | WSL GPU diagnostics and CPU-fallback rejection | 02 | E-PC | Blocked: PC unavailable |
 | R17 | Remote shell detection | 02,03 | three-route tests | Pending |
 | R18 | Safe Windows→WSL quoting | 02,03 | PowerShell/cmd tests | Pending |
@@ -156,8 +156,8 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 
 | ID | Area | Owner | Evidence | Status |
 | --- | --- | --- | --- | --- |
-| T01 | Configuration loading | 01,06 | pytest | Pending |
-| T02 | Missing configuration | 01,06 | pytest | Pending |
+| T01 | Configuration loading | 01,06 | pytest | Pass: E-MAC01 |
+| T02 | Missing configuration | 01,06 | pytest | Pass: E-MAC01 |
 | T03 | SSH command construction | 02,03 | pytest | Pending |
 | T04 | Windows→WSL PowerShell/cmd construction | 02,03 | pytest | Pending |
 | T05 | Port validation | 03 | pytest | Pending |
@@ -212,8 +212,8 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | DOD08 | Seven-PR stack exists | 00–06 | Blocked: invalid auth | E-GH |
 | DOD09 | PRs remain open for human review | 00–06 | Blocked: invalid auth | E-GH |
 | DOD10 | Final branch contains the complete project | 06 | Pending | — |
-| DOD11 | Mac creates/steps dual-arm ALOHA sim | 01 | Pending | — |
-| DOD12 | Mac renders/saves video | 01 | Pending | — |
+| DOD11 | Mac creates/steps dual-arm ALOHA sim | 01 | Pass | E-MAC01 |
+| DOD12 | Mac renders/saves video | 01 | Pass | E-MAC01 |
 | DOD13 | WSL detects RTX 3090 | 02 | Blocked: PC unavailable | E-PC |
 | DOD14 | Correct selected ALOHA policy loads on RTX 3090 | 02 | Blocked: PC unavailable | E-PC |
 | DOD15 | Server persists after setup SSH exits | 02 | Blocked: PC unavailable | E-PC |
@@ -225,7 +225,7 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | DOD21 | GPU memory and inference latency are reported | 02,05 | Blocked: PC unavailable | E-PC |
 | DOD22 | Unit tests pass | 00–06 | Pending | — |
 | DOD23 | Relevant upstream checks pass or exact infeasible lane is recorded | 00,06 | Pending | — |
-| DOD24 | CPU-only public CI is configured where practical | 00 | Pending | — |
+| DOD24 | CPU-only public CI is configured where practical | 00 | Pass locally; remote run blocked by E-GH | E-MAC01 |
 | DOD25 | No credentials or machine secrets are committed | 00–06 | Pending | — |
 | DOD26 | Public-repository hygiene passes | 00,06 | Pending | — |
 | DOD27 | Complete workflow is documented | 06 | Pending | — |
@@ -239,5 +239,6 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | --- | --- | --- | --- |
 | E-GH | DR04–DR05, DOC03, DOD04–DOD05, DOD07–DOD09 | Mac; planning audit 2026-08-26; `gh auth status` failed with sanitized invalid-token result; repository existence/config was not queried; upstream source SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; profile N/A; raw artifact N/A | Run `gh auth login -h github.com`, then `gh auth status`, then resume `00-bootstrap/03-public-github-setup.md`. |
 | E-PC | DR09–DR16, DR18, R16, DOD13–DOD21 | Mac; planning audit 2026-08-26; `robot-gpu` not configured and no PC/WSL command was run; no hardware state is claimed; upstream source SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; profile not tested; raw artifact N/A | After a secret-scanned phase 02 candidate SHA exists, power on the PC, reply `PC ready`, complete the fingerprint gate, then run `make doctor-pc`. |
+| E-MAC01 | G02, MF01, DR01–DR02, DR06–DR08, RO07, RO16, R15, T01–T02, DOD11–DOD12, DOD24 | Mac; `2026-08-27T03:37:18Z`; `make setup-mac && make doctor-mac && make ci`, fresh lightweight-venv `make ci`, and two `make smoke-sim` runs exited 0; project SHA `44e1d5f229c787d7d1af24bf323a968bce33dfcf`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; profile N/A; native arm64 Python 3.10.20; two 900-step totals; p95 11.880/11.750 ms; 300-frame 224×224 video at 50 fps; ignored manifests `outputs/phase01/20260827T033612.389060Z/manifest.json` (`cfd484…d0d3`) and `outputs/phase01/20260827T033659.222401Z/manifest.json` (`8a8394…cfda`) | Rerun `make setup-mac && make doctor-mac && make ci && make smoke-sim` from the logged-in Mac desktop session. |
 
 Phase 06 does not convert a blocked row to pass. It reports the blocker and the single exact command or user action that resumes it.

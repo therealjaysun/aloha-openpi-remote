@@ -7,6 +7,6 @@
 - **Validation:** `make smoke-sim`; repeat seed 0; confirm exit code, step count, no orphan process.
 - **Acceptance:** Raw top image `(480,640,3)` uint8, `agent_pos (14,)`, action `(14,)`, finite state/action, ≥200 steps, clean exit.
 - **Planned commit:** `feat(sim): add native ALOHA simulation smoke test`.
-- **Actual findings:** gym-aloha source registers TransferCube with a 300-step TimeLimit; metadata and physics use 50 Hz. The declared action bounds are `[-1,1]`, but the environment's own absolute start pose includes an elbow value above 1, so this box is not a safe universal clipping rule for policy outputs.
-- **Remaining blockers:** Runtime package compatibility and physical render context untested.
-- **Completion status:** Planned.
+- **Actual findings:** Two committed-SHA runs each completed seeds 0, 1, and 2 for 300 steps. Every observation had uint8 top image `(480,640,3)` and finite `agent_pos (14,)`; the hold action remained finite `(14,)` and was never clipped. Each episode ended through the 300-step TimeLimit, with reward maximum 0 and source-defined `is_success=false`; no task-success claim is made.
+- **Remaining blockers:** None for simulation infrastructure.
+- **Completion status:** Complete; evidence `E-MAC01`.
