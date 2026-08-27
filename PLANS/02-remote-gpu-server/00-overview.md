@@ -5,7 +5,7 @@
 - **Non-goals:** Driver/firewall/WSL network/SSH-server changes, training/fine-tuning, public model port, claiming π₀.₅ is sim-fine-tuned.
 - **Dependencies:** Phase 01 local branch for script/config staging. Remote validation additionally requires the secret-scanned phase 02 candidate SHA, completed P1 SSH/power handoff, user-authorized PC access, WSL2 Ubuntu, and the existing Windows NVIDIA driver. GitHub auth is optional because the documented Git-bundle transfer is available.
 - **Implemented files:** bounded Mac→SSH→WSL orchestration in `tools/remote_aloha/remote.py`; fixed profile/response contracts and pure tests; WSL doctor/setup/start/check/smoke/stop scripts; minimal `scripts/serve_policy.py` host/metadata/GPU patch; config, Make, CI, ignore, and evidence gates.
-- **Planned commits:** `feat(remote): add WSL environment diagnostics`; `feat(remote): add selectable OpenPI policy server lifecycle`.
+- **Implementation commit:** `7f024035822c341acfc705c44842431a6fd57695` (`feat(remote): stage selectable WSL policy server`).
 - **Branch:** `codex/02-remote-gpu-server`.
 - **PR base:** `codex/01-mac-simulation`.
 - **PR title:** `feat(remote): run OpenPI policy server in WSL`.
@@ -13,11 +13,11 @@
 - **Test commands:** `make doctor-pc`; `make setup-pc`; `OPENPI_POLICY_PROFILE=pi0_aloha_sim make server`; `make stop`; repeat with `pi05_aloha_base`; remote `nvidia-smi`; `/healthz`; unit tests.
 - **Risks:** No remote access; stale/partial checkpoint; WSL `nvidia-smi` limitations; 3090 CUDA/driver mismatch; 24 GB memory pressure; unsafe Windows→WSL quoting; server binds wider than intended.
 - **Rollback:** Stop only validated PID; remove project venv/cache only with explicit user request; revert scripts/host patch; never alter drivers, WSL, or firewall.
-- **Current status:** Mac-side Phase 02 implementation and pure validation are complete. Candidate publication/hosted CI is the remaining M0 gate; remote acceptance remains blocked on the explicit PC/SSH handoff.
+- **Current status:** Mac-side Phase 02 implementation and pure validation are complete and published in draft PR 3. Hosted CI is the final M0 gate; remote acceptance remains blocked on the explicit PC/SSH handoff.
 - **Actual results:** Both selectable profiles, generated Bash/PowerShell/cmd routes, candidate/secret-scan gating, managed-checkout setup, loopback lifecycle, PIDfd stop safety, GPU evidence, and WSL-local smoke contracts are implemented and locally tested. The remote environment remains unknown: no SSH, WSL, CUDA, checkpoint, or inference command has run.
 - **Deviations:** Added the user-requested π₀.₅ option as an experimental `pi05_aloha` + `pi05_base` profile because upstream has no `pi05_aloha_sim` checkpoint.
-- **PR:** Pending.
-- **Final commit SHA:** Pending.
+- **PR:** [Draft PR 3](https://github.com/therealjaysun/aloha-openpi-remote/pull/3); keep draft until real RTX acceptance passes.
+- **Final implementation commit SHA:** `7f024035822c341acfc705c44842431a6fd57695`; later evidence-only commits do not change the implementation.
 
 ## Policy profiles
 

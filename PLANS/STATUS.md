@@ -8,7 +8,7 @@ Final plan review: 2026-08-26. Independent specification, technical-source, and 
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 00 Bootstrap | Complete; open for review | `codex/00-bootstrap` | 1 | [PR 1](https://github.com/therealjaysun/aloha-openpi-remote/pull/1) | `main` | `codex/00-bootstrap` | Local fail-closed scan + hosted `secret-scan` passed; private upstream jobs skipped explicitly | None | `62083a5` |
 | 01 Mac simulation | Complete; open for review | `codex/01-mac-simulation` | 2 | [PR 2](https://github.com/therealjaysun/aloha-openpi-remote/pull/2) | `codex/00-bootstrap` | `codex/01-mac-simulation` | 18 tests + Ruff/format/shell + doctor + two 900-step runs; hosted `pure-checks` + `secret-scan` passed | None | `44e1d5f` validated implementation; final evidence at branch HEAD |
-| 02 Remote GPU | Mac-side implementation complete; PC-gated | `codex/02-remote-gpu-server` | — | — | `codex/01-mac-simulation` | `codex/02-remote-gpu-server` | 100 passed, 1 Linux-only PIDfd test skipped on Mac; Ruff/format/generated Bash/shell syntax green | Exact candidate publication, then explicit PC/SSH handoff | Pending commit |
+| 02 Remote GPU | Mac-side implementation complete; draft pending hardware | `codex/02-remote-gpu-server` | 3 | [PR 3](https://github.com/therealjaysun/aloha-openpi-remote/pull/3) | `codex/01-mac-simulation` | `codex/02-remote-gpu-server` | 100 passed, 1 Linux-only PIDfd test skipped on Mac; isolated CPU CI, Ruff/format/generated Bash/shell syntax, native sim, and scan green; hosted CI pending | Hosted CI, then explicit PC/SSH handoff | `7f02403` implementation |
 | 03 Connectivity | Planned | `codex/03-secure-connectivity` | — | — | `codex/02-remote-gpu-server` | `codex/03-secure-connectivity` | Not run | Remote shell/routing mode unknown | — |
 | 04 End-to-end | Planned | `codex/04-end-to-end-control` | — | — | `codex/03-secure-connectivity` | `codex/04-end-to-end-control` | Not run | Depends on phases 01–03 | — |
 | 05 Observability | Planned | `codex/05-observability` | — | — | `codex/04-end-to-end-control` | `codex/05-observability` | Not run | Depends on live inference | — |
@@ -37,12 +37,12 @@ Final plan review: 2026-08-26. Independent specification, technical-source, and 
 
 ## Execution cursor
 
-- Active subphase: Phase 02 Mac-side implementation complete; final publication/hosted-CI gate in progress before 02.01 hardware acceptance.
+- Active subphase: Phase 02 Mac-side implementation published in draft PR 3; hosted-CI gate in progress before 02.01 hardware acceptance.
 - Machine gate: M0 — Mac only.
-- Exact next implementation action: commit, secret-scan, push, open draft PR 3, and require hosted CI green; then emit the P1 power-on handoff.
+- Exact next implementation action: push this evidence update, require draft PR 3 hosted checks green, rescan the final head, then emit the P1 power-on handoff.
 - External recovery: none; GitHub authentication and publication are verified.
 - Last verified local implementation SHA: `44e1d5f229c787d7d1af24bf323a968bce33dfcf`; last verified WSL SHA: unknown.
-- PR state: PRs 1–2 are open, non-draft, and green for human review; PRs 3–7 remain pending their phases. No auto-merge is enabled.
+- PR state: PRs 1–2 are open, non-draft, and green for human review; PR 3 is draft pending hardware acceptance; PRs 4–7 remain pending. No auto-merge is enabled.
 
 Update this cursor immediately before pausing for GitHub login, `PC ready`, PC console work, or power-off.
 
