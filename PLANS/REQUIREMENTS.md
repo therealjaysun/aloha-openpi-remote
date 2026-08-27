@@ -72,8 +72,8 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | PH13 | Example telemetry is allowlisted and sanitized | 05,06 | sanitizer test/review | Pending |
 | PH14 | Tracked examples/docs use placeholders | 00–06 | scan/review | Pending |
 | PH15 | `.gitignore` covers env, runtime state, outputs, videos, logs, telemetry, caches, and weights | 00,06 | ignore tests | Pending |
-| PH16 | Fail-closed secret scan runs before every push | 00–06 | PR/evidence record | Pending |
-| PH17 | Staged and non-ignored candidate files are inspected before every push | 00–06 | PR/evidence record | Pending |
+| PH16 | Fail-closed secret scan runs before every push | 00–06 | PR/evidence record | Pass through Phase 01: E-GH |
+| PH17 | Staged and non-ignored candidate files are inspected before every push | 00–06 | PR/evidence record | Pass through Phase 01: E-GH |
 | PH18 | Upstream Git history is preserved where practical | 00,06 | graph/remote audit | Pending |
 | PH19 | All substantial derivative changes are inventoried | 06 | README differences section | Pending |
 | PH20 | No proprietary or confidential information is included | 00–06 | scan/review | Pending |
@@ -84,9 +84,9 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | --- | --- | --- | --- | --- |
 | DR01 | macOS version and architecture | 01 | doctor output | Pass: E-MAC01 |
 | DR02 | Mac memory and disk | 01 | doctor output | Pass: E-MAC01 |
-| DR03 | Git status and remotes | 00 | doctor output | Pending |
-| DR04 | GitHub CLI and authentication | 00 | E-GH | Blocked: invalid auth |
-| DR05 | Public repository configuration | 00 | E-GH | Blocked: existence/config unknown until auth works |
+| DR03 | Git status and remotes | 00 | doctor output | Pass: E-GH |
+| DR04 | GitHub CLI and authentication | 00 | E-GH | Pass: E-GH |
+| DR05 | Public repository configuration | 00 | E-GH | Pass: E-GH |
 | DR06 | Python and `uv` | 01,02 | doctor output | Pass on Mac: E-MAC01; WSL remains Phase 02 |
 | DR07 | MuJoCo importability | 01 | native venv probe | Pass: E-MAC01 |
 | DR08 | `gym_aloha` importability | 01 | native venv probe | Pass: E-MAC01 |
@@ -100,7 +100,7 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | DR16 | Remote repo/cache disk margin | 02 | E-PC | Blocked: PC unavailable |
 | DR17 | Configured local/remote port conflicts | 02,03 | listener checks | Pending |
 | DR18 | WSL project installation and exact SHA | 02 | E-PC | Blocked: PC unavailable |
-| DR19 | Public-repository secret hygiene | 00,06 | fail-closed scan | Pending |
+| DR19 | Public-repository secret hygiene | 00,06 | fail-closed scan | Pass through Phase 01: E-GH |
 
 Every failed doctor row names the failed check and one exact next command; it does not silently fall back.
 
@@ -177,7 +177,7 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | --- | --- | --- | --- | --- |
 | DOC01 | Architecture diagram | 06 | Pending | — |
 | DOC02 | Project status | 06 | Pending | — |
-| DOC03 | Public repository URL | 00,06 | Blocked: invalid auth | E-GH |
+| DOC03 | Public repository URL | 00,06 | Pass | E-GH |
 | DOC04 | Upstream OpenPI commit | 00,06 | Pending | — |
 | DOC05 | Mac prerequisites | 06 | Pending | — |
 | DOC06 | PC prerequisites | 06 | Pending | — |
@@ -202,15 +202,15 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 
 | ID | Condition | Owner | Status | Evidence/recovery ref |
 | --- | --- | --- | --- | --- |
-| DOD01 | All plans are under `PLANS/` | 00 | Pending final implementation verification | — |
-| DOD02 | Plans are segmented into required phases/subphases | 00 | Pending final implementation verification | — |
+| DOD01 | All plans are under `PLANS/` | 00 | Pass | Final plan review |
+| DOD02 | Plans are segmented into required phases/subphases | 00 | Pass | Final plan review |
 | DOD03 | Every phase/subphase has actual results/status | 00–06 | Pending | — |
-| DOD04 | Public GitHub repository exists | 00 | Blocked: cannot verify/create until auth works | E-GH |
-| DOD05 | `origin` is the user repository | 00 | Blocked: invalid auth | E-GH |
-| DOD06 | `upstream` is official OpenPI | 00 | Pending | — |
-| DOD07 | All phase branches are pushed | 00–06 | Blocked: invalid auth | E-GH |
-| DOD08 | Seven-PR stack exists | 00–06 | Blocked: invalid auth | E-GH |
-| DOD09 | PRs remain open for human review | 00–06 | Blocked: invalid auth | E-GH |
+| DOD04 | Public GitHub repository exists | 00 | Pass | E-GH |
+| DOD05 | `origin` is the user repository | 00 | Pass | E-GH |
+| DOD06 | `upstream` is official OpenPI | 00 | Pass | E-GH |
+| DOD07 | All phase branches are pushed | 00–06 | Pending: phases 00–01 pushed | E-GH |
+| DOD08 | Seven-PR stack exists | 00–06 | Pending: PRs 1–2 exist | E-GH |
+| DOD09 | PRs remain open for human review | 00–06 | Pending: PRs 1–2 open; later PRs not created | E-GH |
 | DOD10 | Final branch contains the complete project | 06 | Pending | — |
 | DOD11 | Mac creates/steps dual-arm ALOHA sim | 01 | Pass | E-MAC01 |
 | DOD12 | Mac renders/saves video | 01 | Pass | E-MAC01 |

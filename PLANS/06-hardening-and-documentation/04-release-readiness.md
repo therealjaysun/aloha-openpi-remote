@@ -8,5 +8,5 @@
 - **Acceptance:** No unexplained pending item or unsupported success claim; blockers contain sanitized exact logs and recovery commands; human can review/merge in order; final branch is complete.
 - **Planned commit:** `docs(release): record final validation evidence`.
 - **Actual findings:** Planning-only milestone complete; no implementation or release claim is made.
-- **Remaining blockers:** Entire implementation plus current GitHub/SSH/hardware blockers.
+- **Remaining blockers:** Phases 02–06 plus SSH/PC hardware validation; GitHub is no longer blocked.
 - **Completion status:** Planned.
