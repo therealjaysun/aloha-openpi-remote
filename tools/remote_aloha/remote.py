@@ -16,7 +16,7 @@ import subprocess
 from tools.remote_aloha.config import RemoteConfig
 from tools.remote_aloha.config import load_remote_config
 
-PUBLIC_REPO = "https://github.com/therealjaysun/aloha-openpi-remote.git"
+PUBLIC_REPO = "https://github.com/therealjaysun/pi-robotics.git"
 PHASE_BRANCH = "codex/02-remote-gpu-server"
 UPSTREAM_SHA = "215abfb217dbac7d5f1273282331b9b1866c0479"
 _ROUTES = {"bash", "powershell", "cmd"}

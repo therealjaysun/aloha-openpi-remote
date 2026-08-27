@@ -16,7 +16,7 @@
 - **Current status:** Mac-side Phase 02 implementation, local validation, and hosted Linux CPU/secret-scan checks are complete in draft PR 3. The next gate is the explicit PC/SSH handoff; remote acceptance remains untested.
 - **Actual results:** Both selectable profiles, generated Bash/PowerShell/cmd routes, candidate/secret-scan gating, managed-checkout setup, loopback lifecycle, PIDfd stop safety, GPU evidence, and WSL-local smoke contracts are implemented and locally tested. The remote environment remains unknown: no SSH, WSL, CUDA, checkpoint, or inference command has run.
 - **Deviations:** Added the user-requested π₀.₅ option as an experimental `pi05_aloha` + `pi05_base` profile because upstream has no `pi05_aloha_sim` checkpoint.
-- **PR:** [Draft PR 3](https://github.com/therealjaysun/aloha-openpi-remote/pull/3); keep draft until real RTX acceptance passes.
+- **PR:** [Draft PR 3](https://github.com/therealjaysun/pi-robotics/pull/3); keep draft until real RTX acceptance passes.
 - **Final implementation commit SHA:** `7f024035822c341acfc705c44842431a6fd57695`; later evidence-only commits do not change the implementation.
 
 ## Policy profiles
