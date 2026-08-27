@@ -156,6 +156,12 @@ def test_shell_route_and_distro_selection_are_unambiguous() -> None:
         select_ubuntu_distro({"Debian": "debian"}, "Ubuntu")
 
 
+def test_windows_distro_list_removes_wsl_utf16_nuls(monkeypatch: pytest.MonkeyPatch) -> None:
+    encoded = base64.b64encode("Ubuntu-24.04".encode("utf-16le")).decode()
+    monkeypatch.setattr(RemoteSession, "ssh", lambda *args, **kwargs: (0, f"{encoded}\nAA==\n"))
+    assert RemoteSession(RemoteConfig())._windows_distros() == ["Ubuntu-24.04"]  # noqa: SLF001
+
+
 def test_remote_session_uses_argv_stdin_and_total_timeout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     captured = {}
 

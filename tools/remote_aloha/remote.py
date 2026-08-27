@@ -239,7 +239,7 @@ exit $LASTEXITCODE
         names = []
         for line in output.splitlines():
             try:
-                name = base64.b64decode(line, validate=True).decode()
+                name = base64.b64decode(line, validate=True).decode().replace("\x00", "")
             except (ValueError, UnicodeDecodeError) as error:
                 raise RemoteError("WSL returned an unreadable distro list") from error
             if name:
