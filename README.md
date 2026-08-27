@@ -2,6 +2,19 @@
 
 > Planning baseline for an independent Mac ALOHA + remote RTX 3090 integration. Implementation plans are in [`PLANS/`](PLANS/README.md) and are pinned to upstream OpenPI commit `215abfb217dbac7d5f1273282331b9b1866c0479`. No endorsement by Physical Intelligence is implied.
 
+## Native Mac simulation
+
+Phase 1 runs only the ALOHA simulator and lightweight OpenPI client on a native arm64 Python 3.10 environment; it does not install the model/JAX/CUDA stack or require the RTX PC.
+
+```bash
+make setup-mac
+make doctor-mac
+make smoke-sim
+make ci
+```
+
+The smoke test runs seeds 0–2 for 300 steps each, validates the 50 Hz render/video contract, and writes ignored evidence under `outputs/phase01/`. Run it from the logged-in Mac desktop session because the native renderer needs a CoreGraphics connection.
+
 openpi holds open-source models and packages for robotics, published by the [Physical Intelligence team](https://www.physicalintelligence.company/).
 
 Currently, this repo contains three types of models:

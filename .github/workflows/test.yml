@@ -6,6 +6,7 @@ on:
 
 jobs:
   run_tests:
+    if: github.repository == 'Physical-Intelligence/openpi'
     name: Run Tests
     runs-on: openpi-verylarge
     env:

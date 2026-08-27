@@ -8,6 +8,7 @@ on:
       - "*"
 jobs:
   pre-commit:
+    if: github.repository == 'Physical-Intelligence/openpi'
     runs-on: ubuntu-latest
     env:
       GIT_LFS_SKIP_SMUDGE: true
