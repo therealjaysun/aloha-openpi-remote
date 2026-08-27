@@ -3,7 +3,7 @@ VENV := examples/aloha_sim/.venv
 PYTHON := $(VENV)/bin/python
 RUFF := $(VENV)/bin/ruff
 
-.PHONY: help setup-mac doctor doctor-mac smoke-sim setup-pc doctor-pc server smoke-policy stop test lint secret-scan ci
+.PHONY: help setup-mac doctor doctor-mac smoke-sim setup-pc doctor-pc convert-pc server smoke-policy stop test lint secret-scan ci
 
 help:
 	@printf '%s\n' \
@@ -12,6 +12,7 @@ help:
 		'make smoke-sim   Run three 300-step ALOHA simulation episodes' \
 		'make setup-pc    Install the exact candidate inside verified WSL' \
 		'make doctor-pc   Discover WSL2, Ubuntu, RTX 3090, disk, and tools' \
+		'make convert-pc  Try bounded partial-BF16 conversion for the selected profile' \
 		'make server      Start the selected loopback policy server in WSL' \
 		'make smoke-policy Run bounded WSL-local profile inference' \
 		'make stop        Stop only the identity-verified WSL policy server' \
@@ -37,6 +38,9 @@ setup-pc:
 doctor-pc:
 	./scripts/doctor_pc.sh
 
+convert-pc:
+	"$(PYTHON)" -m tools.remote_aloha.remote convert
+
 server:
 	"$(PYTHON)" -m tools.remote_aloha.remote server
 
@@ -54,6 +58,8 @@ lint:
 	@test -x "$(RUFF)" || { echo 'Missing Phase 01 environment; run: make setup-mac' >&2; exit 1; }
 	"$(RUFF)" check tools/remote_aloha tests scripts/serve_policy.py
 	"$(RUFF)" format --check tools/remote_aloha tests scripts/serve_policy.py
+	"$(RUFF)" check examples/convert_jax_model_to_pytorch.py
+	"$(RUFF)" format --check examples/convert_jax_model_to_pytorch.py
 	bash -n scripts/*.sh
 
 secret-scan:

@@ -2,6 +2,7 @@ import dataclasses
 import enum
 import logging
 import subprocess
+from typing import Literal
 
 import tyro
 
@@ -55,8 +56,11 @@ class Args:
 
     # Optional project profile identity and GPU requirements used by the remote ALOHA wrapper.
     policy_profile: str | None = None
+    policy_backend: Literal["jax", "pytorch"] = "jax"
+    pytorch_checkpoint_dir: str | None = None
     require_jax_platform: str | None = None
     require_jax_device: str | None = None
+    require_torch_device: str | None = None
     compact_masked_images: bool = False
 
     # Specifies how to load the policy. If not provided, the default policy for the environment will be used.
@@ -83,6 +87,11 @@ DEFAULT_CHECKPOINT: dict[EnvMode, Checkpoint] = {
     ),
 }
 
+PROJECT_PROFILES = {
+    "pi0_aloha_sim": (EnvMode.ALOHA_SIM, "pi0_aloha_sim", "pi0_aloha_sim"),
+    "pi05_aloha_base": (EnvMode.ALOHA, "pi05_aloha", "pi05_base"),
+}
+
 
 def create_default_policy(
     env: EnvMode, *, default_prompt: str | None = None, compact_masked_images: bool = False
@@ -100,6 +109,20 @@ def create_default_policy(
 
 def create_policy(args: Args) -> _policy.Policy:
     """Create a policy from the given arguments."""
+    if args.policy_backend == "pytorch":
+        if args.policy_profile is None or args.pytorch_checkpoint_dir is None:
+            raise ValueError("PyTorch project policies require a profile and checkpoint directory")
+        try:
+            _, config_name, _ = PROJECT_PROFILES[args.policy_profile]
+        except KeyError as error:
+            raise ValueError("Unsupported project policy profile") from error
+        return _policy_config.create_trained_policy(
+            _config.get_config(config_name),
+            args.pytorch_checkpoint_dir,
+            default_prompt=args.default_prompt,
+            pytorch_device="cuda:0",
+            compact_masked_images=args.compact_masked_images,
+        )
     match args.policy:
         case Checkpoint():
             return _policy_config.create_trained_policy(
@@ -119,12 +142,8 @@ def create_policy(args: Args) -> _policy.Policy:
 def _profile_metadata(args: Args) -> dict:
     if args.policy_profile is None:
         return {}
-    profiles = {
-        "pi0_aloha_sim": (EnvMode.ALOHA_SIM, "pi0_aloha_sim", "pi0_aloha_sim"),
-        "pi05_aloha_base": (EnvMode.ALOHA, "pi05_aloha", "pi05_base"),
-    }
     try:
-        expected_env, config_name, checkpoint_label = profiles[args.policy_profile]
+        expected_env, config_name, checkpoint_label = PROJECT_PROFILES[args.policy_profile]
     except KeyError as error:
         raise ValueError("Unsupported project policy profile") from error
     if not isinstance(args.policy, Default) or args.env is not expected_env:
@@ -136,6 +155,8 @@ def _profile_metadata(args: Args) -> dict:
         "policy_profile": args.policy_profile,
         "config_name": config_name,
         "checkpoint_label": checkpoint_label,
+        "checkpoint_variant": checkpoint_label + ("_pytorch" if args.policy_backend == "pytorch" else ""),
+        "policy_backend": args.policy_backend,
         "action_horizon": 50,
         "action_dimension": 14,
         "source_sha": source_sha,
@@ -162,6 +183,16 @@ def main(args: Args) -> None:
             device_kinds[0],
         )
         policy_metadata.update({"jax_platform": platform, "jax_device": selected_device})
+
+    if args.require_torch_device is not None:
+        import torch
+
+        if not torch.cuda.is_available():
+            raise RuntimeError("Required PyTorch CUDA device is unavailable")
+        selected_device = torch.cuda.get_device_name(0)
+        if args.require_torch_device not in selected_device:
+            raise RuntimeError(f"Required PyTorch device containing {args.require_torch_device!r} was not found")
+        policy_metadata.update({"torch_platform": "cuda", "torch_device": selected_device})
 
     # Record the policy's behavior.
     if args.record:

@@ -4,12 +4,13 @@ umask 077
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 profile="${1-}"
-host="${2-}"
-port="${3-}"
-startup_timeout="${4-}"
-data_home="${5-}"
-jax_mem_fraction="${6-}"
-expected_sha="${7-}"
+backend="${2-}"
+host="${3-}"
+port="${4-}"
+startup_timeout="${5-}"
+data_home="${6-}"
+jax_mem_fraction="${7-}"
+expected_sha="${8-}"
 state_dir="$repo_root/.runtime"
 record="$state_dir/server.json"
 lifecycle_state="$HOME/.local/state/aloha-openpi-remote"
@@ -25,6 +26,7 @@ lifecycle_state="$HOME/.local/state/aloha-openpi-remote"
     exit 1
 }
 [[ "$expected_sha" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid expected project SHA.' >&2; exit 1; }
+[[ "$backend" == jax || "$backend" == pytorch ]] || { echo 'Invalid policy backend.' >&2; exit 1; }
 [[ -z "$data_home" || "$data_home" == /* ]] || { echo 'OPENPI_DATA_HOME must be empty or absolute.' >&2; exit 1; }
 case "$jax_mem_fraction" in
     0.75|0.80|0.85|0.90|0.95) ;;
@@ -72,12 +74,27 @@ fi
 
 data_home="${data_home:-$HOME/.cache/openpi}"
 mkdir -p "$data_home"
+backend_args=("--policy-backend=$backend")
+if [[ "$backend" == pytorch ]]; then
+    checkpoint_label="$profile"
+    [[ "$profile" != pi05_aloha_base ]] || checkpoint_label=pi05_base
+    checkpoint="$data_home/openpi-assets/checkpoints/${checkpoint_label}_pytorch"
+    [[ -f "$checkpoint/model.safetensors.index.json" && -f "$checkpoint/config.json" && -d "$checkpoint/assets" ]] || {
+        echo 'Selected PyTorch checkpoint is incomplete; run make convert-pc first.' >&2
+        exit 1
+    }
+    jax_platform=cpu
+    backend_args+=("--pytorch-checkpoint-dir=$checkpoint" --require-torch-device=3090)
+else
+    jax_platform=cuda
+    backend_args+=(--require-jax-platform=gpu --require-jax-device=3090)
+fi
 log_relative=".runtime/server-${expected_sha:0:12}-$profile.log"
 command=(
     env
     "OPENPI_DATA_HOME=$data_home"
     "XLA_PYTHON_CLIENT_MEM_FRACTION=$jax_mem_fraction"
-    JAX_PLATFORMS=cuda
+    "JAX_PLATFORMS=$jax_platform"
     CUDA_VISIBLE_DEVICES=0
     "$repo_root/.venv/bin/python"
     "$repo_root/scripts/serve_policy.py"
@@ -85,9 +102,8 @@ command=(
     "--port=$port"
     "--env=$environment"
     "--policy-profile=$profile"
-    --require-jax-platform=gpu
-    --require-jax-device=3090
     --compact-masked-images
+    "${backend_args[@]}"
     "${prompt[@]}"
 )
 pid="$(.venv/bin/python -m tools.remote_aloha.process_record launch \
@@ -123,4 +139,4 @@ done
 
 "$repo_root/scripts/check_policy_server.sh" "$profile" "$host" "$port" "$expected_sha" >/dev/null
 trap - EXIT
-echo "Policy server ready: profile=$profile jax_mem_fraction=$jax_mem_fraction source_sha=$expected_sha log=$log_relative"
+echo "Policy server ready: profile=$profile backend=$backend source_sha=$expected_sha log=$log_relative"

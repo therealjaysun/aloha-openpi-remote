@@ -9,6 +9,7 @@ import re
 
 DEFAULT_TASK = "gym_aloha/AlohaTransferCube-v0"
 DEFAULT_POLICY_PROFILE = "pi0_aloha_sim"
+DEFAULT_POLICY_BACKEND = "jax"
 _KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 _UINT = re.compile(r"[0-9]+\Z")
 _SSH_ALIAS = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
@@ -68,6 +69,7 @@ class RemoteConfig:
     policy_host: str = "127.0.0.1"
     policy_port: int = 8000
     policy_profile: PolicyProfile = POLICY_PROFILES[DEFAULT_POLICY_PROFILE]
+    policy_backend: str = DEFAULT_POLICY_BACKEND
     ssh_connect_timeout_seconds: int = 10
     server_startup_timeout_seconds: int = 1800
     policy_inference_timeout_seconds: int = 300
@@ -170,6 +172,7 @@ def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str]
         "REMOTE_POLICY_HOST",
         "REMOTE_POLICY_PORT",
         "OPENPI_POLICY_PROFILE",
+        "OPENPI_POLICY_BACKEND",
         "SSH_CONNECT_TIMEOUT_SECONDS",
         "OPENPI_SERVER_STARTUP_TIMEOUT_SECONDS",
         "OPENPI_POLICY_INFERENCE_TIMEOUT_SECONDS",
@@ -210,6 +213,10 @@ def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str]
     if min(connect_timeout, startup_timeout, inference_timeout, min_free_gib) < 1:
         raise ValueError("remote timeouts and OPENPI_MIN_FREE_GIB must be positive")
 
+    policy_backend = values.get("OPENPI_POLICY_BACKEND", DEFAULT_POLICY_BACKEND)
+    if policy_backend not in {"jax", "pytorch"}:
+        raise ValueError("OPENPI_POLICY_BACKEND must be one of: jax, pytorch")
+
     return RemoteConfig(
         ssh_alias=alias,
         remote_dir=_remote_path("OPENPI_REMOTE_DIR", values.get("OPENPI_REMOTE_DIR", "~/src/openpi"), allow_tilde=True),
@@ -219,6 +226,7 @@ def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str]
         policy_host=host,
         policy_port=port,
         policy_profile=get_policy_profile(values.get("OPENPI_POLICY_PROFILE", DEFAULT_POLICY_PROFILE)),
+        policy_backend=policy_backend,
         ssh_connect_timeout_seconds=connect_timeout,
         server_startup_timeout_seconds=startup_timeout,
         policy_inference_timeout_seconds=inference_timeout,

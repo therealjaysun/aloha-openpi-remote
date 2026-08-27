@@ -4,12 +4,14 @@ umask 077
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 profile="${1-}"
-host="${2-}"
-port="${3-}"
-inference_timeout="${4-}"
-expected_sha="${5-}"
+backend="${2-}"
+host="${3-}"
+port="${4-}"
+inference_timeout="${5-}"
+expected_sha="${6-}"
 
 [[ "$profile" == pi0_aloha_sim || "$profile" == pi05_aloha_base ]] || { echo 'Invalid profile.' >&2; exit 1; }
+[[ "$backend" == jax || "$backend" == pytorch ]] || { echo 'Invalid backend.' >&2; exit 1; }
 [[ "$host" == 127.0.0.1 ]] || { echo 'Policy smoke requires loopback.' >&2; exit 1; }
 [[ "$port" =~ ^[0-9]+$ ]] && (( port >= 1 && port <= 65535 )) || { echo 'Invalid port.' >&2; exit 1; }
 [[ "$inference_timeout" =~ ^[0-9]+$ ]] && (( inference_timeout >= 1 && inference_timeout <= 1800 )) || {
@@ -38,7 +40,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 timeout --signal=TERM --kill-after=10s "${inference_timeout}s" \
     .venv/bin/python -m tools.remote_aloha.policy_smoke \
-    --profile "$profile" --host "$host" --port "$port" --source-sha "$expected_sha"
+    --profile "$profile" --backend "$backend" --host "$host" --port "$port" --source-sha "$expected_sha"
 cleanup
 trap - EXIT INT TERM
 grep -Fq '3090' "$metrics" || { echo 'GPU sampler did not observe the RTX 3090.' >&2; exit 1; }

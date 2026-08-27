@@ -120,7 +120,8 @@ def test_generated_wsl_bash_is_valid(script: str) -> None:
 
 def test_doctor_checks_evdev_build_prerequisites() -> None:
     script = _doctor_script(8000)
-    assert "base64 cc curl flock git ss timeout" in script
+    assert "base64 cc curl flock git realpath ss timeout" in script
+    assert "GNU time" in script
     assert "linux-input-headers" in script
 
 
@@ -231,6 +232,7 @@ def test_launch_receipt_is_private_and_round_trips(monkeypatch: pytest.MonkeyPat
     receipt = Path(".runtime/phase2-launch.json")
     assert receipt.stat().st_mode & 0o777 == 0o600
     assert _read_launch_receipt() == {
+        "backend": "jax",
         "profile": "pi0_aloha_sim",
         "port": 8000,
         "remote_dir": "~/src/openpi",
@@ -311,9 +313,71 @@ def test_server_passes_jax_memory_fraction_to_wsl(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(session, "run_wsl", fake_run_wsl)
     remote_module.server(session)
     fraction = base64.b64encode(b"0.85").decode()
+    backend = base64.b64encode(b"jax").decode()
     candidate = base64.b64encode(("a" * 40).encode()).decode()
-    assert f'arg5="$(printf %s {fraction} | base64 -d)"' in scripts[0]
-    assert f'arg6="$(printf %s {candidate} | base64 -d)"' in scripts[0]
+    assert f'arg1="$(printf %s {backend} | base64 -d)"' in scripts[0]
+    assert f'arg6="$(printf %s {fraction} | base64 -d)"' in scripts[0]
+    assert f'arg7="$(printf %s {candidate} | base64 -d)"' in scripts[0]
+
+
+def test_convert_uses_one_bounded_allowlisted_remote_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(remote_module, "_candidate_sha", lambda: "a" * 40)
+    target = RemoteTarget("powershell", "Ubuntu-24.04")
+    session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04"))
+    monkeypatch.setattr(remote_module, "doctor", lambda actual_session: target)
+    captured = {}
+
+    def fake_run_wsl(actual_target: RemoteTarget, script: str, **kwargs: object) -> str:
+        captured.update({"target": actual_target, "script": script, **kwargs})
+        return "\n".join(
+            [
+                "__ALOHA_CONVERSION__=passed",
+                "__ALOHA_CONVERSION_PARTIAL__=absent",
+                "__ALOHA_PROFILE__=pi0_aloha_sim",
+                f"__ALOHA_PROJECT_SHA__={'a' * 40}",
+                f"__ALOHA_MODEL_HASH__={'b' * 64}",
+                "__ALOHA_PROBE_MAX_RSS_KIB__=100",
+                "__ALOHA_FULL_MAX_RSS_KIB__=200",
+                "__ALOHA_GPU_PEAK_MIB__=300",
+                "__ALOHA_GPU_SAMPLES__=4",
+                "__ALOHA_REMOTE_EVIDENCE__=.runtime/conversion/20260827T120000Z-123",
+            ]
+        )
+
+    monkeypatch.setattr(session, "run_wsl", fake_run_wsl)
+    remote_module.convert(session)
+    assert captured["target"] == target
+    assert captured["command_timeout"] == 7200
+    assert captured["timeout"] == 7275
+    assert "convert_policy_checkpoint.sh" in str(captured["script"])
+    assert "bash -c" not in str(captured["script"])
+
+
+def test_convert_rejects_nonpositive_resource_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(remote_module, "_candidate_sha", lambda: "a" * 40)
+    target = RemoteTarget("powershell", "Ubuntu-24.04")
+    session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04"))
+    monkeypatch.setattr(remote_module, "doctor", lambda actual_session: target)
+    output = "\n".join(
+        [
+            "__ALOHA_CONVERSION__=passed",
+            "__ALOHA_CONVERSION_PARTIAL__=absent",
+            "__ALOHA_PROFILE__=pi0_aloha_sim",
+            f"__ALOHA_PROJECT_SHA__={'a' * 40}",
+            f"__ALOHA_MODEL_HASH__={'b' * 64}",
+            "__ALOHA_PROBE_MAX_RSS_KIB__=100",
+            "__ALOHA_FULL_MAX_RSS_KIB__=200",
+            "__ALOHA_GPU_PEAK_MIB__=300",
+            "__ALOHA_GPU_SAMPLES__=0",
+            "__ALOHA_REMOTE_EVIDENCE__=.runtime/conversion/20260827T120000Z-123",
+        ]
+    )
+    monkeypatch.setattr(session, "run_wsl", lambda *args, **kwargs: output)
+
+    with pytest.raises(RemoteError, match="complete validated evidence"):
+        remote_module.convert(session)
 
 
 def test_stop_uses_the_original_receipt_target(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

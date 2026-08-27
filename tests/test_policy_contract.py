@@ -16,6 +16,8 @@ def test_policy_metadata_and_response_contract(profile_name: str) -> None:
         "policy_profile": profile.name,
         "config_name": profile.config_name,
         "checkpoint_label": profile.checkpoint_label,
+        "checkpoint_variant": profile.checkpoint_label,
+        "policy_backend": "jax",
         "action_horizon": 50,
         "action_dimension": 14,
         "source_sha": SHA,
@@ -49,6 +51,8 @@ def test_mismatched_metadata_is_rejected() -> None:
         "policy_profile": "pi05_aloha_base",
         "config_name": profile.config_name,
         "checkpoint_label": profile.checkpoint_label,
+        "checkpoint_variant": profile.checkpoint_label,
+        "policy_backend": "jax",
         "action_horizon": 50,
         "action_dimension": 14,
         "source_sha": SHA,
@@ -58,6 +62,24 @@ def test_mismatched_metadata_is_rejected() -> None:
     }
     with pytest.raises(ValueError, match="does not match"):
         validate_server_metadata(metadata, profile, SHA)
+
+
+def test_pytorch_metadata_requires_converted_variant_and_cuda_3090() -> None:
+    profile = POLICY_PROFILES["pi0_aloha_sim"]
+    metadata = {
+        "policy_profile": profile.name,
+        "config_name": profile.config_name,
+        "checkpoint_label": profile.checkpoint_label,
+        "checkpoint_variant": "pi0_aloha_sim_pytorch",
+        "policy_backend": "pytorch",
+        "action_horizon": 50,
+        "action_dimension": 14,
+        "source_sha": SHA,
+        "compact_masked_images": True,
+        "torch_platform": "cuda",
+        "torch_device": "NVIDIA GeForce RTX 3090",
+    }
+    validate_server_metadata(metadata, profile, SHA, "pytorch")
 
 
 @pytest.mark.parametrize(

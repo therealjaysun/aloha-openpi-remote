@@ -12,6 +12,7 @@ from flax import struct
 from flax import traverse_util
 import jax
 import jax.numpy as jnp
+from huggingface_hub import load_torch_model
 import numpy as np
 import orbax.checkpoint as ocp
 import safetensors
@@ -240,10 +241,21 @@ class BaseModelConfig(abc.ABC):
         state.replace_by_pure_dict(params)
         return nnx.merge(graphdef, state)
 
-    def load_pytorch(self, train_config, weight_path: str):
+    def load_pytorch(self, train_config, weight_path: str, device: str = "cpu"):
         logger.info(f"train_config: {train_config}")
-        model = pi0_pytorch.PI0Pytorch(config=train_config.model)
-        safetensors.torch.load_model(model, weight_path)
+        with torch.device(device):
+            model = pi0_pytorch.PI0Pytorch(config=train_config.model)
+        if pathlib.Path(weight_path).is_dir():
+            model.paligemma_with_expert.gemma_expert.lm_head = None
+            incompatible = load_torch_model(model, weight_path, strict=False, safe=True)
+            allowed_missing = {"paligemma_with_expert.paligemma.lm_head.weight"}
+            if incompatible.unexpected_keys or not set(incompatible.missing_keys) <= allowed_missing:
+                raise ValueError(
+                    f"Sharded checkpoint mismatch: missing={incompatible.missing_keys}, "
+                    f"unexpected={incompatible.unexpected_keys}"
+                )
+        else:
+            safetensors.torch.load_model(model, weight_path)
         return model
 
     @abc.abstractmethod

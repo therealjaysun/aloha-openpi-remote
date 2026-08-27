@@ -17,6 +17,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Run bounded WSL-local policy inference validation.")
     parser.add_argument("--profile", required=True)
+    parser.add_argument("--backend", choices=("jax", "pytorch"), required=True)
     parser.add_argument("--host", required=True)
     parser.add_argument("--port", required=True, type=int)
     parser.add_argument("--source-sha", required=True)
@@ -25,7 +26,7 @@ def main() -> None:
         parser.error("the Phase 2 policy smoke test requires valid IPv4 loopback")
     profile = get_policy_profile(args.profile)
     policy = websocket_client_policy.WebsocketClientPolicy(host=args.host, port=args.port)
-    validate_server_metadata(policy.get_server_metadata(), profile, args.source_sha)
+    validate_server_metadata(policy.get_server_metadata(), profile, args.source_sha, args.backend)
 
     image = np.zeros((3, 224, 224), dtype=np.uint8)
     observation = {
@@ -44,6 +45,7 @@ def main() -> None:
         json.dumps(
             {
                 "profile": profile.name,
+                "backend": args.backend,
                 "source_sha": args.source_sha,
                 "action_shape": list(actions.shape),
                 "cold_latency_ms": latencies_ms[0],

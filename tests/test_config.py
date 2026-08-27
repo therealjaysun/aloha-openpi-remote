@@ -58,8 +58,9 @@ def test_remote_defaults_and_profile_contract(tmp_path: Path) -> None:
         config.policy_host,
         config.policy_port,
         config.policy_profile.name,
+        config.policy_backend,
         config.min_free_gib,
-    ) == ("robot-gpu", "~/src/openpi", "", "", "0.90", "127.0.0.1", 8000, "pi0_aloha_sim", 40)
+    ) == ("robot-gpu", "~/src/openpi", "", "", "0.90", "127.0.0.1", 8000, "pi0_aloha_sim", "jax", 40)
     assert set(POLICY_PROFILES) == {"pi0_aloha_sim", "pi05_aloha_base"}
     assert (
         POLICY_PROFILES["pi0_aloha_sim"].env,
@@ -82,7 +83,7 @@ def test_remote_file_values_and_environment_override(tmp_path: Path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text(
         "OPENPI_POLICY_PROFILE=pi05_aloha_base\nREMOTE_POLICY_PORT=9000\n"
-        "OPENPI_WSL_DISTRO='Ubuntu Dev'\nOPENPI_JAX_MEM_FRACTION=0.85\n",
+        "OPENPI_WSL_DISTRO='Ubuntu Dev'\nOPENPI_JAX_MEM_FRACTION=0.85\nOPENPI_POLICY_BACKEND=pytorch\n",
         encoding="utf-8",
     )
     config = load_remote_config(env_file, {"REMOTE_POLICY_PORT": "8123", "OPENPI_DATA_HOME": "/srv/open pi's"})
@@ -91,6 +92,7 @@ def test_remote_file_values_and_environment_override(tmp_path: Path) -> None:
     assert config.wsl_distro == "Ubuntu Dev"
     assert config.data_home == "/srv/open pi's"
     assert config.jax_mem_fraction == "0.85"
+    assert config.policy_backend == "pytorch"
 
 
 @pytest.mark.parametrize(
@@ -116,6 +118,7 @@ def test_remote_file_values_and_environment_override(tmp_path: Path) -> None:
         ("REMOTE_POLICY_PORT", "65536", "at most"),
         ("REMOTE_POLICY_PORT", "8000 trailing", "unsigned"),
         ("OPENPI_POLICY_PROFILE", "pi0_aloha_sim;id", "must be one of"),
+        ("OPENPI_POLICY_BACKEND", "tensorflow", "must be one of"),
         ("OPENPI_JAX_MEM_FRACTION", "0.9", "must be one of"),
         ("OPENPI_JAX_MEM_FRACTION", "1.00", "must be one of"),
         ("OPENPI_JAX_MEM_FRACTION", "0.90;id", "must be one of"),

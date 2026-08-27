@@ -9,25 +9,30 @@ import numpy as np
 from tools.remote_aloha.config import PolicyProfile
 
 
-def validate_server_metadata(metadata: object, profile: PolicyProfile, source_sha: str) -> None:
+def validate_server_metadata(metadata: object, profile: PolicyProfile, source_sha: str, backend: str = "jax") -> None:
     if not isinstance(metadata, Mapping):
         raise ValueError("server metadata must be a mapping")
     expected = {
         "policy_profile": profile.name,
         "config_name": profile.config_name,
         "checkpoint_label": profile.checkpoint_label,
+        "checkpoint_variant": profile.checkpoint_label + ("_pytorch" if backend == "pytorch" else ""),
+        "policy_backend": backend,
         "action_horizon": profile.action_horizon,
         "action_dimension": profile.action_dimension,
         "source_sha": source_sha,
         "compact_masked_images": True,
-        "jax_platform": "gpu",
     }
     for key, value in expected.items():
         if metadata.get(key) != value:
             raise ValueError(f"server metadata {key!r} does not match the requested profile")
-    device = metadata.get("jax_device")
+    platform_key = "jax_platform" if backend == "jax" else "torch_platform"
+    device_key = "jax_device" if backend == "jax" else "torch_device"
+    if metadata.get(platform_key) not in {"gpu", "cuda"}:
+        raise ValueError(f"server metadata must identify the {backend} GPU platform")
+    device = metadata.get(device_key)
     if not isinstance(device, str) or "3090" not in device:
-        raise ValueError("server metadata must identify the RTX 3090 JAX device")
+        raise ValueError("server metadata must identify the RTX 3090 device")
 
 
 def validate_policy_response(response: object, profile: PolicyProfile) -> np.ndarray:

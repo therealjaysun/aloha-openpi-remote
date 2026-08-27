@@ -58,7 +58,8 @@ class Policy(BasePolicy):
         self._compact_masked_images = compact_masked_images
 
         if self._is_pytorch_model:
-            self._model = self._model.to(pytorch_device)
+            if next(self._model.parameters()).device != torch.device(pytorch_device):
+                self._model = self._model.to(pytorch_device)
             self._model.eval()
             self._sample_actions = model.sample_actions
         else:

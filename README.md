@@ -56,16 +56,19 @@ Create an ignored `.env` from [`.env.example`](.env.example), configure the priv
 make doctor-pc
 make setup-pc
 
-OPENPI_POLICY_PROFILE=pi0_aloha_sim make server
-make smoke-policy
+# Opt-in bounded conversion experiment; the stock converter remains the default.
+OPENPI_POLICY_PROFILE=pi0_aloha_sim make convert-pc
+
+OPENPI_POLICY_PROFILE=pi0_aloha_sim OPENPI_POLICY_BACKEND=pytorch make server
+OPENPI_POLICY_PROFILE=pi0_aloha_sim OPENPI_POLICY_BACKEND=pytorch make smoke-policy
 make stop
 ```
 
-To test π₀.₅, replace the profile with `pi05_aloha_base`. Ubuntu 22.04 is the upstream-supported target; this project also permits an explicitly selected Ubuntu 24.04 environment only after it passes the same locked dependency and GPU checks.
+Only after π₀ returns finite RTX actions, repeat the conversion and PyTorch smoke with profile `pi05_aloha_base`. Ubuntu 22.04 is the upstream-supported target; this project also permits an explicitly selected Ubuntu 24.04 environment only after it passes the same locked dependency and GPU checks.
 
 ### Current hardware limit
 
-The prepared PC has an RTX 3090 with 24 GB VRAM and 16 GB system RAM. The π₀ JAX server loads and becomes healthy, but every measured first request on this exact pinned WSL setup failed with CUDA OOM, including JAX's documented minimum-footprint allocator and the project-local masked-camera optimization. OpenPI's officially documented PyTorch path requires a one-time checkpoint conversion. Source inspection estimates roughly 24 GiB of overlapping converter data before overhead, so use at least 32 GiB available RAM as a practical conversion target; 64 GB total host RAM is preferred for Windows/WSL headroom. This is the next experiment, not a guaranteed fix. The current PC is stopped safely at the documented Phase 2 blocker.
+The prepared PC has an RTX 3090 with 24 GB VRAM and 16 GB system RAM. The π₀ JAX server loads and becomes healthy, but every measured first request on this exact pinned WSL setup failed with CUDA OOM, including JAX's documented minimum-footprint allocator and the project-local masked-camera optimization. OpenPI's documented PyTorch path requires a one-time checkpoint conversion. This project adds an opt-in, bounded partial-BF16 conversion experiment that restores one stored checkpoint leaf at a time and writes standard sharded SafeTensors; it is not the default and has not yet passed hardware validation. `OPENPI_POLICY_BACKEND` defaults to `jax`; `pytorch` explicitly selects only the matching converted local checkpoint and must never fall back silently. If conversion fails, at least 32 GiB available RAM is an evidence-based practical target for the stock converter, not a guarantee; 64 GB total host RAM is preferred for Windows/WSL headroom. Conversion or checkpoint loading alone does not prove inference.
 
 Never expose policy port 8000 publicly or install a Linux NVIDIA display driver inside WSL. WSL uses the Windows NVIDIA driver.
 

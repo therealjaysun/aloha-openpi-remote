@@ -320,7 +320,8 @@ printf '__ALOHA_PORT__=%s\n' "$port_state"
 printf '__ALOHA_PYTHON__=%s\n' "$(python3 --version 2>&1 || printf missing)"
 printf '__ALOHA_UV__=%s\n' "$(uv --version 2>/dev/null || printf missing)"
 missing=()
-for tool in base64 cc curl flock git ss timeout; do command -v "$tool" >/dev/null || missing+=("$tool"); done
+for tool in base64 cc curl flock git realpath ss timeout; do command -v "$tool" >/dev/null || missing+=("$tool"); done
+[[ -x /usr/bin/time ]] && /usr/bin/time --version 2>&1 | grep -qi 'GNU time' || missing+=(gnu-time)
 [[ -r /usr/include/linux/input.h && -r /usr/include/linux/input-event-codes.h ]] || missing+=(linux-input-headers)
 printf '__ALOHA_TOOLS__=%s\n' "${{missing[*]:-ready}}"
 """
@@ -409,6 +410,7 @@ def _write_launch_receipt(config: RemoteConfig, candidate: str, target: RemoteTa
         raise RemoteError(".runtime must be a real private directory")
     _LAUNCH_RECEIPT.parent.chmod(0o700)
     payload = {
+        "backend": config.policy_backend,
         "profile": config.policy_profile.name,
         "port": config.policy_port,
         "remote_dir": config.remote_dir,
@@ -435,7 +437,7 @@ def _read_launch_receipt() -> dict[str, object] | None:
         payload = json.loads(_LAUNCH_RECEIPT.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise RemoteError("the Phase 2 launch receipt is unreadable; refusing lifecycle changes") from error
-    expected = {"profile", "port", "remote_dir", "route", "source_sha", "ssh_alias", "wsl_distro"}
+    expected = {"backend", "profile", "port", "remote_dir", "route", "source_sha", "ssh_alias", "wsl_distro"}
     if not isinstance(payload, dict):
         raise RemoteError("the Phase 2 launch receipt is invalid; refusing lifecycle changes")
     valid_path = isinstance(payload.get("remote_dir"), str) and payload["remote_dir"].startswith(("/", "~/"))
@@ -447,6 +449,7 @@ def _read_launch_receipt() -> dict[str, object] | None:
         or not stat.S_ISREG(metadata.st_mode)
         or metadata.st_mode & 0o077
         or set(payload) != expected
+        or payload.get("backend") not in {"jax", "pytorch"}
         or payload.get("profile") not in {"pi0_aloha_sim", "pi05_aloha_base"}
         or payload.get("route") not in _ROUTES
         or not isinstance(payload.get("ssh_alias"), str)
@@ -577,6 +580,48 @@ def setup(session: RemoteSession) -> None:
     print(f"Remote setup passed at candidate {candidate}.")
 
 
+def convert(session: RemoteSession) -> None:
+    if _read_launch_receipt() is not None:
+        raise RemoteError("run make stop before checkpoint conversion")
+    config = session.config
+    candidate = _candidate_sha()
+    target = doctor(session)
+    args = [config.policy_profile.name, config.data_home, candidate, str(config.policy_port)]
+    output = session.run_wsl(
+        target,
+        _remote_script_command(config, "convert_policy_checkpoint.sh", args),
+        timeout=7275,
+        label="partial-bf16-conversion",
+        command_timeout=7200,
+    )
+    facts = _markers(output)
+    model_hash = facts.get("MODEL_HASH", "")
+    remote_evidence = facts.get("REMOTE_EVIDENCE", "")
+    metric_names = ("PROBE_MAX_RSS_KIB", "FULL_MAX_RSS_KIB", "GPU_PEAK_MIB", "GPU_SAMPLES")
+    metrics = {name: facts.get(name, "") for name in metric_names}
+    if (
+        facts.get("CONVERSION") != "passed"
+        or facts.get("CONVERSION_PARTIAL") != "absent"
+        or facts.get("PROFILE") != config.policy_profile.name
+        or facts.get("PROJECT_SHA") != candidate
+        or not re.fullmatch(r"[0-9a-f]{64}", model_hash)
+        or not re.fullmatch(r"\.runtime/conversion/[0-9]{8}T[0-9]{6}Z-[0-9]+", remote_evidence)
+        or any(not value.isdigit() or int(value) <= 0 for value in metrics.values())
+    ):
+        raise RemoteError("partial-BF16 conversion did not return complete validated evidence")
+    summary = {
+        "full_max_rss_kib": int(metrics["FULL_MAX_RSS_KIB"]),
+        "gpu_peak_mib": int(metrics["GPU_PEAK_MIB"]),
+        "gpu_samples": int(metrics["GPU_SAMPLES"]),
+        "model_hash": model_hash,
+        "probe_max_rss_kib": int(metrics["PROBE_MAX_RSS_KIB"]),
+        "profile": config.policy_profile.name,
+        "remote_evidence": remote_evidence,
+        "status": "passed",
+    }
+    print(json.dumps(summary, sort_keys=True))
+
+
 def _remote_script_command(config: RemoteConfig, script_name: str, arguments: list[str]) -> str:
     lines = [
         "#!/usr/bin/env bash",
@@ -603,6 +648,7 @@ def server(session: RemoteSession) -> None:
     target = session.discover_target()
     args = [
         config.policy_profile.name,
+        config.policy_backend,
         config.policy_host,
         str(config.policy_port),
         str(config.server_startup_timeout_seconds),
@@ -632,7 +678,7 @@ def server(session: RemoteSession) -> None:
     )
     if facts.get("SERVER") != "ready":
         raise RemoteError("policy server did not survive the start SSH session")
-    print(f"Policy server ready for {config.policy_profile.name} on WSL loopback.")
+    print(f"{config.policy_backend} policy server ready for {config.policy_profile.name} on WSL loopback.")
 
 
 def stop(session: RemoteSession) -> None:
@@ -641,6 +687,7 @@ def stop(session: RemoteSession) -> None:
     if receipt is not None:
         config = replace(
             config,
+            policy_backend=str(receipt["backend"]),
             ssh_alias=str(receipt["ssh_alias"]),
             remote_dir=str(receipt["remote_dir"]),
             wsl_distro=str(receipt["wsl_distro"]),
@@ -667,17 +714,26 @@ def smoke(session: RemoteSession) -> None:
     receipt = _read_launch_receipt()
     if receipt is None or (
         receipt["profile"],
+        receipt["backend"],
         receipt["port"],
         receipt["remote_dir"],
         receipt["source_sha"],
         receipt["ssh_alias"],
-    ) != (config.policy_profile.name, config.policy_port, config.remote_dir, candidate, config.ssh_alias):
+    ) != (
+        config.policy_profile.name,
+        config.policy_backend,
+        config.policy_port,
+        config.remote_dir,
+        candidate,
+        config.ssh_alias,
+    ):
         raise RemoteError("the running-server receipt does not match this smoke-test configuration")
     if config.wsl_distro and receipt["wsl_distro"] != config.wsl_distro:
         raise RemoteError("the running-server receipt does not match OPENPI_WSL_DISTRO")
     target = RemoteTarget(str(receipt["route"]), str(receipt["wsl_distro"]))
     args = [
         config.policy_profile.name,
+        config.policy_backend,
         config.policy_host,
         str(config.policy_port),
         str(config.policy_inference_timeout_seconds),
@@ -694,7 +750,7 @@ def smoke(session: RemoteSession) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run bounded Phase 2 operations through the private robot-gpu alias.")
-    parser.add_argument("command", choices=("doctor", "setup", "server", "stop", "smoke"))
+    parser.add_argument("command", choices=("doctor", "setup", "convert", "server", "stop", "smoke"))
     args = parser.parse_args()
     session = RemoteSession(load_remote_config())
     try:
@@ -702,6 +758,8 @@ def main() -> None:
             doctor(session)
         elif args.command == "setup":
             setup(session)
+        elif args.command == "convert":
+            convert(session)
         elif args.command == "server":
             server(session)
         elif args.command == "stop":
