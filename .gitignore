@@ -171,6 +171,8 @@ cython_debug/
 
 # Local simulation/runtime artifacts
 outputs/
+.runtime/
+policy_records/
 *.mp4
 *.pid
 *.jsonl

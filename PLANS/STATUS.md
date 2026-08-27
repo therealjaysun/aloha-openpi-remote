@@ -1,6 +1,6 @@
 # Project status
 
-Planning baseline: 2026-08-26. Plans are complete; phases 00–01 are implemented, published, and validated.
+Planning baseline: 2026-08-26. Plans are complete; phases 00–01 are implemented, published, and validated; phase 02 Mac-side implementation is locally validated and awaiting its publication gate.
 
 Final plan review: 2026-08-26. Independent specification, technical-source, and operations/security audits were reconciled; structural and link validation evidence is recorded by the completing turn.
 
@@ -8,7 +8,7 @@ Final plan review: 2026-08-26. Independent specification, technical-source, and 
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 00 Bootstrap | Complete; open for review | `codex/00-bootstrap` | 1 | [PR 1](https://github.com/therealjaysun/aloha-openpi-remote/pull/1) | `main` | `codex/00-bootstrap` | Local fail-closed scan + hosted `secret-scan` passed; private upstream jobs skipped explicitly | None | `62083a5` |
 | 01 Mac simulation | Complete; open for review | `codex/01-mac-simulation` | 2 | [PR 2](https://github.com/therealjaysun/aloha-openpi-remote/pull/2) | `codex/00-bootstrap` | `codex/01-mac-simulation` | 18 tests + Ruff/format/shell + doctor + two 900-step runs; hosted `pure-checks` + `secret-scan` passed | None | `44e1d5f` validated implementation; final evidence at branch HEAD |
-| 02 Remote GPU | Planned | `codex/02-remote-gpu-server` | — | — | `codex/01-mac-simulation` | `codex/02-remote-gpu-server` | Not run | SSH alias and PC access unavailable | — |
+| 02 Remote GPU | Mac-side implementation complete; PC-gated | `codex/02-remote-gpu-server` | — | — | `codex/01-mac-simulation` | `codex/02-remote-gpu-server` | 100 passed, 1 Linux-only PIDfd test skipped on Mac; Ruff/format/generated Bash/shell syntax green | Exact candidate publication, then explicit PC/SSH handoff | Pending commit |
 | 03 Connectivity | Planned | `codex/03-secure-connectivity` | — | — | `codex/02-remote-gpu-server` | `codex/03-secure-connectivity` | Not run | Remote shell/routing mode unknown | — |
 | 04 End-to-end | Planned | `codex/04-end-to-end-control` | — | — | `codex/03-secure-connectivity` | `codex/04-end-to-end-control` | Not run | Depends on phases 01–03 | — |
 | 05 Observability | Planned | `codex/05-observability` | — | — | `codex/04-end-to-end-control` | `codex/05-observability` | Not run | Depends on live inference | — |
@@ -32,14 +32,14 @@ Final plan review: 2026-08-26. Independent specification, technical-source, and 
 - Independent specification, pinned-source technical, and operations/security re-reviews each reported no unresolved plan finding after amendments.
 - Structural validator exited 0: 7 phase overviews and 29 subphase plans contain every required field; no root `IMPLEMENTATION_PLAN.md` exists.
 - Relative-link and branch/base-stack validators exited 0; all 42 plan Markdown files resolve their local links.
-- Traceability validator exited 0: 151 requirement rows have 151 unique IDs, all terminal requirement IDs exist, and all 27 configuration keys are enumerated.
+- Traceability validator exited 0: 151 requirement rows have 151 unique IDs, all terminal requirement IDs exist, and all 28 configuration keys are enumerated.
 - Obsolete-rule, trailing-whitespace, and tracked README diff checks exited 0. No implementation, GitHub, simulator, SSH, WSL, GPU, or inference result is implied by these planning checks.
 
 ## Execution cursor
 
-- Active subphase: Phase 01 complete; stopped before Phase 02 local staging as requested.
+- Active subphase: Phase 02 Mac-side implementation complete; final publication/hosted-CI gate in progress before 02.01 hardware acceptance.
 - Machine gate: M0 — Mac only.
-- Exact next implementation command when Phase 02 is authorized: `git switch -c codex/02-remote-gpu-server` from `codex/01-mac-simulation`; complete local staging and secret scanning before powering on the PC.
+- Exact next implementation action: commit, secret-scan, push, open draft PR 3, and require hosted CI green; then emit the P1 power-on handoff.
 - External recovery: none; GitHub authentication and publication are verified.
 - Last verified local implementation SHA: `44e1d5f229c787d7d1af24bf323a968bce33dfcf`; last verified WSL SHA: unknown.
 - PR state: PRs 1–2 are open, non-draft, and green for human review; PRs 3–7 remain pending their phases. No auto-merge is enabled.
@@ -49,6 +49,6 @@ Update this cursor immediately before pausing for GitHub login, `PC ready`, PC c
 ## Hardware coordination
 
 - Current gate: M0 — Mac only. The RTX PC may remain off through phases 00–01 and phase 02 local staging.
-- Next PC notification: `PC ACTION REQUIRED — POWER ON`, emitted only after a secret-scanned phase 02 remote-test candidate SHA is ready.
+- Next PC notification: `PC ACTION REQUIRED — POWER ON`, emitted only after the final Phase 02 branch SHA is pushed, secret-scanned, its draft PR exists, and hosted CI is green.
 - After you reply `PC ready`, Codex completes the one-time SSH trust gate, then runs bounded remote diagnostics. `PC REMOTE WORK STARTED` is emitted only after those checks pass.
 - Full procedure: [`EXECUTION_LOGISTICS.md`](EXECUTION_LOGISTICS.md).

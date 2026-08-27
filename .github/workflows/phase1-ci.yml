@@ -1,4 +1,4 @@
-name: Phase 1 CPU checks
+name: Project CPU checks
 
 on:
   pull_request:

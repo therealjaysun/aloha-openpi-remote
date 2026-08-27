@@ -7,9 +7,9 @@
 - **Validation:** Start/health/duplicate/stop/stale-or-reused-PID tests for both profiles; verify listener is `127.0.0.1:8000`; process survives setup SSH exit; metadata/logs identify profile/config/checkpoint/SHA and GPU without private paths or host/IP discovery.
 - **Acceptance:** Safe idempotent lifecycle; bounded startup; loopback bind; profile reported; no CPU inference; stop cannot kill an unrelated PID.
 - **Planned commits:** `fix(server): allow loopback policy binding`; `feat(remote): manage selectable policy profiles`.
-- **Actual findings:** Current server hard-codes `0.0.0.0` and has `/healthz`. `--env=ALOHA_SIM` selects task-specific π₀; `--env=ALOHA` selects `pi05_aloha` with `pi05_base`, which provides the native π₀.₅ option but is not sim-task-fine-tuned.
-- **Remaining blockers:** Remote runtime and exact tyro help must be exercised after install.
-- **Completion status:** Planned.
+- **Actual findings:** The upstream-compatible default remains `0.0.0.0`, while the wrapper requires literal `127.0.0.1`. `--env=ALOHA_SIM` selects task-specific π₀; `--env=ALOHA` selects `pi05_aloha` with `pi05_base`, which provides the native π₀.₅ option but is not sim-task-fine-tuned. Start/check/stop share a user-state lifecycle lock; the background child closes the lock descriptor; an atomic mode-600 record binds PID start identity, command hash, profile, port, source SHA, and log; Linux PIDfd signaling closes the PID-reuse race. A second SSH session revalidates record, listener owner, loopback bind, and health.
+- **Remaining blockers:** Exercise tyro parsing, process/listener ownership, model startup, survival, and stop on WSL.
+- **Completion status:** Mac implementation and pure lifecycle checks complete; hardware acceptance blocked.
 
 Representative commands after verification:
 

@@ -7,8 +7,8 @@
 - **Validation:** `make doctor-pc`; captured exit codes; no committed identifiers; no private paths in output fixtures.
 - **Acceptance:** Shell path, distro, Ubuntu version, driver/CUDA visibility, GPU model/memory, disk, port 8000 state, and next-action diagnostics are known.
 - **Planned commit:** `feat(remote): add WSL and RTX diagnostics`.
-- **Actual findings:** None; `robot-gpu` is not configured locally.
-- **Remaining blockers:** SSH alias/PC access.
-- **Completion status:** Blocked.
+- **Actual findings:** The Mac-side doctor now detects direct WSL Bash, PowerShell, or cmd without shell interpolation; selects only an explicit distro or the sole detected Ubuntu distro; requires Ubuntu 22.04 x86_64 WSL2, RTX 3090, `nvidia-smi`, and the fixed tool set; reports sanitized facts. Generated route tests pass. `robot-gpu` has not been queried, so no PC fact is claimed.
+- **Remaining blockers:** Explicit P1 power/SSH handoff and real WSL execution.
+- **Completion status:** Mac implementation complete; hardware acceptance blocked.
 
-Never install a Linux NVIDIA driver in WSL; NVIDIA documents that WSL uses the Windows host driver.
+Never install a Linux NVIDIA driver in WSL; the [NVIDIA CUDA on WSL guide](https://docs.nvidia.com/cuda/pdf/CUDA_on_WSL_User_Guide.pdf) documents that WSL uses the Windows host driver.

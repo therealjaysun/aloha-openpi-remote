@@ -1,7 +1,7 @@
 import dataclasses
 import enum
 import logging
-import socket
+import subprocess
 
 import tyro
 
@@ -48,8 +48,15 @@ class Args:
 
     # Port to serve the policy on.
     port: int = 8000
+    # Host to bind. The project wrapper passes loopback; the upstream-compatible default is retained.
+    host: str = "0.0.0.0"
     # Record the policy's behavior for debugging.
     record: bool = False
+
+    # Optional project profile identity and GPU requirements used by the remote ALOHA wrapper.
+    policy_profile: str | None = None
+    require_jax_platform: str | None = None
+    require_jax_device: str | None = None
 
     # Specifies how to load the policy. If not provided, the default policy for the environment will be used.
     policy: Checkpoint | Default = dataclasses.field(default_factory=Default)
@@ -96,21 +103,61 @@ def create_policy(args: Args) -> _policy.Policy:
             return create_default_policy(args.env, default_prompt=args.default_prompt)
 
 
+def _profile_metadata(args: Args) -> dict:
+    if args.policy_profile is None:
+        return {}
+    profiles = {
+        "pi0_aloha_sim": (EnvMode.ALOHA_SIM, "pi0_aloha_sim", "pi0_aloha_sim"),
+        "pi05_aloha_base": (EnvMode.ALOHA, "pi05_aloha", "pi05_base"),
+    }
+    try:
+        expected_env, config_name, checkpoint_label = profiles[args.policy_profile]
+    except KeyError as error:
+        raise ValueError("Unsupported project policy profile") from error
+    if not isinstance(args.policy, Default) or args.env is not expected_env:
+        raise ValueError("Project policy profile does not match the selected default environment")
+    source_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True, timeout=10
+    ).stdout.strip()
+    return {
+        "policy_profile": args.policy_profile,
+        "config_name": config_name,
+        "checkpoint_label": checkpoint_label,
+        "action_horizon": 50,
+        "action_dimension": 14,
+        "source_sha": source_sha,
+    }
+
+
 def main(args: Args) -> None:
     policy = create_policy(args)
-    policy_metadata = policy.metadata
+    policy_metadata = {**policy.metadata, **_profile_metadata(args)}
+
+    if args.require_jax_platform is not None:
+        import jax
+
+        platform = jax.default_backend()
+        devices = jax.devices()
+        if platform != args.require_jax_platform:
+            raise RuntimeError(f"Required JAX platform {args.require_jax_platform!r}, got {platform!r}")
+        device_kinds = [device.device_kind for device in devices]
+        if args.require_jax_device is not None and not any(args.require_jax_device in kind for kind in device_kinds):
+            raise RuntimeError(f"Required JAX device containing {args.require_jax_device!r} was not found")
+        selected_device = next(
+            (kind for kind in device_kinds if args.require_jax_device is None or args.require_jax_device in kind),
+            device_kinds[0],
+        )
+        policy_metadata.update({"jax_platform": platform, "jax_device": selected_device})
 
     # Record the policy's behavior.
     if args.record:
         policy = _policy.PolicyRecorder(policy, "policy_records")
 
-    hostname = socket.gethostname()
-    local_ip = socket.gethostbyname(hostname)
-    logging.info("Creating server (host: %s, ip: %s)", hostname, local_ip)
+    logging.info("Creating server on %s:%d", args.host, args.port)
 
     server = websocket_policy_server.WebsocketPolicyServer(
         policy=policy,
-        host="0.0.0.0",
+        host=args.host,
         port=args.port,
         metadata=policy_metadata,
     )

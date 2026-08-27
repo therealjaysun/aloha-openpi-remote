@@ -4,7 +4,7 @@
 - **Scope:** Remote discovery, WSL/CUDA checks, pinned OpenPI install, profile selection, checkpoint cache, loopback server lifecycle, GPU evidence.
 - **Non-goals:** Driver/firewall/WSL network/SSH-server changes, training/fine-tuning, public model port, claiming π₀.₅ is sim-fine-tuned.
 - **Dependencies:** Phase 01 local branch for script/config staging. Remote validation additionally requires the secret-scanned phase 02 candidate SHA, completed P1 SSH/power handoff, user-authorized PC access, WSL2 Ubuntu, and the existing Windows NVIDIA driver. GitHub auth is optional because the documented Git-bundle transfer is available.
-- **Planned files:** `scripts/{doctor_pc,setup_pc,start_policy_server,stop_policy_server}.sh`, `tools/remote_aloha/config.py`, tests for config/command construction, `Makefile`, `.env.example`, minimal `scripts/serve_policy.py` host patch/test.
+- **Implemented files:** bounded Mac→SSH→WSL orchestration in `tools/remote_aloha/remote.py`; fixed profile/response contracts and pure tests; WSL doctor/setup/start/check/smoke/stop scripts; minimal `scripts/serve_policy.py` host/metadata/GPU patch; config, Make, CI, ignore, and evidence gates.
 - **Planned commits:** `feat(remote): add WSL environment diagnostics`; `feat(remote): add selectable OpenPI policy server lifecycle`.
 - **Branch:** `codex/02-remote-gpu-server`.
 - **PR base:** `codex/01-mac-simulation`.
@@ -13,8 +13,8 @@
 - **Test commands:** `make doctor-pc`; `make setup-pc`; `OPENPI_POLICY_PROFILE=pi0_aloha_sim make server`; `make stop`; repeat with `pi05_aloha_base`; remote `nvidia-smi`; `/healthz`; unit tests.
 - **Risks:** No remote access; stale/partial checkpoint; WSL `nvidia-smi` limitations; 3090 CUDA/driver mismatch; 24 GB memory pressure; unsafe Windows→WSL quoting; server binds wider than intended.
 - **Rollback:** Stop only validated PID; remove project venv/cache only with explicit user request; revert scripts/host patch; never alter drivers, WSL, or firewall.
-- **Current status:** Plan complete; implementation not started. Local staging is unblocked; remote acceptance is blocked on PC/SSH access.
-- **Actual results:** Remote environment unknown; no SSH, WSL, CUDA, checkpoint, or inference command ran.
+- **Current status:** Mac-side Phase 02 implementation and pure validation are complete. Candidate publication/hosted CI is the remaining M0 gate; remote acceptance remains blocked on the explicit PC/SSH handoff.
+- **Actual results:** Both selectable profiles, generated Bash/PowerShell/cmd routes, candidate/secret-scan gating, managed-checkout setup, loopback lifecycle, PIDfd stop safety, GPU evidence, and WSL-local smoke contracts are implemented and locally tested. The remote environment remains unknown: no SSH, WSL, CUDA, checkpoint, or inference command has run.
 - **Deviations:** Added the user-requested π₀.₅ option as an experimental `pi05_aloha` + `pi05_base` profile because upstream has no `pi05_aloha_sim` checkpoint.
 - **PR:** Pending.
 - **Final commit SHA:** Pending.
@@ -31,3 +31,10 @@ Both return the same ALOHA wire action contract `(50,14)`. Record the profile in
 ## Machine handoff
 
 Stage and locally test this phase while the PC is off, then record/push or bundle its exact candidate SHA. After the user replies `PC ready`, complete SSH trust and bounded diagnostics; emit `PC REMOTE WORK STARTED` only when those pass. Request `PC CONSOLE ACTION REQUIRED` only for a proven local/admin blocker.
+
+## Authoritative references
+
+- [NVIDIA CUDA on WSL User Guide](https://docs.nvidia.com/cuda/pdf/CUDA_on_WSL_User_Guide.pdf) — WSL uses the Windows NVIDIA driver; do not install a Linux display driver.
+- [Microsoft WSL filesystems](https://learn.microsoft.com/en-us/windows/wsl/filesystems) and [interop](https://learn.microsoft.com/en-us/windows/wsl/interop) — Linux-side project placement and Windows→WSL command routing.
+- [uv project sync](https://docs.astral.sh/uv/concepts/projects/sync/) — exact locked-environment synchronization.
+- [OpenPI `serve_policy.py`](https://github.com/Physical-Intelligence/openpi/blob/main/scripts/serve_policy.py) — upstream server entry point kept compatible by the local host/metadata patch.

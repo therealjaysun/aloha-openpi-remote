@@ -7,6 +7,8 @@
 - **Validation:** Remote `git status`, remotes, SHA, submodules; `uv run python` imports OpenPI/JAX; `jax.devices()` contains GPU; disk/cache checks.
 - **Acceptance:** Exact secret-scanned project SHA runs in an isolated WSL env and contains the audited upstream base; no CPU-only fallback; sufficient disk and no unexplained partial download; no driver/system security changes; rerun is safe.
 - **Planned commit:** `feat(remote): install pinned OpenPI in WSL`.
-- **Actual findings:** Upstream root requires Python ≥3.11 and officially supports Ubuntu 22.04; root lock includes JAX CUDA 12 and torch 2.7.1. Public object sizes observed 2026-08-26 were 11.19 GiB for π₀ ALOHA Sim and 11.59 GiB for π₀.₅ base (22.78 GiB combined), before venv/cache/JAX/log/partial margin; re-measure at implementation. No remote install attempted.
-- **Remaining blockers:** Phase 02.01.
-- **Completion status:** Planned.
+- **Actual findings:** Setup is implemented as a bounded WSL-side `timeout` operation. It accepts only the exact clean, pushed, secret-scanned Phase 02 SHA; mutates only a checkout carrying this tool's private managed marker; refuses tracked or untracked dirt; preserves partial checkpoint data; runs `uv sync --locked`; and rejects JAX CPU fallback. Upstream root requires Python ≥3.11 and Ubuntu 22.04; its lock includes JAX CUDA 12 and torch 2.7.1. Public object sizes observed 2026-08-26 were 11.19 GiB for π₀ ALOHA Sim and 11.59 GiB for π₀.₅ base (22.78 GiB combined), before the 40 GiB free-space gate. No remote install has run.
+- **Remaining blockers:** Passing 02.01 on the real PC, WSL network/disk access, and remote execution of the exact published candidate.
+- **Completion status:** Mac implementation complete; hardware acceptance blocked.
+
+The environment step follows the official [uv locked sync behavior](https://docs.astral.sh/uv/concepts/projects/sync/); project and cache paths stay in the WSL filesystem per [Microsoft's WSL filesystem guidance](https://learn.microsoft.com/en-us/windows/wsl/filesystems).

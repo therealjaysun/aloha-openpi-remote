@@ -7,6 +7,6 @@
 - **Validation:** Profile-specific smoke inference; absent/hung-server outer-timeout exit with no surviving client; `nvidia-smi`/JAX device evidence; server timing response.
 - **Acceptance:** Both profiles allocate RTX 3090 memory and return valid actions; π₀.₅ task success is not inferred from shape validity; evidence is sanitized.
 - **Planned commit:** `test(remote): verify RTX policy inference`.
-- **Actual findings:** None; hardware unavailable.
-- **Remaining blockers:** Phases 02.01–03 and real PC access. Mac-through-tunnel validation belongs to phase 03 and is not a phase 02 dependency.
-- **Completion status:** Blocked pending hardware.
+- **Actual findings:** The WSL-local smoke client implements one cold request, two warmups, and one measured warmed request for either fixed profile; validates exact safe metadata, finite floating `(50,14)` actions, source SHA, JAX GPU/3090 identity; and omits the prompt so the stock ALOHA-Sim/default-prompt path remains authoritative. An outer GNU timeout bounds the stock client, while `nvidia-smi` sampling and server-PID GPU-memory attribution fail closed. Contract tests pass; no GPU command has run.
+- **Remaining blockers:** Phases 02.01–03 on the real PC and both profile-specific checkpoint/inference runs. Mac-through-tunnel validation belongs to phase 03 and is not a phase 02 dependency.
+- **Completion status:** Mac implementation complete; GPU acceptance blocked.

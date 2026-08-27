@@ -3,7 +3,9 @@ from pathlib import Path
 import pytest
 
 from tools.remote_aloha.config import DEFAULT_TASK
+from tools.remote_aloha.config import POLICY_PROFILES
 from tools.remote_aloha.config import load_mac_sim_config
+from tools.remote_aloha.config import load_remote_config
 
 
 def test_defaults_when_env_file_is_missing(tmp_path: Path) -> None:
@@ -43,3 +45,82 @@ def test_env_file_is_data_not_shell(tmp_path: Path) -> None:
     env_file.write_text("export ALOHA_SEED=1\n", encoding="utf-8")
     with pytest.raises(ValueError, match="invalid key"):
         load_mac_sim_config(env_file, {})
+
+
+def test_remote_defaults_and_profile_contract(tmp_path: Path) -> None:
+    config = load_remote_config(tmp_path / "missing", {})
+    assert (
+        config.ssh_alias,
+        config.remote_dir,
+        config.wsl_distro,
+        config.data_home,
+        config.policy_host,
+        config.policy_port,
+        config.policy_profile.name,
+        config.min_free_gib,
+    ) == ("robot-gpu", "~/src/openpi", "", "", "127.0.0.1", 8000, "pi0_aloha_sim", 40)
+    assert set(POLICY_PROFILES) == {"pi0_aloha_sim", "pi05_aloha_base"}
+    assert (
+        POLICY_PROFILES["pi0_aloha_sim"].env,
+        POLICY_PROFILES["pi0_aloha_sim"].config_name,
+        POLICY_PROFILES["pi0_aloha_sim"].checkpoint_uri,
+        POLICY_PROFILES["pi0_aloha_sim"].experimental,
+    ) == ("ALOHA_SIM", "pi0_aloha_sim", "gs://openpi-assets/checkpoints/pi0_aloha_sim", False)
+    assert (
+        POLICY_PROFILES["pi05_aloha_base"].env,
+        POLICY_PROFILES["pi05_aloha_base"].config_name,
+        POLICY_PROFILES["pi05_aloha_base"].checkpoint_uri,
+        POLICY_PROFILES["pi05_aloha_base"].default_prompt,
+        POLICY_PROFILES["pi05_aloha_base"].experimental,
+    ) == ("ALOHA", "pi05_aloha", "gs://openpi-assets/checkpoints/pi05_base", "Transfer cube", True)
+    assert {profile.action_horizon for profile in POLICY_PROFILES.values()} == {50}
+    assert {profile.action_dimension for profile in POLICY_PROFILES.values()} == {14}
+
+
+def test_remote_file_values_and_environment_override(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "OPENPI_POLICY_PROFILE=pi05_aloha_base\nREMOTE_POLICY_PORT=9000\nOPENPI_WSL_DISTRO='Ubuntu Dev'\n",
+        encoding="utf-8",
+    )
+    config = load_remote_config(env_file, {"REMOTE_POLICY_PORT": "8123", "OPENPI_DATA_HOME": "/srv/open pi's"})
+    assert config.policy_profile.experimental
+    assert config.policy_port == 8123
+    assert config.wsl_distro == "Ubuntu Dev"
+    assert config.data_home == "/srv/open pi's"
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "message"),
+    [
+        ("ROBOT_GPU_SSH_ALIAS", "-oProxyCommand=id", "SSH host alias"),
+        ("ROBOT_GPU_SSH_ALIAS", "user@host", "SSH host alias"),
+        ("ROBOT_GPU_SSH_ALIAS", "bad host", "SSH host alias"),
+        ("ROBOT_GPU_SSH_ALIAS", "bad\nhost", "SSH host alias"),
+        ("OPENPI_WSL_DISTRO", "-Ubuntu", "distro"),
+        ("OPENPI_WSL_DISTRO", "Ubuntu\nOther", "distro"),
+        ("OPENPI_REMOTE_DIR", "relative/path", "absolute WSL path"),
+        ("OPENPI_REMOTE_DIR", "~user/path", "absolute WSL path"),
+        ("OPENPI_REMOTE_DIR", "$HOME/path", "absolute WSL path"),
+        ("OPENPI_REMOTE_DIR", "/srv/$(id)", "absolute WSL path"),
+        ("OPENPI_REMOTE_DIR", "/", "must not target"),
+        ("OPENPI_REMOTE_DIR", "~/src/../other", "must not target"),
+        ("OPENPI_DATA_HOME", "~/cache", "absolute WSL path"),
+        ("OPENPI_DATA_HOME", "/proc/cache", "must not target"),
+        ("OPENPI_DATA_HOME", "/sys", "must not target"),
+        ("REMOTE_POLICY_HOST", "0.0.0.0", "literal loopback"),
+        ("REMOTE_POLICY_PORT", "0", "between"),
+        ("REMOTE_POLICY_PORT", "65536", "at most"),
+        ("REMOTE_POLICY_PORT", "8000 trailing", "unsigned"),
+        ("OPENPI_POLICY_PROFILE", "pi0_aloha_sim;id", "must be one of"),
+        ("SSH_CONNECT_TIMEOUT_SECONDS", "0", "positive"),
+        ("SSH_CONNECT_TIMEOUT_SECONDS", "1.5", "unsigned"),
+        ("OPENPI_SERVER_STARTUP_TIMEOUT_SECONDS", "7201", "at most"),
+        ("OPENPI_POLICY_INFERENCE_TIMEOUT_SECONDS", "0", "positive"),
+        ("OPENPI_MIN_FREE_GIB", "0", "positive"),
+        ("OPENPI_MIN_FREE_GIB", "1025", "at most"),
+    ],
+)
+def test_invalid_remote_configuration_is_rejected(tmp_path: Path, key: str, value: str, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        load_remote_config(tmp_path / "missing", {key: value})
