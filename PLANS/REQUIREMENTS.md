@@ -14,7 +14,7 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | G06 | Every shell script starts `set -euo pipefail`, quotes arguments, cleans temporary files, is rerunnable, and emits actionable failures | 00–06 | syntax/unit review | Pending |
 | G07 | `.env` is ignored; `.env.example` contains placeholders only; profile mapping is fixed and never evaluated as code | 00,02,06 | config tests and scan | Pass through Phase 02: E-MAC02 |
 | G08 | Exact upstream pin and Mac/WSL project SHA are recorded before remote tests | 00,02–06 | Git evidence | Pass through Phase 02: E-PC-SETUP |
-| G09 | Weights, checkpoints, caches, raw logs/telemetry, videos, and machine paths remain ignored | 00–06 | tracked/candidate scan | Pass through Phase 02: E-MAC02 |
+| G09 | Weights, checkpoints, caches, raw logs/telemetry, videos, and machine paths remain ignored | 00–06 | tracked/candidate scan | Pass through Phase 02: E-MAC03 |
 | G10 | All seven PRs remain open for human review; no merge/auto-merge/automatic dependent-branch deletion | 00,06 | GitHub PR evidence | Pending |
 | MK01 | Stable targets exist: `doctor doctor-mac doctor-pc setup-mac setup-pc server tunnel smoke-sim smoke-policy run metrics stop test lint secret-scan pr-status` | 00–06 | `make help` and invocations | Pending |
 | MF01 | Native fallback evidence records package/version/command/error, checks a compatible version and source install, uses the narrowest adjustment, considers Rosetta only after proven arm64 failure, never silently moves simulation to PC, and creates `05-native-blocker.md` if unresolved | 01 | blocker or native evidence | Pass: E-MAC01; native execution succeeded after narrower path/FFmpeg fixes, so engine/source/Rosetta escalation was unnecessary |
@@ -70,12 +70,12 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | PH09 | No local OS/SSH usernames tracked | 00,03,06 | candidate/history scan | Pending |
 | PH10 | No private hostnames tracked | 00,03,06 | candidate/history scan | Pending |
 | PH11 | No absolute home-directory paths tracked | 00,06 | candidate/history scan | Pending |
-| PH12 | No raw remote logs with machine identifiers tracked | 02,05,06 | candidate/history scan | Pass through Phase 02: E-MAC02 |
+| PH12 | No raw remote logs with machine identifiers tracked | 02,05,06 | candidate/history scan | Pass through Phase 02: E-MAC03 |
 | PH13 | Example telemetry is allowlisted and sanitized | 05,06 | sanitizer test/review | Pending |
 | PH14 | Tracked examples/docs use placeholders | 00–06 | scan/review | Pending |
-| PH15 | `.gitignore` covers env, runtime state, outputs, videos, logs, telemetry, caches, and weights | 00,06 | ignore tests | Pass through Phase 02: E-MAC02 |
-| PH16 | Fail-closed secret scan runs before every push | 00–06 | PR/evidence record | Pass through Phase 02: E-MAC02 |
-| PH17 | Staged and non-ignored candidate files are inspected before every push | 00–06 | PR/evidence record | Pass through Phase 02: E-MAC02 |
+| PH15 | `.gitignore` covers env, runtime state, outputs, videos, logs, telemetry, caches, and weights | 00,06 | ignore tests | Pass through Phase 02: E-MAC03 |
+| PH16 | Fail-closed secret scan runs before every push | 00–06 | PR/evidence record | Pass through Phase 02: E-MAC03 |
+| PH17 | Staged and non-ignored candidate files are inspected before every push | 00–06 | PR/evidence record | Pass through Phase 02: E-MAC03 |
 | PH18 | Upstream Git history is preserved where practical | 00,06 | graph/remote audit | Pending |
 | PH19 | All substantial derivative changes are inventoried | 06 | README differences section | Pending |
 | PH20 | No proprietary or confidential information is included | 00–06 | scan/review | Pending |
@@ -100,7 +100,7 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | DR14 | RTX 3090 detection | 02 | E-PC-SETUP | Pass: E-PC-SETUP |
 | DR15 | NVIDIA driver and CUDA/JAX visibility | 02 | E-PC-SETUP | Pass: E-PC-SETUP |
 | DR16 | Remote repo/cache disk margin | 02 | E-PC-SETUP | Pass: E-PC-SETUP |
-| DR17 | Configured local/remote port conflicts | 02,03 | listener checks | Blocked: Mac tunnel port pending; WSL port gate passed E-PC-SETUP |
+| DR17 | Configured local/remote port conflicts | 02,03 | listener checks | Pending: Phase 03 Mac tunnel port; WSL port gate passed E-PC-SETUP |
 | DR18 | WSL project installation and exact SHA | 02 | E-PC-SETUP | Pass: E-PC-SETUP |
 | DR19 | Public-repository secret hygiene | 00,06 | fail-closed scan | Pass through Phase 01: E-GH |
 
@@ -137,7 +137,7 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | R02 | Bounded initial server startup retries | 02 | lifecycle tests | Pass locally and for real π₀ startup: E-MAC02, E-PC-JAX |
 | R03 | Graceful Ctrl+C shutdown | 04,05 | interrupt test | Pending |
 | R04 | Tunnel cleanup | 03,05 | owned-process test | Pending |
-| R05 | Remote server/sampler cleanup | 02,05 | owned-process test | Blocked: sampler pending; policy-server cleanup passed E-PC-STOP |
+| R05 | Remote server/sampler cleanup | 02,05 | owned-process test | Pending: Phase 05 sampler; policy-server cleanup passed E-PC-STOP |
 | R06 | Duplicate server protection | 02 | lifecycle test | Pass locally: E-MAC02 |
 | R07 | Duplicate tunnel protection | 03 | lifecycle test | Pending |
 | R08 | Timestamped ignored run directories | 04,05 | artifact check | Pending |
@@ -145,7 +145,7 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | R10 | Dtype validation | 03,04 | contract tests | Pass for Phase 02 boundary: E-MAC02 |
 | R11 | NaN/infinity validation | 03,04 | contract tests | Pass for Phase 02 boundary: E-MAC02 |
 | R12 | Configuration validation | 01–04 | config tests | Pass through Phase 02: E-MAC02 |
-| R13 | Checkpoint download status and non-destructive partial-cache handling | 02,05 | lifecycle/failure evidence | Blocked: π₀.₅ pending; π₀ passed E-PC-SETUP |
+| R13 | Checkpoint download status and non-destructive partial-cache handling | 02,05 | lifecycle/failure evidence | Blocked: π₀.₅ pending E-PC-CONVERT; π₀ cache passed E-PC-SETUP |
 | R14 | Port conflict diagnostics | 02,03 | lifecycle tests | Pass locally: E-MAC02; real WSL port gate passed E-PC-SETUP |
 | R15 | Native macOS rendering diagnostics | 01 | smoke/failure evidence | Pass: E-MAC01 |
 | R16 | WSL GPU diagnostics and CPU-fallback rejection | 02 | E-PC-SETUP | Pass: E-PC-SETUP |
@@ -225,11 +225,11 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | DOD19 | At least one complete policy-controlled episode runs | 04 | Blocked by DOD17 | E-PC-JAX |
 | DOD20 | Videos and structured metrics are saved | 04,05 | Blocked by DOD17 for policy runs; Phase 01 sim video passed | E-PC-JAX, E-MAC01 |
 | DOD21 | GPU memory and inference latency are reported | 02,05 | Blocked: failed-request GPU memory exists but no successful latency | E-PC-JAX |
-| DOD22 | Unit tests pass | 00–06 | Pass through Phase 02 locally: E-MAC02 | E-MAC02 |
+| DOD22 | Unit tests pass | 00–06 | Pass through Phase 02 locally and hosted: E-MAC03 | E-MAC03 |
 | DOD23 | Relevant upstream checks pass or exact infeasible lane is recorded | 00,06 | Pending | — |
-| DOD24 | CPU-only public CI is configured where practical | 00 | Pass: hosted checks are green through Phase 02 | E-GH, E-MAC01, E-MAC02 |
-| DOD25 | No credentials or machine secrets are committed | 00–06 | Pass through Phase 02: E-MAC02 | E-MAC02 |
-| DOD26 | Public-repository hygiene passes | 00,06 | Pass through Phase 02: E-MAC02 | E-MAC02 |
+| DOD24 | CPU-only public CI is configured where practical | 00 | Pass: hosted checks are green through Phase 02 | E-GH, E-MAC03 |
+| DOD25 | No credentials or machine secrets are committed | 00–06 | Pass through Phase 02: E-MAC03 | E-MAC03 |
+| DOD26 | Public-repository hygiene passes | 00,06 | Pass through Phase 02: E-MAC03 | E-MAC03 |
 | DOD27 | Complete workflow is documented | 06 | Pending | — |
 | DOD28 | Human merge instructions are documented | 00 | Pending final implementation verification | — |
 | DOD29 | Every blocker has evidence and exact recovery command | 00–06 | Pending | — |
@@ -245,6 +245,7 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | E-PC-CONVERT | G01, DOD14, DOD17 | WSL CPU conversion experiment; `2026-08-27T19:31:02Z`–`2026-08-27T19:36:32Z`; profile/config `pi0_aloha_sim`; candidate/upstream SHAs as E-PC-SETUP. `JAX_PLATFORMS=cpu .venv/bin/python examples/convert_jax_model_to_pytorch.py --checkpoint_dir "$HOME/.cache/openpi/openpi-assets/checkpoints/pi0_aloha_sim" --config_name pi0_aloha_sim --output_path "$HOME/.cache/openpi/openpi-assets/checkpoints/pi0_aloha_sim_pytorch" --precision bfloat16` was kernel-OOM-killed (exit 15); a BF16 restore-only probe was also OOM-killed with roughly 11.7 GiB WSL RAM. Source inspection estimates roughly 24 GiB overlapping converter data before overhead; ≥32 GiB available RAM is an evidence-based practical target, not an upstream-published minimum. Ignored artifacts: `outputs/phase02/20260827T193102.783910Z/06-convert-pi0-pytorch.log` SHA-256 `13b81f95d69ae5b4a110e0d6623a373dd9b758d79141367700c4c412505ffe41`; `outputs/phase02/20260827T193314.715343Z/06-conversion-diagnostic.log` SHA-256 `4c04e7140e6bf1b761749c3d778975f6679fe7f270e879998e7419d298f7e15b`; `outputs/phase02/20260827T193632.062956Z/06-oom-history.log` SHA-256 `8db7dbaa9b18413e364e96a027ecde35e4512f8a8f90d0de29064c8902c7bc4c`. | User action: upgrade the RTX PC or provide an SSH-accessible CPU Ubuntu 22.04 host with ≥32 GiB RAM available to the process and ≥60 GiB disk (64 GB total RAM preferred for Windows/WSL), then reply `conversion host ready`. Codex performs conversion, asset copy, hashing, strict load, backend selection, and both profile smokes. |
 | E-PC-STOP | R05, R19 | Mac→WSL; `2026-08-27T19:29:52Z`; profile `pi0_aloha_sim`; `make stop` exited 0 and identity verification reported the owned policy server stopped; no Mac tunnel or long-lived GPU sampler was started. Ignored artifact: `outputs/phase02/20260827T192952.329288Z/01-server-stop.log` SHA-256 `762b2a1134769cf82a13b0c95cfcc69d46f1d87692c1ec17ee291bc9a4c1e4a0`. | None; PC is safe to power off. |
 | E-MAC01 | G02, MF01, DR01–DR02, DR06–DR08, RO07, RO16, R15, T01–T02, DOD11–DOD12, DOD24 | Mac; `2026-08-27T03:37:18Z`; `make setup-mac && make doctor-mac && make ci`, fresh lightweight-venv `make ci`, and two `make smoke-sim` runs exited 0; project SHA `44e1d5f229c787d7d1af24bf323a968bce33dfcf`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; profile N/A; native arm64 Python 3.10.20; two 900-step totals; p95 11.880/11.750 ms; 300-frame 224×224 video at 50 fps; ignored manifests `outputs/phase01/20260827T033612.389060Z/manifest.json` (`cfd484…d0d3`) and `outputs/phase01/20260827T033659.222401Z/manifest.json` (`8a8394…cfda`) | Rerun `make setup-mac && make doctor-mac && make ci && make smoke-sim` from the logged-in Mac desktop session. |
-| E-MAC02 | G03, G07–G09, PH12, PH15–PH17, R09–R12, R17–R19, T03–T04, T11, DOD07–DOD09, DOD22, DOD24–DOD26 | Historical initial Phase 02 staging evidence: Mac + GitHub-hosted Linux; `2026-08-27T05:49:13Z`; implementation commit `7f024035822c341acfc705c44842431a6fd57695`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; 100 tests passed on Mac with the Linux PIDfd launch test skipped; hosted pure checks and secret scan passed. Its 28-key count predates `OPENPI_JAX_MEM_FRACTION`; current validation is recorded separately. | Continue from E-PC-CONVERT; do not repeat the completed power/SSH gate. |
+| E-MAC02 | G03, G07–G09, PH12, PH15–PH17, R09–R12, R17–R19, T03–T04, T11, DOD07–DOD09, DOD22, DOD24–DOD26 | Historical initial Phase 02 staging evidence: Mac + GitHub-hosted Linux; `2026-08-27T05:49:13Z`; implementation commit `7f024035822c341acfc705c44842431a6fd57695`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; 100 tests passed on Mac with the Linux PIDfd launch test skipped; hosted pure checks and secret scan passed. Its 28-key count predates `OPENPI_JAX_MEM_FRACTION`; current validation is E-MAC03. | Continue from E-PC-CONVERT; do not repeat the completed power/SSH gate. |
+| E-MAC03 | G09, PH12, PH15–PH17, DOD22, DOD24–DOD26 | Mac + GitHub-hosted Linux; `2026-08-27T20:02:22Z`; documentation candidate `f8b33c75f1a4b49ddcd1ba8fcfb7bf6a60911484`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; profile N/A; raw artifact N/A. `make ci`, `make secret-scan`, plan structure/link/traceability validation, and `git diff --check` exited 0: 108 tests passed with 1 Mac-skipped Linux PIDfd test; Ruff, format, Bash, 42 plan files, 29 subphases, 29 config keys, 151 unique requirements, 30 definition-of-done IDs, and all local links passed. Both hosted `pure-checks` jobs and both hosted `secret-scan` jobs passed on PR 3 at this exact SHA. | Rerun `make ci && make secret-scan`, the documented plan validator, and `gh pr checks 3 --repo therealjaysun/pi-robotics`. |
 
 Phase 06 does not convert a blocked row to pass. It reports the blocker and the single exact command or user action that resumes it.

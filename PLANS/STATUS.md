@@ -51,6 +51,6 @@ Update this cursor immediately before pausing for GitHub login, `conversion host
 ## Hardware coordination
 
 - Current gate: Phase 02 memory blocker. SSH trust, Windows→WSL routing, RTX detection, locked setup, loopback lifecycle, and verified cleanup are complete.
-- The PC can remain off until the officially documented PyTorch conversion has been attempted on the higher-memory machine.
+- The RTX PC may remain off when conversion uses a separate host. If the RTX PC itself is upgraded, power it on and reply `conversion host ready`.
 - After conversion succeeds, Codex will ask for `PC ready`, copy and verify the artifacts, rerun bounded diagnostics, and validate both profiles through the PyTorch server path before Phase 03.
 - Full procedure: [`EXECUTION_LOGISTICS.md`](EXECUTION_LOGISTICS.md).
