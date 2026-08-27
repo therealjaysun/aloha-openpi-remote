@@ -297,6 +297,7 @@ exit $LASTEXITCODE
 def _doctor_script(port: int) -> str:
     return f"""#!/usr/bin/env bash
 set -euo pipefail
+export PATH="$HOME/.local/bin:$PATH"
 . /etc/os-release
 case "$(uname -r)" in *[Mm]icrosoft*WSL2*|*[Mm]icrosoft-standard-WSL2*) wsl2=yes ;; *) wsl2=no ;; esac
 smi="$(command -v nvidia-smi || true)"
@@ -465,6 +466,7 @@ def _setup_script(config: RemoteConfig, candidate: str) -> str:
     data_home = config.data_home
     return f"""#!/usr/bin/env bash
 set -euo pipefail
+export PATH="$HOME/.local/bin:$PATH"
 umask 077
 {_encoded_assignment('remote_input', config.remote_dir)}
 {_encoded_assignment('data_input', data_home)}
@@ -565,7 +567,12 @@ def setup(session: RemoteSession) -> None:
 
 
 def _remote_script_command(config: RemoteConfig, script_name: str, arguments: list[str]) -> str:
-    lines = ["#!/usr/bin/env bash", "set -euo pipefail", _encoded_assignment("remote_input", config.remote_dir)]
+    lines = [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        'export PATH="$HOME/.local/bin:$PATH"',
+        _encoded_assignment("remote_input", config.remote_dir),
+    ]
     lines.append(
         'case "$remote_input" in "~/"*) repo="$HOME/${remote_input:2}" ;; /*) repo="$remote_input" ;; *) exit 2 ;; esac'
     )

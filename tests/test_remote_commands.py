@@ -112,6 +112,7 @@ def test_default_tilde_setup_path_resolves_inside_wsl(tmp_path: Path) -> None:
     ],
 )
 def test_generated_wsl_bash_is_valid(script: str) -> None:
+    assert 'export PATH="$HOME/.local/bin:$PATH"' in script
     subprocess.run(["bash", "-n"], input=script, text=True, check=True)
 
 
