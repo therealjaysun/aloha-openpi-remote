@@ -590,6 +590,7 @@ def _remote_script_command(config: RemoteConfig, script_name: str, arguments: li
     for index, value in enumerate(arguments):
         lines.append(_encoded_assignment(f"arg{index}", value))
     quoted_args = " ".join(f'"$arg{index}"' for index in range(len(arguments)))
+    lines.append('cd "$repo"')
     lines.append(f'exec "$repo/scripts/{script_name}" {quoted_args}')
     return "\n".join(lines) + "\n"
 

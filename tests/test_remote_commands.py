@@ -68,6 +68,7 @@ def test_remote_script_values_are_base64_data_not_shell_code() -> None:
     script = _remote_script_command(config, "example.sh", [value])
     assert value not in script
     assert "eval" not in script
+    assert '\ncd "$repo"\nexec ' in script
     encoded = base64.b64encode(value.encode()).decode("ascii")
     assert script.count(encoded) == 2
 
