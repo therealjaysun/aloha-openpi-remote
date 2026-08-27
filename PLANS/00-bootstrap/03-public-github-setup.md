@@ -7,9 +7,9 @@
 - **Validation:** `gh repo view OWNER/REPO --json nameWithOwner,url,visibility,defaultBranchRef`; `git remote -v`; `git ls-remote origin`; `git config --get branch.main.remote`; secret scan; `git diff --cached --name-status`.
 - **Acceptance:** Repo is public, project-related, owned by authenticated account; `origin` is it; `upstream` remains official; URL recorded; baseline pushed with no sensitive/generated files and no inherited workflow execution; Actions remain disabled pending subphase 00.05.
 - **Planned commit:** `chore(repo): record public repository`.
-- **Actual findings:** Not attempted because the authentication prerequisite failed.
-- **Remaining blockers:** See `04-github-blocker.md`.
-- **Completion status:** Blocked pending authentication.
+- **Actual findings:** Authentication is valid for the verified account. The planned name was available, so `https://github.com/therealjaysun/aloha-openpi-remote` was created public and attached as `origin`; official OpenPI remains `upstream`. Actions was disabled and verified before `main` was pushed at `215abfb217dbac7d5f1273282331b9b1866c0479`.
+- **Remaining blockers:** None for repository creation. Actions remains intentionally disabled until hardened phase branches are pushed and repository workflow permissions are set read-only.
+- **Completion status:** Repository creation complete; safe enablement/PR verification continues in subphase 00.05.
 
 Recovery execution outline (replace `OWNER` only from `gh api`, never by guess):
 

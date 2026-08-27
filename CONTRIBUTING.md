@@ -1,5 +1,7 @@
 # Contributing to openpi
 
+> This derivative project is maintained independently. Submit integration-specific issues and pull requests to this repository; use the upstream links below only for reproducible issues in unmodified OpenPI.
+
 We welcome contributions, improvements, and modifications. Everyone is welcome to use openpi in accordance to the [license](LICENSE). Contributors are also welcome to submit bug reports, feature requests, and pull requests. We can't promise to approve every pull request, and we are a small team with limited bandwidth to review all requests, but we'll give it our best effort. Specifics are described below.
 
 ## Issues and feature requests

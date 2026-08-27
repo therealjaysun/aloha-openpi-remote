@@ -1,6 +1,6 @@
 # openpi
 
-> Planning baseline for an independent Mac ALOHA + remote RTX 3090 integration. Implementation plans are in [`PLANS/`](PLANS/README.md) and are pinned to upstream OpenPI commit `215abfb217dbac7d5f1273282331b9b1866c0479`. No endorsement by Physical Intelligence is implied.
+> Independent Mac ALOHA + remote RTX 3090 integration. The [project repository](https://github.com/therealjaysun/aloha-openpi-remote) and [`PLANS/`](PLANS/README.md) are pinned to upstream OpenPI commit `215abfb217dbac7d5f1273282331b9b1866c0479`. No endorsement by Physical Intelligence is implied.
 
 ## Native Mac simulation
 
