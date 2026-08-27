@@ -123,6 +123,12 @@ def test_doctor_checks_evdev_build_prerequisites() -> None:
     assert "linux-input-headers" in script
 
 
+def test_setup_migrates_only_the_known_pre_rename_origin() -> None:
+    script = _setup_script(RemoteConfig(), "a" * 40)
+    assert "legacy_repo_url" in script
+    assert 'remote set-url origin "$repo_url"' in script
+
+
 def test_doctor_accepts_selected_ubuntu_2404_and_requires_uv(monkeypatch: pytest.MonkeyPatch) -> None:
     uv = "uv 0.8.13"
 

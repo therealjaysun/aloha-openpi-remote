@@ -472,6 +472,7 @@ umask 077
 {_encoded_assignment('remote_input', config.remote_dir)}
 {_encoded_assignment('data_input', data_home)}
 {_encoded_assignment('repo_url', PUBLIC_REPO)}
+{_encoded_assignment('legacy_repo_url', 'https://github.com/therealjaysun/aloha-openpi-remote.git')}
 {_encoded_assignment('branch', PHASE_BRANCH)}
 {_encoded_assignment('candidate', candidate)}
 {_encoded_assignment('upstream_sha', UPSTREAM_SHA)}
@@ -509,9 +510,18 @@ elif [[ -L "$remote_dir" || ! -d "$remote_dir/.git" ]]; then
     echo 'OPENPI_REMOTE_DIR exists but is not the project repository; move it aside.' >&2
     exit 1
 fi
-[[ "$(git -C "$remote_dir" remote get-url origin)" == "$repo_url" ]] || {{ echo 'Remote origin mismatch.' >&2; exit 1; }}
 marker="$remote_dir/.runtime/managed-checkout"
-[[ -f "$marker" && ! -L "$marker" && "$(cat "$marker")" == "$repo_url" ]] || {{
+origin_url="$(git -C "$remote_dir" remote get-url origin)"
+marker_url="$(cat "$marker" 2>/dev/null || true)"
+if [[ -f "$marker" && ! -L "$marker" && "$marker_url" == "$legacy_repo_url" ]] &&
+    [[ "$origin_url" == "$legacy_repo_url" || "$origin_url" == "$repo_url" ]]; then
+    git -C "$remote_dir" remote set-url origin "$repo_url"
+    printf '%s\n' "$repo_url" >"$marker"
+    origin_url="$repo_url"
+    marker_url="$repo_url"
+fi
+[[ "$origin_url" == "$repo_url" ]] || {{ echo 'Remote origin mismatch.' >&2; exit 1; }}
+[[ -f "$marker" && ! -L "$marker" && "$marker_url" == "$repo_url" ]] || {{
     echo 'Refusing to mutate a checkout not created by this project.' >&2
     exit 1
 }}
