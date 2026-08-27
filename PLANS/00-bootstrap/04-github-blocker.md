@@ -1,4 +1,4 @@
-# 00.04 — Active GitHub blocker
+# 00.04 — Resolved GitHub blocker
 
 - **Objective:** Preserve exact, sanitized recovery information for public repository creation.
 - **Inputs/prerequisites:** GitHub CLI 2.89.0.
@@ -7,9 +7,9 @@
 - **Validation:** `gh auth status`; `gh api user --jq .login`; `gh repo view`.
 - **Acceptance:** Valid auth and a verified public project repository; no token output captured.
 - **Planned commit:** `chore(repo): resolve GitHub setup blocker`.
-- **Actual findings:** `gh auth status` failed: stored token for the active account is invalid. Expected repository name: `aloha-openpi-remote`. No repository creation command was attempted.
-- **Remaining blockers:** User must complete the browser/device authentication flow.
-- **Completion status:** Active blocker.
+- **Actual findings:** Resolved on 2026-08-26 local time: authenticated `gh` network/keychain validation passed, the expected repository name was available, and the public repository was created and verified without exposing token material.
+- **Remaining blockers:** None. Local branches ready for publication are `codex/00-bootstrap` and `codex/01-mac-simulation`; Actions remains deliberately disabled during the first pushes.
+- **Completion status:** Resolved.
 
 Exact recovery:
 
