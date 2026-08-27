@@ -225,7 +225,7 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | DOD21 | GPU memory and inference latency are reported | 02,05 | Blocked: PC unavailable | E-PC |
 | DOD22 | Unit tests pass | 00–06 | Pending | — |
 | DOD23 | Relevant upstream checks pass or exact infeasible lane is recorded | 00,06 | Pending | — |
-| DOD24 | CPU-only public CI is configured where practical | 00 | Pass locally; remote run blocked by E-GH | E-MAC01 |
+| DOD24 | CPU-only public CI is configured where practical | 00 | Pass: hosted Phase 00–01 checks are green | E-GH, E-MAC01 |
 | DOD25 | No credentials or machine secrets are committed | 00–06 | Pending | — |
 | DOD26 | Public-repository hygiene passes | 00,06 | Pending | — |
 | DOD27 | Complete workflow is documented | 06 | Pending | — |
@@ -237,7 +237,7 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 
 | Ref | Rows | Evidence | Exact recovery |
 | --- | --- | --- | --- |
-| E-GH | DR04–DR05, DOC03, DOD04–DOD05, DOD07–DOD09 | Mac; planning audit 2026-08-26; `gh auth status` failed with sanitized invalid-token result; repository existence/config was not queried; upstream source SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; profile N/A; raw artifact N/A | Run `gh auth login -h github.com`, then `gh auth status`, then resume `00-bootstrap/03-public-github-setup.md`. |
+| E-GH | PH16–PH17, DR03–DR05, DR19, DOC03, DOD04–DOD09, DOD24 | Mac; `2026-08-27T04:54:26Z`; authenticated `gh` checks, repository/remote/SHA inspection, Actions-permission API inspection, fail-closed local Gitleaks 8.30.1 scans, and hosted PR checks passed; public repo `https://github.com/therealjaysun/aloha-openpi-remote`; project SHA `d16bd6cf1d086044760315ede59e0b73eca7dabd`; upstream/main SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; PRs 1–2 open, non-draft, green, and without auto-merge; profile N/A; raw artifact N/A | Reverify with `gh auth status && gh repo view therealjaysun/aloha-openpi-remote && gh pr checks 1 --repo therealjaysun/aloha-openpi-remote && gh pr checks 2 --repo therealjaysun/aloha-openpi-remote`. |
 | E-PC | DR09–DR16, DR18, R16, DOD13–DOD21 | Mac; planning audit 2026-08-26; `robot-gpu` not configured and no PC/WSL command was run; no hardware state is claimed; upstream source SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; profile not tested; raw artifact N/A | After a secret-scanned phase 02 candidate SHA exists, power on the PC, reply `PC ready`, complete the fingerprint gate, then run `make doctor-pc`. |
 | E-MAC01 | G02, MF01, DR01–DR02, DR06–DR08, RO07, RO16, R15, T01–T02, DOD11–DOD12, DOD24 | Mac; `2026-08-27T03:37:18Z`; `make setup-mac && make doctor-mac && make ci`, fresh lightweight-venv `make ci`, and two `make smoke-sim` runs exited 0; project SHA `44e1d5f229c787d7d1af24bf323a968bce33dfcf`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; profile N/A; native arm64 Python 3.10.20; two 900-step totals; p95 11.880/11.750 ms; 300-frame 224×224 video at 50 fps; ignored manifests `outputs/phase01/20260827T033612.389060Z/manifest.json` (`cfd484…d0d3`) and `outputs/phase01/20260827T033659.222401Z/manifest.json` (`8a8394…cfda`) | Rerun `make setup-mac && make doctor-mac && make ci && make smoke-sim` from the logged-in Mac desktop session. |
 
