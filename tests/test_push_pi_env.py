@@ -6,9 +6,13 @@ pytest.importorskip("gym_aloha")
 pytest.importorskip("dm_control")
 
 import examples.aloha_sim.push_pi_env  # noqa: E402,F401
+from tools.remote_aloha.run import _scenario_info_fields  # noqa: E402
 from tools.remote_aloha.scenarios import CUSTOM_SCENARIOS  # noqa: E402
 from tools.remote_aloha.scenarios import SCENARIOS  # noqa: E402
 from tools.remote_aloha.scenarios import TABLETOP_SHA256  # noqa: E402
+from tools.remote_aloha.scenarios import descriptor_sha256  # noqa: E402
+from tools.remote_aloha.scenarios import effective_layout_seed  # noqa: E402
+from tools.remote_aloha.scenarios import sample_layout  # noqa: E402
 
 
 @pytest.mark.parametrize("scenario", CUSTOM_SCENARIOS)
@@ -27,7 +31,19 @@ def test_registered_environment_contract(scenario: str) -> None:
         assert np.isfinite(observation["agent_pos"]).all()
         assert info["scenario"] == scenario
         assert info["is_success"] is False
+        assert info["held_steps"] == 0
         assert len(info["scene_hash"]) == len(info["layout_hash"]) == 64
+        assert info["descriptor_sha256"] == descriptor_sha256()
+        assert _scenario_info_fields(spec) <= set(info)
+        assert all(
+            np.isfinite(info[key])
+            for key in _scenario_info_fields(spec)
+            if key.startswith("body_") and isinstance(info[key], float)
+        )
+        assert all(
+            len(row) == 8 and isinstance(row[0], str) and np.isfinite(row[1:]).all()
+            for row in info["sampled_poses"] + info["settled_poses"]
+        )
 
         command = environment.unwrapped.home_joint_positions
         observation, reward, terminated, truncated, info = environment.step(command)
@@ -75,6 +91,60 @@ def test_uppercase_i_is_one_dotless_body_with_three_parts() -> None:
         assert not any(name and "dot" in name.lower() for name in names)
         assert environment.unwrapped.scene_hash
         assert TABLETOP_SHA256 == "76a1571d1aa36520f2bd81c268991b99816c2a7819464d718e0fd9976fe30dce"
+    finally:
+        environment.close()
+
+
+@pytest.mark.parametrize(
+    ("scenario", "expected_masses"),
+    [
+        ("push_pi_single", {"pi": 0.05544}),
+        ("push_letters_single", {"P": 0.05544, "I": 0.04368}),
+    ],
+)
+def test_visual_geoms_do_not_duplicate_body_mass(scenario: str, expected_masses: dict[str, float]) -> None:
+    environment = gym.make(SCENARIOS[scenario].gym_id, obs_type="pixels_agent_pos")
+    try:
+        environment.reset(seed=0)
+        model = environment.unwrapped._env.physics.model  # noqa: SLF001
+        for body, expected in expected_masses.items():
+            body_id = model.name2id(f"push_pi/{body}", "body")
+            assert model.body_mass[body_id] == pytest.approx(expected)
+    finally:
+        environment.close()
+
+
+def test_reset_retries_deterministically_and_reports_exhaustion(monkeypatch: pytest.MonkeyPatch) -> None:
+    environment = gym.make(SCENARIOS["push_pi_single"].gym_id, obs_type="pixels_agent_pos")
+    try:
+        task = environment.unwrapped._push_task  # noqa: SLF001
+        original = task.capture_reset
+        calls = 0
+
+        def fail_once(physics: object) -> None:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise ValueError("synthetic unstable layout")
+            original(physics)
+
+        monkeypatch.setattr(task, "capture_reset", fail_once)
+        _, info = environment.reset(seed=7)
+        assert calls == 2
+        expected_seed = effective_layout_seed(7, 1)
+        assert info["sampled_poses"] == [[pose.name, *pose.vector()] for pose in sample_layout("pi", expected_seed)]
+        assert info["layout_provenance"] == {"requested_seed": 7, "effective_seed": expected_seed, "attempt": 1}
+
+        attempted = []
+
+        def always_fail(_physics: object) -> None:
+            attempted.append(task.sampled)
+            raise ValueError("synthetic unstable layout")
+
+        monkeypatch.setattr(task, "capture_reset", always_fail)
+        with pytest.raises(ValueError, match="exhausted 8 layouts"):
+            environment.reset(seed=7)
+        assert attempted == [sample_layout("pi", effective_layout_seed(7, attempt)) for attempt in range(8)]
     finally:
         environment.close()
 

@@ -12,6 +12,7 @@ from tools.remote_aloha.config import MacSimConfig
 from tools.remote_aloha.config import RemoteConfig
 from tools.remote_aloha.metrics import summarize_latest
 from tools.remote_aloha.remote import RemoteError
+from tools.remote_aloha.scenarios import SCENARIOS
 from tools.remote_aloha.telemetry import JsonlWriter
 from tools.remote_aloha.telemetry import aggregate_events
 from tools.remote_aloha.telemetry import aggregate_jsonl
@@ -38,6 +39,20 @@ def test_metrics_requires_a_completed_selected_profile_run(tmp_path: Path, monke
     )
     monkeypatch.setattr("tools.remote_aloha.metrics.load_remote_config", RemoteConfig)
     with pytest.raises(RemoteError, match="no Phase 5 run exists"):
+        summarize_latest()
+
+
+def test_stock_metrics_directs_custom_scenarios_to_matrix_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "tools.remote_aloha.metrics.load_mac_sim_config",
+        lambda: MacSimConfig(
+            task="pi_robotics/PushPiSingleArm-v0",
+            scenario=SCENARIOS["push_pi_single"],
+        ),
+    )
+    with pytest.raises(RemoteError, match="scenario-metrics"):
         summarize_latest()
 
 
@@ -230,6 +245,9 @@ def test_publishable_custom_scenario_keeps_safe_identity_counts_and_omits_privat
                 push_success=1,
                 lifted_count=0,
                 both_arms_count=0,
+                time_limit_count=2,
+                videos_passed=3,
+                episodes=3,
                 private_machine="desktop-name",
             ),
         ]
@@ -240,6 +258,8 @@ def test_publishable_custom_scenario_keeps_safe_identity_counts_and_omits_privat
     assert public["metadata"]["scene_hash"] == "d" * 64
     assert public["result"]["push_success"] == 1
     assert public["result"]["lifted_count"] == public["result"]["both_arms_count"] == 0
+    assert public["result"]["time_limit_count"] == 2
+    assert public["result"]["videos_passed"] == 3
     assert "private run prompt" not in encoded
     assert "/private/output" not in encoded
     assert "desktop-name" not in encoded
@@ -273,6 +293,17 @@ def test_publishable_scenario_identity_is_fail_closed(
         ]
     )
     with pytest.raises(ValueError, match="scenario"):
+        publishable_summary(raw)
+
+
+def test_publishable_per_episode_counts_are_bounded_without_aggregate_episode_field() -> None:
+    raw = aggregate_events(
+        [
+            _event("metadata", 1, profile="pi0_aloha_sim"),
+            _event("terminal", 2, status="complete", push_success=2),
+        ]
+    )
+    with pytest.raises(ValueError, match="episode count"):
         publishable_summary(raw)
 
 

@@ -86,7 +86,7 @@ class LiveDisplay(_subscriber.Subscriber):
 
         plt.ion()
         self._pyplot = plt
-        self._figure, self._axes = plt.subplots(num="Push-pi ALOHA simulation")
+        self._figure, self._axes = plt.subplots(num="Push-PI ALOHA simulation")
         self._axes.set_axis_off()
         self._axes.set_title("Post-step policy view")
 

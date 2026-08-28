@@ -135,6 +135,14 @@ Simulation only—no PC required:
 make smoke-sim
 ```
 
+The optional Push-PI suite uses four fixed prompts and scenario IDs. The glyph task uses Greek π; the letter task uses uppercase dotless `P` and `I`. There is no text-prompt box: select the task before launch, and set `ALOHA_DISPLAY=1` for a local view of the same post-step frames saved to video.
+
+```bash
+ALOHA_SCENARIO=push_pi_single ALOHA_DISPLAY=1 ALOHA_EPISODES=1 make smoke-sim
+# Other IDs: push_pi_dual, push_letters_single, push_letters_dual
+make scenario-calibrate  # Mac only; fixed geometry, visibility, contact, and park checks
+```
+
 Policy only—starts the owned WSL server and Mac tunnel, verifies one bounded client workload, then stops server-first:
 
 ```bash
@@ -158,6 +166,8 @@ OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BA
 
 Repeat after `make stop` with `profile=pi05_aloha_base`. `make server` owns the server, synchronous WSL lifetime holder, and loopback SSH tunnel together; `make tunnel` only revalidates them. Do not close the tunnel before the server. `make stop` is idempotent and refuses to signal an unverified PID.
 
+For the exact Push-PI evaluation, replace `make run` with one `make scenario-matrix`, then run `make scenario-metrics` before `make stop`. The matrix fixes seeds to 0–2 and runs all four scenarios once per seed, for 12 episodes under the selected profile. Run it once for π₀ and once for experimental π₀.5; do not add display-on GPU runs.
+
 One automatic, low-frequency RTX sampler covers the whole `make run`. It validates the owned server identity before every bounded `nvidia-smi` query and stops in `finally`; there is no SSH or GPU query per simulation step. Start/end clock probes record the Mac↔WSL UTC offset with a round-trip uncertainty bound. `make metrics` only validates the latest run for the selected `OPENPI_POLICY_PROFILE` and atomically rebuilds derived summaries—it does not contact the PC, change raw evidence, or start a sampler.
 
 Initial client setup retries are also bounded: the default is two retries with a fixed two-second backoff, only for connection/timeout/EOF/WebSocket-close failures while connecting and validating metadata before the simulator resets. Once any inference may have been sent, a timeout or disconnect aborts the episode, closes the transport, discards the buffer, and preserves partial evidence; it is never replayed automatically. Invalid schemas, non-finite actions, and application errors also fail immediately. No stale action is applied.
@@ -172,6 +182,7 @@ Connect, metadata receive, inference receive, and close have explicit deadlines.
 - `outputs/phase02/` and `outputs/phase03/`: ignored setup, conversion, server, route, and policy-smoke evidence.
 - `outputs/phase04/<UTC>/<profile>/`: validated Phase 4 summary, per-seed manifest, and video.
 - `outputs/phase05/<UTC>/<profile>/`: `summary.json`, `performance-summary.json`, `performance-summary.md`, `gpu-metrics.jsonl`, `clock-correlation.json`, and capped `server-tail.log`; each `seed-N/` contains `manifest.json`, `telemetry.jsonl`, `telemetry-summary.json`, `telemetry-summary.md`, `joint-trajectory.png`, and `episode.mp4`.
+- `outputs/scenarios_0827/<UTC>/<profile>/`: private `matrix.json`, safe `matrix-summary.json`, one GPU/clock sample set, and four scenario directories containing three seed directories with the same per-episode telemetry, plot, and video artifacts.
 - `.runtime/`: private ownership records, locks, control socket, scan receipt, and remote sampler/server state.
 
 JSONL is line-buffered without per-step `fsync`; every successful step records its exact step number, monotonic elapsed time, and finite 14-value actual/commanded vectors. A damaged final fragment can be discarded while earlier complete events remain readable. After each complete or partial episode, the runner atomically plots all 14 joints against fixed gym-aloha 0.1.1 ranges. Raw rows, plot paths, and images stay private; publishable summaries expose only counts, coverage, status, and safe local IDs.

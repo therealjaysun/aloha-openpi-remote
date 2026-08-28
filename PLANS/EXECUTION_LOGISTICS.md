@@ -11,15 +11,15 @@ Codex remains in the Mac project workspace. PC-side work runs remotely over the 
 | P2 — Remote setup/conversion | 02 remote validation–03 | Codex runs bounded diagnostics, the partial-BF16 recovery experiment, and SSH commands here | On; WSL/OpenPI/converter/server run the exact candidate SHA; no PC-side CI | Stay at Mac unless Codex reports a Windows-admin blocker |
 | B1 — Both machines | 04–05 | MuJoCo, client, tunnel, video, local telemetry | Policy server and GPU telemetry | Keep PC on/awake; no routine console work |
 | P3 — Final validation | 06 | Tests, docs, security scan, PR work | On only for final GPU/inference checks | Turn on if it was powered down; reply `PC ready` |
-| S0 — Push-π Mac gate | S0827 implementation through calibration | Config/environment/projection, pure tests, MuJoCo calibration, videos/display, exact candidate, hosted checks | Off | No action; PC remains off until the committed descriptor and Mac gates pass |
-| S1 — Push-π matrix | S0827 exact-candidate evaluation | MuJoCo, client, private artifacts, summaries | On; one warmed profile server at a time, 12 scored episodes per profile; no PC-side CI or display smokes | Turn on/sign in/keep awake only after `PC ACTION REQUIRED — POWER ON` |
+| S0 — Push-PI Mac gate | S0827 implementation through calibration | Config/environment/projection, pure tests, MuJoCo calibration, videos/display, exact candidate, hosted checks | Off | No action; PC remains off until the committed descriptor and Mac gates pass |
+| S1 — Push-PI matrix | S0827 exact-candidate evaluation | MuJoCo, client, private artifacts, summaries | On; one warmed profile server at a time, 12 scored episodes per profile; no PC-side CI or display smokes | Turn on/sign in/keep awake only after `PC ACTION REQUIRED — POWER ON` |
 | OFF — Shutdown | After final validation or a durable blocker | Stop tunnel/runtime | Stop server/GPU sampler, then PC may power off | Wait for `PC SAFE TO POWER OFF` |
 
 ## Notifications Codex will send
 
 ### `PC ACTION REQUIRED — POWER ON`
 
-Sent only after phase 02 local code/tests are captured in a secret-scanned remote-test candidate SHA, or when final hardware validation must resume. Before replying `PC ready`:
+Sent only after phase 02 local code/tests are captured in a secret-scanned remote-test candidate SHA, when final hardware validation must resume, or after S0827 has a committed, secret-scanned, pushed candidate with green hosted checks. Before replying `PC ready`:
 
 1. Turn on the RTX PC and sign in to Windows.
 2. Ensure it is on the same local network as the Mac and will not sleep during the session.

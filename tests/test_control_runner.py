@@ -144,7 +144,7 @@ def test_performance_summary_rejects_gpu_samples_that_do_not_span_the_mac_run(tm
         {
             "schema": 1,
             "event": "metadata",
-            "timestamp_utc": "2026-08-28T08:00:00.000Z",
+            "timestamp_utc": "2026-08-28T09:00:00.000Z",
             "monotonic_ns": 1,
             "run_id": "c" * 32,
             "profile": "pi0_aloha_sim",
@@ -153,7 +153,7 @@ def test_performance_summary_rejects_gpu_samples_that_do_not_span_the_mac_run(tm
         {
             "schema": 1,
             "event": "step",
-            "timestamp_utc": "2026-08-28T08:00:01.000Z",
+            "timestamp_utc": "2026-08-28T09:00:00.500Z",
             "monotonic_ns": 1_000_000_001,
             "step": 0,
             "applied_step": 1,
@@ -164,8 +164,8 @@ def test_performance_summary_rejects_gpu_samples_that_do_not_span_the_mac_run(tm
         {
             "schema": 1,
             "event": "terminal",
-            "timestamp_utc": "2026-08-28T08:00:10.000Z",
-            "monotonic_ns": 10_000_000_001,
+            "timestamp_utc": "2026-08-28T09:00:01.000Z",
+            "monotonic_ns": 1_000_000_001,
             "status": "complete",
             "metrics": {"telemetry_write_ms": 0.2},
         },

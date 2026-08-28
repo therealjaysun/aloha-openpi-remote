@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import hashlib
+import math
 import xml.etree.ElementTree as ET
 
 from dm_control import mujoco
@@ -16,11 +17,30 @@ from gymnasium.envs.registration import register
 from gymnasium.envs.registration import registry
 import numpy as np
 
+from tools.remote_aloha.scenarios import COLLISION_CONTACT_BITS
+from tools.remote_aloha.scenarios import COLLISION_GEOM_GROUP
 from tools.remote_aloha.scenarios import CUSTOM_SCENARIOS
+from tools.remote_aloha.scenarios import FREE_JOINT_FRICTIONLOSS
+from tools.remote_aloha.scenarios import GEOM_CONDIM
+from tools.remote_aloha.scenarios import GEOM_DENSITY
+from tools.remote_aloha.scenarios import GEOM_FRICTION
+from tools.remote_aloha.scenarios import GEOM_SOLIMP
+from tools.remote_aloha.scenarios import GEOM_SOLREF
 from tools.remote_aloha.scenarios import OBJECT_HALF_HEIGHT
 from tools.remote_aloha.scenarios import PUSHER_PHYSICAL_POSITION
 from tools.remote_aloha.scenarios import PUSHER_POSITION
+from tools.remote_aloha.scenarios import RESET_LAYOUT_ATTEMPTS
+from tools.remote_aloha.scenarios import RESET_SETTLE_XY_METERS
+from tools.remote_aloha.scenarios import RESET_SETTLE_YAW_RADIANS
+from tools.remote_aloha.scenarios import RESET_TILT_RADIANS
+from tools.remote_aloha.scenarios import SETTLE_STEPS
 from tools.remote_aloha.scenarios import TABLETOP_SHA256
+from tools.remote_aloha.scenarios import TARGET_ALPHA
+from tools.remote_aloha.scenarios import TARGET_CONTACT_BITS
+from tools.remote_aloha.scenarios import TARGET_HALF_HEIGHT
+from tools.remote_aloha.scenarios import VISUAL_CONTACT_BITS
+from tools.remote_aloha.scenarios import VISUAL_GEOM_GROUP
+from tools.remote_aloha.scenarios import VISUAL_GEOM_MASS
 from tools.remote_aloha.scenarios import BodyDescriptor
 from tools.remote_aloha.scenarios import BodyState
 from tools.remote_aloha.scenarios import OutcomeState
@@ -28,6 +48,8 @@ from tools.remote_aloha.scenarios import Participation
 from tools.remote_aloha.scenarios import Pose
 from tools.remote_aloha.scenarios import advance_outcome
 from tools.remote_aloha.scenarios import body_descriptors
+from tools.remote_aloha.scenarios import descriptor_sha256
+from tools.remote_aloha.scenarios import effective_layout_seed
 from tools.remote_aloha.scenarios import get_scenario
 from tools.remote_aloha.scenarios import layout_hash
 from tools.remote_aloha.scenarios import quaternion_euler
@@ -36,9 +58,6 @@ from tools.remote_aloha.scenarios import scene_hash
 from tools.remote_aloha.scenarios import update_participation
 
 _BASE_XML = "bimanual_viperx_transfer_cube.xml"
-_SETTLE_STEPS = 200
-_GEOM_DENSITY = 350
-_FRICTION = "1 0.005 0.0001"
 _ROBOT_QPOS_COUNT = 16
 
 
@@ -72,11 +91,11 @@ def _add_target(worldbody: ET.Element, body: BodyDescriptor) -> None:
             "geom",
             name=f"push_pi/target_{body.name}_{index}",
             type="box",
-            pos=_numbers(part.x, part.y, 0.001),
-            size=_numbers(part.half_x, part.half_y, 0.001),
-            rgba=_numbers(red, green, blue, 0.32),
-            contype="0",
-            conaffinity="0",
+            pos=_numbers(part.x, part.y, TARGET_HALF_HEIGHT),
+            size=_numbers(part.half_x, part.half_y, TARGET_HALF_HEIGHT),
+            rgba=_numbers(red, green, blue, TARGET_ALPHA),
+            contype=str(TARGET_CONTACT_BITS[0]),
+            conaffinity=str(TARGET_CONTACT_BITS[1]),
         )
 
 
@@ -87,23 +106,39 @@ def _add_movable(worldbody: ET.Element, body: BodyDescriptor) -> None:
         "joint",
         name=f"push_pi/{body.name}_joint",
         type="free",
-        frictionloss="0.01",
+        frictionloss=str(FREE_JOINT_FRICTIONLOSS),
     )
     for index, part in enumerate(body.parts):
+        attributes = {
+            "type": "box",
+            "pos": _numbers(part.x, part.y, 0),
+            "size": _numbers(part.half_x, part.half_y, OBJECT_HALF_HEIGHT),
+        }
+        ET.SubElement(
+            movable,
+            "geom",
+            name=f"push_pi/{body.name}_visual_{index}",
+            rgba=_numbers(*body.rgba),
+            contype=str(VISUAL_CONTACT_BITS[0]),
+            conaffinity=str(VISUAL_CONTACT_BITS[1]),
+            group=str(VISUAL_GEOM_GROUP),
+            mass=str(VISUAL_GEOM_MASS),
+            **attributes,
+        )
         ET.SubElement(
             movable,
             "geom",
             name=f"push_pi/{body.name}_{index}",
-            type="box",
-            pos=_numbers(part.x, part.y, 0),
-            size=_numbers(part.half_x, part.half_y, OBJECT_HALF_HEIGHT),
             rgba=_numbers(*body.rgba),
-            density=str(_GEOM_DENSITY),
-            group="4",
-            condim="4",
-            solimp="2 1 0.01",
-            solref="0.01 1",
-            friction=_FRICTION,
+            density=str(GEOM_DENSITY),
+            group=str(COLLISION_GEOM_GROUP),
+            contype=str(COLLISION_CONTACT_BITS[0]),
+            conaffinity=str(COLLISION_CONTACT_BITS[1]),
+            condim=str(GEOM_CONDIM),
+            solimp=_numbers(*GEOM_SOLIMP),
+            solref=_numbers(*GEOM_SOLREF),
+            friction=_numbers(*GEOM_FRICTION),
+            **attributes,
         )
 
 
@@ -146,18 +181,21 @@ class PushPiTask(BimanualViperXTask):
         self.right_joint_travel = 0.0
         self._previous_joints: np.ndarray | None = None
         self._metrics: dict[str, float] = {}
+        self.layout_provenance: dict[str, int | None] = {}
         self._geom_to_body = {
             f"push_pi/{body.name}_{index}": body.name for body in self.bodies for index, _ in enumerate(body.parts)
         }
 
     def set_layout(self, poses: tuple[Pose, ...]) -> None:
+        if not all(isinstance(pose, Pose) and all(math.isfinite(value) for value in pose.vector()) for pose in poses):
+            raise ValueError("layout poses must be finite Pose values")
         if tuple(pose.name for pose in poses) != tuple(body.name for body in self.bodies):
-            raise ValueError("layout does not match the Push-pi bodies")
+            raise ValueError("layout does not match the Push-PI bodies")
         self.sampled = poses
 
     def initialize_episode(self, physics) -> None:
         if not self.sampled:
-            raise ValueError("Push-pi layout must be set before reset")
+            raise ValueError("Push-PI layout must be set before reset")
         arm_pose = np.asarray(START_ARM_POSE, dtype=np.float64).copy()
         arm_pose[6] = PUSHER_PHYSICAL_POSITION
         arm_pose[7] = -PUSHER_PHYSICAL_POSITION
@@ -205,7 +243,36 @@ class PushPiTask(BimanualViperXTask):
         self.participation = Participation()
         self.left_joint_travel = self.right_joint_travel = 0.0
         self._previous_joints = self.home_joint_positions.copy()
-        self._metrics = {}
+        reset_outcome, self._metrics = advance_outcome(self.bodies, states, self.rest_heights)
+        for sampled, settled in zip(self.sampled, self.settled, strict=True):
+            xy_drift = math.hypot(sampled.x - settled.x, sampled.y - settled.y)
+            yaw_drift = abs((sampled.yaw - settled.yaw + math.pi) % (2 * math.pi) - math.pi)
+            roll, pitch, _ = quaternion_euler(states[settled.name])
+            if (
+                xy_drift > RESET_SETTLE_XY_METERS
+                or yaw_drift > RESET_SETTLE_YAW_RADIANS
+                or abs(roll) > RESET_TILT_RADIANS
+                or abs(pitch) > RESET_TILT_RADIANS
+            ):
+                raise ValueError("Push-PI layout is unstable after settling")
+        contacts = self._contacts(physics)
+        movable_geoms = set(self._geom_to_body)
+        if any(
+            (first in movable_geoms and second.startswith("vx300s_"))
+            or (second in movable_geoms and first.startswith("vx300s_"))
+            for first, second in contacts
+        ):
+            raise ValueError("Push-PI layout contacts the robot at reset")
+        supported = {
+            self._geom_to_body[movable]
+            for first, second in contacts
+            for movable, other in ((first, second), (second, first))
+            if movable in movable_geoms and other == "table"
+        }
+        if supported != {body.name for body in self.bodies}:
+            raise ValueError("Push-PI layout is not fully supported at reset")
+        if reset_outcome.held_steps or reset_outcome.off_table or reset_outcome.fallen:
+            raise ValueError("Push-PI layout is invalid at reset")
 
     def get_reward(self, physics) -> float:
         if not self.rest_heights:
@@ -248,11 +315,12 @@ class PushPiTask(BimanualViperXTask):
     def reset_info(self) -> dict[str, object]:
         return {
             **self.info(),
-            "sampled_poses": [list(pose.vector()) for pose in self.sampled],
-            "settled_poses": [list(pose.vector()) for pose in self.settled],
+            "sampled_poses": [[pose.name, *pose.vector()] for pose in self.sampled],
+            "settled_poses": [[pose.name, *pose.vector()] for pose in self.settled],
             "home_joint_positions": self.home_joint_positions.tolist(),
             "pusher_position": PUSHER_POSITION,
-            "pusher_physical_position": PUSHER_PHYSICAL_POSITION,
+            "layout_provenance": self.layout_provenance,
+            "descriptor_sha256": descriptor_sha256(),
         }
 
 
@@ -284,15 +352,36 @@ class PushPiEnv(AlohaEnv):
         return self._push_task.home_joint_positions.copy()
 
     def reset(self, seed: int | None = None, options: dict | None = None):
-        del options
         gym.Env.reset(self, seed=seed)
         actual_seed = seed if seed is not None else int(self.np_random.integers(2**32 - 1))
-        self._env.task.random.seed(actual_seed)
-        self._push_task.set_layout(sample_layout(str(self.scenario.object_kind), actual_seed))
-        self._env.reset()
-        self._env.physics.step(nstep=_SETTLE_STEPS)
-        self._env.physics.forward()
-        self._push_task.capture_reset(self._env.physics)
+        if options is not None and set(options) != {"layout"}:
+            raise ValueError("Push-PI reset options may contain only layout")
+        attempts = RESET_LAYOUT_ATTEMPTS if options is None else 1
+        for attempt in range(attempts):
+            layout_seed = effective_layout_seed(actual_seed, attempt)
+            self._env.task.random.seed(layout_seed)
+            poses = (
+                sample_layout(str(self.scenario.object_kind), layout_seed)
+                if options is None
+                else tuple(options["layout"])
+            )
+            self._push_task.set_layout(poses)
+            self._env.reset()
+            self._env.physics.step(nstep=SETTLE_STEPS)
+            self._env.physics.forward()
+            try:
+                self._push_task.capture_reset(self._env.physics)
+                self._push_task.layout_provenance = {
+                    "requested_seed": actual_seed,
+                    "effective_seed": layout_seed if options is None else None,
+                    "attempt": attempt,
+                }
+                break
+            except ValueError as error:
+                if attempt + 1 == attempts:
+                    raise ValueError(
+                        f"Push-PI reset exhausted {attempts} layouts for {self.scenario.key} seed {actual_seed}"
+                    ) from error
         raw_observation = self._push_task.get_observation(self._env.physics)
         self._step_count = 0
         return self._format_raw_obs(raw_observation), self._push_task.reset_info()
@@ -300,7 +389,7 @@ class PushPiEnv(AlohaEnv):
     def step(self, action: object):
         command = np.asarray(action, dtype=np.float64)
         if command.shape != (14,) or not np.isfinite(command).all():
-            raise ValueError("Push-pi action must be a finite 14-vector")
+            raise ValueError("Push-PI action must be a finite 14-vector")
         _, reward, _, raw_observation = self._env.step(command)
         self._step_count += 1
         info = self._push_task.info()

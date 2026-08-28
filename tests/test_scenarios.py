@@ -1,8 +1,19 @@
+import copy
+import json
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
 
+from tools.remote_aloha.config import POLICY_PROFILES
+from tools.remote_aloha.config import MacSimConfig
+from tools.remote_aloha.config import RemoteConfig
+from tools.remote_aloha.remote import UPSTREAM_SHA
+from tools.remote_aloha.remote import RemoteError
+from tools.remote_aloha.scenario_matrix import run_matrix
+from tools.remote_aloha.scenario_matrix import summarize_latest
+from tools.remote_aloha.scenario_matrix import validate_matrix
 import tools.remote_aloha.scenarios as scenarios
 from tools.remote_aloha.scenarios import SCENARIOS
 from tools.remote_aloha.scenarios import BodyState
@@ -10,6 +21,7 @@ from tools.remote_aloha.scenarios import OutcomeState
 from tools.remote_aloha.scenarios import Participation
 from tools.remote_aloha.scenarios import advance_outcome
 from tools.remote_aloha.scenarios import body_descriptors
+from tools.remote_aloha.scenarios import descriptor_sha256
 from tools.remote_aloha.scenarios import layout_hash
 from tools.remote_aloha.scenarios import project_action
 from tools.remote_aloha.scenarios import sample_layout
@@ -134,9 +146,485 @@ def test_contacts_are_order_independent_and_interference_is_same_step() -> None:
     assert state.interference_ever
 
 
-def test_scene_hash_covers_xml_assets_and_kind() -> None:
+def test_scene_hash_covers_only_physical_xml_assets_and_kind(monkeypatch: pytest.MonkeyPatch) -> None:
     assets = {"a.xml": b"a", "mesh.stl": b"b"}
     baseline = scene_hash(b"<mujoco/>", assets, "pi")
     assert baseline == scene_hash(b"<mujoco/>", dict(reversed(list(assets.items()))), "pi")
     assert baseline != scene_hash(b"<mujoco/>", assets, "letters")
     assert baseline != scene_hash(b"<mujoco changed='1'/>", assets, "pi")
+    monkeypatch.setattr(scenarios, "descriptor_sha256", lambda: "execution-metadata-only-change")
+    assert baseline == scene_hash(b"<mujoco/>", assets, "pi")
+
+
+def test_descriptor_hash_freezes_every_calibrated_value() -> None:
+    assert descriptor_sha256() == "9942fa7e851e352c2e7717e84a9fe1cb66b07f61c96fa62d9df136cefc6b154b"
+
+
+@pytest.mark.parametrize(
+    ("metric", "limit", "over"),
+    [
+        ("xy", scenarios.SUCCESS_XY_METERS, 1e-9),
+        ("yaw", scenarios.SUCCESS_YAW_RADIANS, 1e-9),
+        ("roll", scenarios.SUCCESS_TILT_RADIANS, 1e-9),
+        ("height", scenarios.SUCCESS_HEIGHT_METERS, 1e-9),
+    ],
+)
+def test_success_thresholds_accept_exact_boundary_and_reject_just_over(metric: str, limit: float, over: float) -> None:
+    body = body_descriptors("pi")[0]
+    rest = {body.name: 0.012}
+
+    def state(value: float) -> BodyState:
+        kwargs = {"x": body.target_x, "y": body.target_y, "yaw": body.target_yaw, "roll": 0.0, "com_z": 0.012}
+        if metric == "xy":
+            kwargs["x"] += value
+        elif metric == "yaw":
+            kwargs["yaw"] += value
+        elif metric == "roll":
+            kwargs["roll"] = value
+        else:
+            kwargs["com_z"] += value
+        return _state(body, **kwargs)
+
+    assert advance_outcome((body,), {body.name: state(limit)}, rest)[0].held_steps == 1
+    assert advance_outcome((body,), {body.name: state(limit + over)}, rest)[0].held_steps == 0
+
+
+def test_lift_and_fall_thresholds_trigger_only_just_over_boundary() -> None:
+    body = body_descriptors("pi")[0]
+    rest = {body.name: 0.012}
+    exact_lift = _state(body, com_z=0.012 + scenarios.LIFT_METERS)
+    over_lift = _state(body, com_z=0.012 + scenarios.LIFT_METERS + 1e-9)
+    assert advance_outcome((body,), {body.name: exact_lift}, rest)[0].lifted_ever is False
+    assert advance_outcome((body,), {body.name: over_lift}, rest)[0].lifted_ever is True
+    exact_fall = _state(body, roll=scenarios.FALL_RADIANS)
+    over_fall = _state(body, roll=scenarios.FALL_RADIANS + 1e-9)
+    assert advance_outcome((body,), {body.name: exact_fall}, rest)[0].fallen is False
+    assert advance_outcome((body,), {body.name: over_fall}, rest)[0].fallen is True
+
+
+def _matrix_info(scenario_key: str, layout: str, *, terminal: bool = False) -> dict[str, object]:
+    body_count = 1 if SCENARIOS[scenario_key].object_kind == "pi" else 2
+    return {
+        "is_success": False,
+        "scenario": scenario_key,
+        "scene_hash": ("a" if body_count == 1 else "b") * 64,
+        "layout_hash": layout,
+        "body_count": body_count,
+        "held_steps": 0,
+        "lifted_ever": False,
+        "off_table": terminal,
+        "fallen": False,
+        "terminal_reason": "off_table" if terminal else "running",
+        "left_contact_ever": True,
+        "right_contact_ever": False,
+        "both_arms_participated": False,
+        "interference_ever": False,
+        "left_joint_travel": 0.1,
+        "right_joint_travel": 0.0,
+        **{
+            f"body_{index}_{suffix}": 0.1
+            for index in range(body_count)
+            for suffix in ("xy_error", "yaw_error", "roll", "pitch", "height_error")
+        },
+    }
+
+
+def _synthetic_matrix(tmp_path: Path) -> dict[str, object]:
+    source_sha = "d" * 40
+    upstream_sha = UPSTREAM_SHA
+    run_id = "f" * 32
+    runs = {}
+    for scenario_key in scenarios.CUSTOM_SCENARIOS:
+        spec = SCENARIOS[scenario_key]
+        episodes = []
+        for seed in range(3):
+            root = tmp_path / scenario_key / f"seed-{seed}"
+            root.mkdir(parents=True)
+            poses = sample_layout(str(spec.object_kind), seed)
+            pose_rows = [[pose.name, *pose.vector()] for pose in poses]
+            pose_hash = layout_hash(poses)
+            reset = {
+                **_matrix_info(scenario_key, pose_hash),
+                "sampled_poses": pose_rows,
+                "settled_poses": pose_rows,
+                "home_joint_positions": [0.0] * 14,
+                "pusher_position": 0.5,
+                "layout_provenance": {"requested_seed": seed, "effective_seed": seed, "attempt": 0},
+                "descriptor_sha256": descriptor_sha256(),
+            }
+            final = _matrix_info(scenario_key, pose_hash, terminal=True)
+            command = [0.0] * 14
+            command[6] = command[13] = 0.5
+            plot_id = f"{run_id}-{scenario_key}-{seed}-plot"
+            video_id = f"{run_id}-{scenario_key}-{seed}"
+            rows = [
+                {
+                    "schema": 1,
+                    "event": "metadata",
+                    "timestamp_utc": "2026-08-28T12:00:00.000Z",
+                    "monotonic_ns": 1,
+                    "run_id": run_id,
+                    "profile": "pi0_aloha_sim",
+                    "checkpoint_label": "pi0_aloha_sim",
+                    "source_sha": source_sha,
+                    "upstream_sha": upstream_sha,
+                    "seeds": [seed],
+                    "task": spec.gym_id,
+                    "scenario": scenario_key,
+                    "scene_hash": final["scene_hash"],
+                },
+                {
+                    "schema": 1,
+                    "event": "step",
+                    "timestamp_utc": "2026-08-28T12:00:00.020Z",
+                    "monotonic_ns": 2,
+                    "step": 0,
+                    "applied_step": 1,
+                    "elapsed_seconds": 0.02,
+                    "actual_joint_positions": [0.0] * 14,
+                    "commanded_joint_positions": command,
+                    "scenario_info": final,
+                },
+                {
+                    "schema": 1,
+                    "event": "terminal",
+                    "timestamp_utc": "2026-08-28T12:00:00.021Z",
+                    "monotonic_ns": 3,
+                    "status": "complete",
+                    "episodes": 1,
+                    "infrastructure_pass": True,
+                    "steps_applied": 1,
+                    "trajectory_sample_count": 1,
+                    "trajectory_joint_count": 14,
+                    "trajectory_step_coverage": 1.0,
+                    "trajectory_plot_status": "passed",
+                    "trajectory_plot_id": plot_id,
+                    "video_ids": [video_id],
+                    "push_success": 0,
+                    "lifted_count": 0,
+                    "off_table_count": 1,
+                    "fallen_count": 0,
+                    "left_contact_count": 1,
+                    "right_contact_count": 0,
+                    "both_arms_count": 0,
+                    "interference_count": 0,
+                    "time_limit_count": 0,
+                    "videos_passed": 1,
+                },
+            ]
+            telemetry_path = root / "telemetry.jsonl"
+            telemetry_path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+            plot_path = root / "joint-trajectory.png"
+            video_path = root / "episode.mp4"
+            plot_path.write_bytes(b"plot")
+            video_path.write_bytes(b"video")
+            episodes.append(
+                {
+                    "status": "complete",
+                    "infrastructure_pass": True,
+                    "cleanup_pending": False,
+                    "errors": [],
+                    "profile": "pi0_aloha_sim",
+                    "checkpoint_label": "pi0_aloha_sim",
+                    "policy_backend": "pytorch",
+                    "server_metadata": {
+                        "policy_profile": "pi0_aloha_sim",
+                        "config_name": POLICY_PROFILES["pi0_aloha_sim"].config_name,
+                        "checkpoint_label": "pi0_aloha_sim",
+                        "checkpoint_variant": "pi0_aloha_sim_pytorch",
+                        "policy_backend": "pytorch",
+                        "action_horizon": 50,
+                        "action_dimension": 14,
+                        "source_sha": source_sha,
+                        "compact_masked_images": True,
+                        "torch_platform": "cuda",
+                        "torch_device": "NVIDIA GeForce RTX 3090",
+                        "torch_model_device": "cuda:0",
+                    },
+                    "source_sha": source_sha,
+                    "upstream_sha": upstream_sha,
+                    "task": spec.gym_id,
+                    "scenario": scenario_key,
+                    "scene_hash": final["scene_hash"],
+                    "seed": seed,
+                    "episode": {
+                        "steps_applied": 1,
+                        "terminated": True,
+                        "truncated": False,
+                        "task_success": False,
+                        "reset_info": reset,
+                        "final_info": final,
+                    },
+                    "telemetry": {"path": str(telemetry_path), "writer_closed": True, "write_p95_ms": 0.1},
+                    "trajectory": {
+                        "sample_count": 1,
+                        "joint_count": 14,
+                        "step_coverage": 1.0,
+                        "plot_status": "passed",
+                        "plot_id": plot_id,
+                        "actual_series_count": 14,
+                        "commanded_series_count": 14,
+                        "path": str(plot_path),
+                    },
+                    "video": {
+                        "id": video_id,
+                        "status": "complete",
+                        "path": str(video_path),
+                        "frames": 1,
+                        "validation": {"frames": 1, "fps": 50.0, "shape": [224, 224, 3]},
+                    },
+                }
+            )
+        runs[scenario_key] = {"status": "passed", "gpu_coverage_pass": True, "episodes": episodes}
+    return {
+        "schema": 1,
+        "status": "passed",
+        "batch_id": "20260828T120000.000000Z",
+        "run_id": run_id,
+        "profile": "pi0_aloha_sim",
+        "checkpoint_label": "pi0_aloha_sim",
+        "source_sha": source_sha,
+        "upstream_sha": upstream_sha,
+        "descriptor_sha256": descriptor_sha256(),
+        "gpu_metrics_interval_seconds": 1.0,
+        "gpu_coverage_pass": True,
+        "seeds": [0, 1, 2],
+        "scenarios": list(scenarios.CUSTOM_SCENARIOS),
+        "scenario_runs": runs,
+        "error": None,
+    }
+
+
+def test_valid_matrix_is_exact_safe_and_allows_zero_successes(tmp_path: Path) -> None:
+    public = validate_matrix(_synthetic_matrix(tmp_path), require_gpu=False)
+    assert set(public) == {
+        "schema",
+        "status",
+        "batch_id",
+        "profile",
+        "checkpoint_label",
+        "source_sha",
+        "upstream_sha",
+        "descriptor_sha256",
+        "seeds",
+        "episode_count",
+        "infrastructure_pass",
+        "pairing_pass",
+        "scenarios",
+        "results",
+    }
+    assert public["episode_count"] == 12
+    assert all(result["push_success"] == 0 for result in public["results"])
+    assert str(tmp_path) not in json.dumps(public)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing",
+        "pairing",
+        "infra",
+        "trajectory",
+        "video",
+        "overhead",
+        "source",
+        "run_id",
+        "terminal",
+        "running",
+        "both_end",
+        "partial_tail",
+        "aliased_artifact",
+        "server_metadata",
+        "final_mismatch",
+        "layout_hash",
+        "pose_nonfinite",
+        "upstream",
+    ],
+)
+def test_matrix_rejects_incomplete_mixed_or_corrupt_evidence(tmp_path: Path, mutation: str) -> None:
+    raw = _synthetic_matrix(tmp_path)
+    runs = raw["scenario_runs"]
+    if mutation == "missing":
+        del runs["push_pi_dual"]
+    elif mutation == "pairing":
+        runs["push_pi_dual"]["episodes"][0]["episode"]["reset_info"]["sampled_poses"] = [[9.0]]
+    elif mutation == "upstream":
+        raw["upstream_sha"] = "0" * 40
+        for run in runs.values():
+            for episode in run["episodes"]:
+                episode["upstream_sha"] = "0" * 40
+                path = Path(episode["telemetry"]["path"])
+                rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+                rows[0]["upstream_sha"] = "0" * 40
+                path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    else:
+        episode = runs["push_pi_single"]["episodes"][0]
+        if mutation == "infra":
+            episode["infrastructure_pass"] = False
+        elif mutation == "trajectory":
+            episode["trajectory"]["sample_count"] = 0
+        elif mutation == "video":
+            episode["video"]["frames"] = 0
+        elif mutation == "overhead":
+            episode["telemetry"]["write_p95_ms"] = 1.0
+        elif mutation == "source":
+            episode["source_sha"] = "0" * 40
+        elif mutation == "both_end":
+            episode["episode"]["truncated"] = True
+        elif mutation == "aliased_artifact":
+            episode["trajectory"]["path"] = episode["video"]["path"]
+        elif mutation == "server_metadata":
+            episode["server_metadata"]["torch_device"] = "CPU"
+        elif mutation == "pose_nonfinite":
+            episode["episode"]["reset_info"]["settled_poses"][0][1] = float("nan")
+        else:
+            path = Path(episode["telemetry"]["path"])
+            if mutation == "partial_tail":
+                path.write_bytes(path.read_bytes() + b"{")
+            else:
+                rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+                if mutation == "run_id":
+                    rows[0]["run_id"] = "0" * 32
+                elif mutation == "terminal":
+                    rows[-1]["steps_applied"] = 2
+                elif mutation == "final_mismatch":
+                    rows[1]["scenario_info"]["left_contact_ever"] = False
+                elif mutation == "layout_hash":
+                    for info in (
+                        episode["episode"]["reset_info"],
+                        episode["episode"]["final_info"],
+                        rows[1]["scenario_info"],
+                    ):
+                        info["layout_hash"] = "9" * 64
+                else:
+                    episode["episode"]["final_info"]["terminal_reason"] = "running"
+                    episode["episode"]["final_info"]["off_table"] = False
+                    rows[1]["scenario_info"]["terminal_reason"] = "running"
+                    rows[1]["scenario_info"]["off_table"] = False
+                path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    with pytest.raises(ValueError, match="matrix"):
+        validate_matrix(copy.deepcopy(raw), require_gpu=False)
+
+
+def test_matrix_interruption_preserves_partial_raw_evidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    class Sampler:
+        def check(self) -> None:
+            return None
+
+        def stop(self, root: Path) -> Path:
+            return root / "gpu-metrics.jsonl"
+
+    calls = 0
+
+    def interrupt(*args: object, **kwargs: object) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise KeyboardInterrupt
+        return {"status": "complete"}
+
+    monkeypatch.setattr(
+        "tools.remote_aloha.scenario_matrix.load_mac_sim_config", lambda: MacSimConfig(output_dir=tmp_path)
+    )
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix.load_remote_config", RemoteConfig)
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix.verify_ready_tunnel", lambda config: ({}, "d" * 40))
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix.start_gpu_sampler", lambda *args: Sampler())
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix._run_seed", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        run_matrix()
+    raw_path = next(tmp_path.glob("scenarios_0827/*/pi0_aloha_sim/matrix.json"))
+    raw = json.loads(raw_path.read_text(encoding="utf-8"))
+    assert raw["status"] == "interrupted"
+    assert len(raw["scenario_runs"]["push_pi_single"]["episodes"]) == 1
+    assert not (raw_path.parent / "matrix-summary.json").exists()
+
+
+def test_matrix_interruption_remains_primary_when_sampler_stop_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Sampler:
+        def check(self) -> None:
+            return None
+
+        def stop(self, root: Path) -> Path:
+            raise RuntimeError("stop failed")
+
+    monkeypatch.setattr(
+        "tools.remote_aloha.scenario_matrix.load_mac_sim_config", lambda: MacSimConfig(output_dir=tmp_path)
+    )
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix.load_remote_config", RemoteConfig)
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix.verify_ready_tunnel", lambda config: ({}, "d" * 40))
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix.start_gpu_sampler", lambda *args: Sampler())
+    monkeypatch.setattr(
+        "tools.remote_aloha.scenario_matrix._run_seed",
+        lambda *args: (_ for _ in ()).throw(KeyboardInterrupt()),
+    )
+    with pytest.raises(KeyboardInterrupt):
+        run_matrix()
+    raw_path = next(tmp_path.glob("scenarios_0827/*/pi0_aloha_sim/matrix.json"))
+    raw = json.loads(raw_path.read_text(encoding="utf-8"))
+    assert raw["status"] == "interrupted"
+    assert raw["error"]["type"] == "KeyboardInterrupt"
+    assert raw["cleanup_error"]["type"] == "RuntimeError"
+
+
+def test_matrix_uses_one_sampler_and_checks_before_and_after_all_episodes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    lifecycle = []
+
+    class Sampler:
+        def check(self) -> None:
+            lifecycle.append("check")
+
+        def stop(self, root: Path) -> Path:
+            lifecycle.append("stop")
+            return root / "gpu-metrics.jsonl"
+
+    monkeypatch.setattr(
+        "tools.remote_aloha.scenario_matrix.load_mac_sim_config", lambda: MacSimConfig(output_dir=tmp_path)
+    )
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix.load_remote_config", RemoteConfig)
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix.verify_ready_tunnel", lambda config: ({}, "d" * 40))
+    monkeypatch.setattr(
+        "tools.remote_aloha.scenario_matrix.start_gpu_sampler",
+        lambda *args: lifecycle.append("start") or Sampler(),
+    )
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix._run_seed", lambda *args: {"status": "complete"})
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix._validate_batch_gpu", lambda *args: None)
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix._write_performance_summary", lambda *args: None)
+    monkeypatch.setattr(
+        "tools.remote_aloha.scenario_matrix.validate_matrix",
+        lambda *args, **kwargs: {"schema": 1, "status": "passed"},
+    )
+    summary = run_matrix()
+    assert summary.is_file()
+    assert lifecycle == ["start", *(["check"] * 24), "stop"]
+
+
+def test_scenario_metrics_rejects_stale_candidate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    raw = _synthetic_matrix(tmp_path / "evidence")
+    root = tmp_path / "scenarios_0827" / "batch" / "pi0_aloha_sim"
+    root.mkdir(parents=True)
+    (root / "matrix.json").write_text(json.dumps(raw), encoding="utf-8")
+    monkeypatch.setattr(
+        "tools.remote_aloha.scenario_matrix.load_mac_sim_config", lambda: MacSimConfig(output_dir=tmp_path)
+    )
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix.load_remote_config", RemoteConfig)
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix._candidate_sha", lambda: "0" * 40)
+    with pytest.raises(RemoteError, match="exact current candidate"):
+        summarize_latest()
+
+
+def test_scenario_metrics_revalidates_missing_gpu_evidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    raw = _synthetic_matrix(tmp_path / "evidence")
+    root = tmp_path / "scenarios_0827" / "batch" / "pi0_aloha_sim"
+    root.mkdir(parents=True)
+    (root / "matrix.json").write_text(json.dumps(raw), encoding="utf-8")
+    monkeypatch.setattr(
+        "tools.remote_aloha.scenario_matrix.load_mac_sim_config", lambda: MacSimConfig(output_dir=tmp_path)
+    )
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix.load_remote_config", RemoteConfig)
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix._candidate_sha", lambda: raw["source_sha"])
+    with pytest.raises(ValueError, match="GPU evidence"):
+        summarize_latest()

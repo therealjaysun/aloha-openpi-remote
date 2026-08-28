@@ -11,7 +11,10 @@ from tools.remote_aloha.run import _write_performance_summary
 
 
 def summarize_latest() -> Path:
-    output = validate_output_root(load_mac_sim_config().output_dir)
+    sim = load_mac_sim_config()
+    if sim.scenario.is_custom:
+        raise RemoteError("custom scenarios use make scenario-metrics")
+    output = validate_output_root(sim.output_dir)
     profile = load_remote_config().policy_profile.name
     candidates = sorted((output / "phase05").glob(f"*/{profile}/summary.json"))
     if not candidates:

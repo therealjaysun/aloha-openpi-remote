@@ -33,6 +33,7 @@ from tools.remote_aloha.policy_contract import validate_server_metadata
 from tools.remote_aloha.remote import UPSTREAM_SHA
 from tools.remote_aloha.remote import RemoteError
 from tools.remote_aloha.remote import start_gpu_sampler
+from tools.remote_aloha.scenarios import DISPLAY_EVERY_STEPS
 from tools.remote_aloha.scenarios import SCENARIOS
 from tools.remote_aloha.scenarios import ScenarioSpec
 from tools.remote_aloha.scenarios import project_action
@@ -475,7 +476,7 @@ def _run_seed(
     output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     manifest_path = output_dir / "manifest.json"
     video = VideoSaver(output_dir, filename="episode.mp4")
-    display = LiveDisplay(enabled=sim_config.display)
+    display = LiveDisplay(enabled=sim_config.display, every_steps=DISPLAY_EVERY_STEPS)
     environment = None
     policy = None
     transport = None
@@ -729,6 +730,8 @@ def _run_seed(
                     "right_contact_count": int(final_info.get("right_contact_ever") is True),
                     "both_arms_count": int(final_info.get("both_arms_participated") is True),
                     "interference_count": int(final_info.get("interference_ever") is True),
+                    "time_limit_count": int(final_info.get("terminal_reason") == "time_limit"),
+                    "videos_passed": int(video_validation is not None and video_status == "complete"),
                 }
                 for body_index in range(2):
                     for suffix in ("xy_error", "yaw_error", "roll", "pitch", "height_error"):
@@ -739,6 +742,7 @@ def _run_seed(
             emit(
                 "terminal",
                 status=status,
+                episodes=1,
                 infrastructure_pass=infrastructure_pass,
                 steps_applied=int(result.get("steps_applied", 0)),
                 request_count=int(stats.get("request_count", 0)),
@@ -1019,6 +1023,43 @@ def _clock_evidence(path: Path) -> dict[str, object]:
     }
 
 
+def _utc_milliseconds(value: object) -> float:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        raise ValueError("telemetry UTC timestamp is invalid")
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError as error:
+        raise ValueError("telemetry UTC timestamp is invalid") from error
+    if parsed.tzinfo != timezone.utc:  # noqa: UP017 (Python 3.10)
+        raise ValueError("telemetry UTC timestamp is invalid")
+    return parsed.timestamp() * 1000
+
+
+def _gpu_coverage(
+    gpu_events: list[dict[str, object]],
+    mac_event_groups: list[list[dict[str, object]]],
+    clock_path: Path,
+    interval_seconds: float,
+) -> dict[str, object]:
+    if not gpu_events or not mac_event_groups or any(not group for group in mac_event_groups):
+        raise ValueError("GPU coverage requires GPU and Mac telemetry")
+    evidence = _clock_evidence(clock_path)
+    clock = json.loads(clock_path.read_text(encoding="utf-8"))
+    start = clock["start"]
+    end = clock["end"]
+    start_offset = float(start["wsl_minus_mac_midpoint_ms"])
+    end_offset = float(end["wsl_minus_mac_midpoint_ms"])
+    gpu_start_ms = _utc_milliseconds(gpu_events[0]["timestamp_utc"]) - start_offset
+    gpu_end_ms = _utc_milliseconds(gpu_events[-1]["timestamp_utc"]) - end_offset
+    mac_start_ms = min(_utc_milliseconds(group[0]["timestamp_utc"]) for group in mac_event_groups)
+    mac_end_ms = max(_utc_milliseconds(group[-1]["timestamp_utc"]) for group in mac_event_groups)
+    tolerance_ms = interval_seconds * 1000 + float(evidence["clock_max_uncertainty_ms"])
+    evidence["gpu_coverage_pass"] = (
+        gpu_start_ms <= mac_start_ms + tolerance_ms and gpu_end_ms >= mac_end_ms - tolerance_ms
+    )
+    return evidence
+
+
 def _write_performance_summary(root: Path, summary: Mapping[str, object], gpu_path: Path | None = None) -> None:
     episodes = summary.get("episodes", [])
     if not isinstance(episodes, list) or not episodes:
@@ -1048,22 +1089,16 @@ def _write_performance_summary(root: Path, summary: Mapping[str, object], gpu_pa
             float(summary["gpu_metrics_interval_seconds"]),
         )
         events.extend(gpu_events)
-        gpu_result.update(_clock_evidence(gpu_path.parent / "clock-correlation.json"))
-        first_mac_ns = event_groups[0][0]["monotonic_ns"]
-        last_mac_ns = event_groups[-1][-1]["monotonic_ns"]
-        if (
-            isinstance(first_mac_ns, bool)
-            or not isinstance(first_mac_ns, int)
-            or isinstance(last_mac_ns, bool)
-            or not isinstance(last_mac_ns, int)
-            or last_mac_ns < first_mac_ns
-        ):
-            raise ValueError("Mac telemetry duration is invalid")
-        mac_span_ms = (last_mac_ns - first_mac_ns) / 1_000_000
-        tolerance_ms = float(summary["gpu_metrics_interval_seconds"]) * 2000
-        gpu_result["gpu_coverage_pass"] = gpu_result["gpu_span_ms"] + tolerance_ms >= mac_span_ms
+        gpu_result.update(
+            _gpu_coverage(
+                gpu_events,
+                event_groups,
+                gpu_path.parent / "clock-correlation.json",
+                float(summary["gpu_metrics_interval_seconds"]),
+            )
+        )
         if not gpu_result["gpu_coverage_pass"]:
-            raise ValueError("GPU telemetry does not span the Mac run within the configured interval tolerance")
+            raise ValueError("GPU telemetry does not span and bracket the Mac run within clock uncertainty")
     else:
         gpu_result = {}
     final_infos = [episode["episode"].get("final_info", {}) for episode in manifests]
@@ -1086,6 +1121,14 @@ def _write_performance_summary(root: Path, summary: Mapping[str, object], gpu_pa
             ),
             "interference_count": sum(
                 isinstance(info, Mapping) and info.get("interference_ever") is True for info in final_infos
+            ),
+            "time_limit_count": sum(
+                isinstance(info, Mapping) and info.get("terminal_reason") == "time_limit" for info in final_infos
+            ),
+            "videos_passed": sum(
+                episode.get("video", {}).get("status") == "complete"
+                and episode.get("video", {}).get("frames") == episode.get("episode", {}).get("steps_applied")
+                for episode in manifests
             ),
         }
     rewards = [episode["episode"].get("reward_max") for episode in manifests]

@@ -82,6 +82,8 @@ _PUBLISHABLE_RESULTS = {
     "off_table_count",
     "push_success",
     "right_contact_count",
+    "time_limit_count",
+    "videos_passed",
 }
 _PUBLISHABLE_EVENTS = {
     "episode",
@@ -429,6 +431,8 @@ def _valid_publishable_result(result: Mapping[str, object]) -> dict[str, object]
         "off_table_count",
         "push_success",
         "right_contact_count",
+        "time_limit_count",
+        "videos_passed",
     ):
         value = safe.get(key)
         if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
@@ -441,8 +445,23 @@ def _valid_publishable_result(result: Mapping[str, object]) -> dict[str, object]
         raise ValueError("publishable trajectory samples must match applied steps")
     plots_passed = safe.get("trajectory_plots_passed")
     episodes = safe.get("episodes")
+    count_limit = episodes if episodes is not None else 1
     if plots_passed is not None and episodes is not None and plots_passed > episodes:
         raise ValueError("publishable trajectory plot count exceeds episodes")
+    for key in (
+        "both_arms_count",
+        "fallen_count",
+        "interference_count",
+        "left_contact_count",
+        "lifted_count",
+        "off_table_count",
+        "push_success",
+        "right_contact_count",
+        "time_limit_count",
+        "videos_passed",
+    ):
+        if safe.get(key, 0) > count_limit:
+            raise ValueError(f"publishable result {key} exceeds episode count")
     if "infrastructure_pass" in safe and not isinstance(safe["infrastructure_pass"], bool):
         raise ValueError("publishable infrastructure result is invalid")
     if "gpu_coverage_pass" in safe and not isinstance(safe["gpu_coverage_pass"], bool):

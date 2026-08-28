@@ -390,10 +390,12 @@ def test_candidate_gate_rejects_every_unpublished_or_unscanned_state(
         _candidate_sha()
 
 
-def test_candidate_gate_accepts_exact_clean_pushed_scan(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+@pytest.mark.parametrize("branch", ["codex/06-hardening-docs", "codex/push-pi-scenarios"])
+def test_candidate_gate_accepts_exact_clean_pushed_scan(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, branch: str
+) -> None:
     monkeypatch.chdir(tmp_path)
     sha = "a" * 40
-    branch = "codex/06-hardening-docs"
     answers = {
         ("rev-parse", "HEAD"): sha,
         ("branch", "--show-current"): branch,

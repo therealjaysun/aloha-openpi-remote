@@ -1,27 +1,27 @@
-# Scenario suite 0827 — Push-π
+# Scenario suite 0827 — Push-PI
 
-> This is a custom 3-D ALOHA **Push-π** experiment inspired by PushT. It is not the standard PushT benchmark and its scores are not comparable to PushT results.
+> This is a custom 3-D ALOHA **Push-PI** experiment inspired by PushT. It is not the standard PushT benchmark and its scores are not comparable to PushT results. The glyph scenario uses Greek π; the letter scenario uses uppercase dotless `P` and `I`.
 
 - **Objective:** Evaluate one shared ALOHA tabletop-pushing environment across four seeded conditions: one rigid Greek π or two separate uppercase `P`/`I` bodies, with either the left arm's six joints active or both arms' six joints active, using π₀ and experimental π₀.₅ inference.
 - **Scope:** Four fixed scenario IDs; one project-owned Gymnasium environment; primitive compound bodies and visible targets; deterministic paired resets; fixed-gripper action projection; fixed scenario prompts; existing buffered control, JSONL telemetry, trajectories, videos, GPU sampling, SSH tunnel, and optional display-only Mac viewer.
 - **Non-goals:** Standard PushT compatibility; PushT reward comparison; training/fine-tuning; a literal 7-D/single-arm robot; planar end-effector constraints or a general IK system; custom meshes; free-text or mid-episode prompt GUI; browser dashboard; parallel policy servers; nonzero zero-shot success as an infrastructure requirement.
 - **Dependencies:** Completed phases 00–06; pinned OpenPI `215abfb217dbac7d5f1273282331b9b1866c0479`; installed `gym-aloha==0.1.1`; converted PyTorch π₀ and π₀.₅ artifacts.
 - **Planned files:** `tools/remote_aloha/scenarios.py` for pure descriptors/sampling/outcomes/projection; `examples/aloha_sim/push_pi_env.py` for the simulator adapter and four registrations; focused pure and simulator tests; small changes to config, run, smoke, telemetry, metrics, saver/display, Makefile, `.env.example`, README, and plans. Do not edit site-packages or add a geometry/GUI framework.
-- **Planned commits:** `feat(sim): add shared Push-pi environment`; `feat(runtime): integrate Push-pi scenarios and display`; `test(scenarios): validate Push-pi matrix workflow`.
+- **Planned commits:** `feat(sim): add shared Push-PI environment`; `feat(runtime): integrate Push-PI scenarios and display`; `test(scenarios): validate Push-PI matrix workflow`.
 - **Branch/PR:** Preferred: after PRs 1–7 merge, create `codex/push-pi-scenarios` from updated `main` and open one PR to `main`. If explicitly scheduled before that merge, branch from `codex/06-hardening-docs`, base the PR there, and retarget only after the stack merges. Never implement from the old standalone `main`.
-- **Acceptance:** Stock Transfer Cube remains the default and regresses cleanly; all four scenarios preserve finite `(14,)` state/applied-action and `(50,14)` model-chunk contracts; paired arm modes have identical scene hashes and sampled/settled object poses for each seed; fixed-gripper projection is reflected exactly in commanded trajectory rows; Mac calibration/smokes pass before GPU work; both profiles complete the 24-episode headless matrix without contract/process failures; infrastructure and task success remain separate.
-- **Test commands:** `make test`; `make lint`; `make secret-scan`; four `ALOHA_SCENARIO=<id> make smoke-sim` runs; `make scenario-matrix`; `make scenario-metrics`; normal hosted checks and public audit; exact-candidate Mac/WSL validation only after the PC gate.
+- **Acceptance:** Stock Transfer Cube remains the default and regresses cleanly; all four scenarios preserve finite `(14,)` state/applied-action and `(50,14)` model-chunk contracts; paired arm modes have identical scene hashes and named sampled/settled poses for each seed; fixed-gripper projection is reflected exactly in commanded trajectory rows; Mac calibration/smokes pass before GPU work; π₀ and π₀.₅ each complete one 12-episode headless matrix, 24 episodes total, without contract/process failures; infrastructure and task success remain separate.
+- **Test commands:** `make scenario-calibrate`; `ALOHA_SCENARIO=transfer_cube ALOHA_DISPLAY=0 ALOHA_SEED=0 ALOHA_EPISODES=3 make smoke-sim`; four custom hold runs with `ALOHA_DISPLAY=0` and seeds 0–2; four custom one-episode visual runs with `ALOHA_DISPLAY=1`; `make test lint secret-scan public-audit`; hosted checks; after the PC gate, `make scenario-matrix scenario-metrics` once per profile.
 - **Risks:** Novel-task zero-shot failure; compound bodies snag or tip; insufficient 224×224 recognition; empirically calibrated region is not a mathematical reachability proof; optional display slows control; interrupted video encoding may fail even though JSONL/manifest data survives.
 - **Rollback:** Leave or set `ALOHA_SCENARIO=transfer_cube`, which routes to the unchanged stock environment and identity action projection; disable the optional display; retain ignored partial artifacts; use `make stop` for owned server/tunnel cleanup.
-- **Current status:** Implementation is active on the explicitly scheduled pre-merge fallback branch. The shared pure contract, Mac simulator environment, action projection, fixed prompts, optional display path, scenario telemetry, private routing, and post-step artifact coverage pass focused local tests; matrix/calibration/exact-candidate/hardware work remains.
-- **Actual results:** All four project-owned Gym IDs compile/reset on the pinned Mac stack. The π model exposes `nq=23`, `nv=22`, `nu=16`; uppercase `P`/dotless `I` exposes `nq=30`, `nv=28`, `nu=16`; paired single/dual resets match by scene/layout hash and named poses. Focused runtime/config/telemetry/smoke tests pass. No policy episode, live-view evidence, scenario matrix, or PC run exists yet.
+- **Current status:** All three implementation slices are present on the fallback branch. Pure/runtime/matrix tests, strict simulator resets, the Mac calibration, randomized visibility, and four display-on smokes pass. Stock/custom exact-candidate reruns, local/hosted gates, PR creation, and hardware remain.
+- **Actual results:** All four Gym IDs compile/reset on the pinned Mac stack. The π model exposes `nq=23`, `nv=22`, `nu=16`; uppercase `P`/dotless `I` exposes `nq=30`, `nv=28`, `nu=16`. The descriptor SHA-256 is frozen by test. Four 300-step canonical pushes achieved `+0.117..+0.215 m` Y motion, exact named contact, at most `0.00638 m` height deviation, and at most `0.00882 rad` parked-arm error under the `0.01 rad` limit. Every randomized/canonical movable and target exceeded 20 policy pixels; four canonical PNGs were inspected; four display-on smokes passed. No policy matrix or PC run exists yet.
 - **Deviations:** “Single arm” means one active six-joint arm in the stock bimanual scene; both gripper slots remain fixed. A literal one-arm morphology is deferred unless measured occlusion/contact makes the controlled ablation invalid.
 - **PR:** Pending.
 - **Final commit SHA:** Pending.
 
 ## Benchmark boundary
 
-Standard PushT is a 2-D Pymunk task: a circular pusher receives a 2-D Cartesian target at 10 Hz and succeeds above 95% T-shape goal coverage. This suite borrows only the randomized-object/fixed-goal planar-pushing idea. Push-π instead uses MuJoCo at 50 Hz, ALOHA's 14 absolute joint/gripper targets, fixed robot reset, 3-D failure rules, and project-defined held pose tolerances.
+Standard PushT is a 2-D Pymunk task: a circular pusher receives a 2-D Cartesian target at 10 Hz and succeeds above 95% T-shape goal coverage. This suite borrows only the randomized-object/fixed-goal planar-pushing idea. Push-PI instead uses MuJoCo at 50 Hz, ALOHA's 14 absolute joint/gripper targets, fixed robot reset, 3-D failure rules, and project-defined held pose tolerances.
 
 Primary references:
 
@@ -29,7 +29,7 @@ Primary references:
 - [Official gym-pusht environment](https://github.com/huggingface/gym-pusht/blob/main/gym_pusht/envs/pusht.py)
 - Pinned local gym-aloha 0.1.1 source and assets installed by `examples/aloha_sim/requirements.txt`
 
-Do not call a Push-π result a PushT benchmark result, reuse PushT's 95% score, or imply that these OpenPI checkpoints were trained for either PushT or Push-π.
+Do not call a Push-PI result a PushT benchmark result, reuse PushT's 95% score, or imply that these OpenPI checkpoints were trained for either PushT or Push-PI.
 
 ## Fixed scenario and configuration contract
 
@@ -62,17 +62,17 @@ No PC or policy inference is used until one committed descriptor freezes all geo
 
 - Freeze each primitive's body-relative offset, box half-size, origin, thickness, density, friction, color, resting height, footprint radius, target pose, display decimation, and every pose/lift/fall/hold threshold.
 - The pinned tabletop is a 12-triangle rectangular mesh with SHA-256 `76a1571d1aa36520f2bd81c268991b99816c2a7819464d718e0fd9976fe30dce`; its transformed top support is `x=[-0.6096,0.6096]`, `y=[0.219,0.981]`, `z=0`. Regression-check the asset hash and these source-derived bounds; do not infer authority from `geom_aabb` or observed object positions.
-- Operationally calibrate one conservative comparison/spawn polygon with deterministic fixed-waypoint pushes at its boundary/corners for both arms. This proves only the tested region, not continuous analytical reachability. Bound layout rejection attempts and report scenario/seed on exhaustion.
+- Operationally calibrate the conservative spawn polygon with deterministic 300-step waypoint sweeps that bracket its inset X/Y limits for both arms and all movable types. This proves only the tested region, not continuous analytical reachability. Bound physics-invalid reset retries and report scenario/seed on exhaustion.
 - During reset, set both gripper actuator targets to one frozen finite pusher value in gym-aloha's normalized `[0,1]` range, record its corresponding physical finger target, settle deterministically, then capture the post-settle 14-D home state. Park only the inactive arm's six joints from that state; both gripper commands stay independently fixed. Freeze a parked-arm maximum-error tolerance from the scripted hold test.
 - Render every canonical/random reset at policy resolution and require deterministic color-mask visibility for every movable body and target plus human inspection of the four canonical reset PNGs.
 - The canonical fixture exists only for scripted smoke calibration. Scored episodes always use seeded randomized layouts.
-- Compute `scene_hash = SHA256(generated XML bytes + sorted relative asset-name/content hashes + canonical descriptor/object kind)`. Exclude seed and arm mask so paired single/dual scenarios must share a hash.
+- Compute `scene_hash = SHA256(object kind + generated XML bytes + sorted relative asset-name/content hashes)`. The generated XML already carries physical geometry/target values; exclude seed, prompt, and arm mask so paired single/dual scenarios share a hash.
 
 ## Reset and outcome contract
 
 - `sample_layout(object_kind, seed)` uses only local `numpy.random.default_rng(seed)` before arm-mode logic. Set named free joints in MuJoCo order `[x,y,z,qw,qx,qy,qz]` with yaw quaternion `[cos(yaw/2),0,0,sin(yaw/2)]`; never use trailing `qpos` slices or global `BOX_POSE`.
 - Randomize object position/yaw inside the calibrated region inset by full compound-body footprints. Reject body/body, body/goal, body/robot, already-successful, unsupported, and unstable layouts with a bounded attempt count. Record sampled and settled named poses; paired arm modes require byte-identical values.
-- Project-defined first-run success thresholds remain XY `<=0.03 m`, wrapped yaw `<=15°`, absolute roll/pitch `<=10°`, and COM height within `0.005 m` of rest, all true for five consecutive applied steps. These are Push-π thresholds, not PushT authority.
+- Project-defined first-run success thresholds remain XY `<=0.03 m`, wrapped yaw `<=15°`, absolute roll/pitch `<=10°`, and COM height within `0.005 m` of rest, all true for five consecutive applied steps. These are Push-PI thresholds, not PushT authority.
 - `lifted_ever` becomes permanently true if COM rises more than `0.01 m`; it prevents success. Terminate unsuccessfully if a transformed footprint leaves the source-derived tabletop boundary or roll/pitch exceeds `30°`. Otherwise truncate at 300 steps. Reward is `1` only on held success, else `0`.
 - For letters, uppercase `P` must match the `P` target and uppercase `I` the `I` target; one correct or swapped bodies fail. Treat the dotless uppercase `I` as 180° yaw-symmetric; `P` and Greek π retain ordinary 360° wrapped yaw. Report per-body final/minimum XY and yaw errors, held success, time-to-success, terminal reason, and lift/fall/off-table flags. Do not invent a composite progress score.
 
@@ -89,10 +89,10 @@ No PC or policy inference is used until one committed descriptor freezes all geo
 
 1. **Mac/pure:** Unknown config rejection; descriptor/hash; deterministic paired sampling; geometry/support/settling; exact success/perturbation/hold/lift/fall/off-table rules; order-independent contacts; projection identity; projected-command/trajectory equality; bounded info/sanitizer behavior; partial JSONL/video/manifest; telemetry overhead; stock Transfer Cube regression. Simulator integration tests may skip only when the pinned Mac stack is absent and must pass locally.
 2. **Mac/simulator:** Gym checker/API smoke, canonical fixed-waypoint push for each object layout, a hold-action 300-step run for every ID, four display-on visual smokes, decoded complete/partial videos, and clean ignored outputs. Freeze and commit the descriptor before GPU work.
-3. **Candidate gate:** Run local CI/public/secret audits and hosted checks, commit/push the exact candidate, then tell the user to turn on the PC. Verify Mac SHA = WSL SHA; reuse converted weights if their profile/runtime identity still matches. Do not run general CI on the PC.
+3. **Candidate gate:** Finish Mac gates and local CI/public/secret audits; commit; secret-scan and push that exact candidate; open the standalone draft PR; require green hosted checks; only then tell the user to turn on the PC. Verify Mac SHA = WSL SHA; reuse converted weights only when profile/runtime identity matches. Do not run general CI on the PC.
 4. **π₀ hardware:** `make server`, one `make smoke-policy`, one headless `make scenario-matrix` (4 scenarios × seeds 0–2 = 12 scored episodes), `make scenario-metrics`, inspect artifacts, then `make stop`.
 5. **π₀.₅ hardware:** Repeat the same 12 scored episodes under `pi05_aloha_base`, then stop and verify no owned listener/tunnel/sampler remains. The four Mac display smokes are not repeated on GPU.
-6. **Completion:** Inspect 24 videos, trajectory plots, per-scenario summaries, and both matrix rollups; confirm exact step/sample/frame coverage or honest partial status; run normal Mac/hosted gates; update requirements/evidence/status only after the exact-candidate matrix passes.
+6. **Completion:** Inspect 24 videos, trajectory plots, per-scenario summaries, and both matrix rollups; require exact step/sample/frame coverage. Preserve partial artifacts, but keep that profile failed/pending and rerun it. After both matrices pass at the exact code SHA, add one docs-only evidence commit for E-MAC-S0827/E-PC-S0827, run final local and hosted gates on that final head, then mark the draft PR ready without further tracked changes. Any hardware-affecting change restarts both matrices.
 
 Three seeds provide paired demonstrations, not statistical or causal evidence. Report actual zero-shot task results even when every episode is unsuccessful.
 
