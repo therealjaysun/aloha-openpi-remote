@@ -63,9 +63,21 @@ def test_prefetch_uses_one_request_drops_elapsed_prefix_and_waits_without_repeat
     assert policy.infer(_observation(), 1)[0] == 1
     assert policy.infer(_observation(), 2)[0] == 2
     assert transport.started.wait(1)
+    future = policy._future  # noqa: SLF001 - synchronize the concurrency boundary under test
+    assert future is not None
+    original_done = future.done
+    done_checked = threading.Event()
+
+    def done() -> bool:
+        value = original_done()
+        done_checked.set()
+        return value
+
+    future.done = done
     result: list[np.ndarray] = []
     worker = threading.Thread(target=lambda: result.append(policy.infer(_observation(), 3)))
     worker.start()
+    assert done_checked.wait(1)
     assert worker.is_alive()
     transport.release.set()
     worker.join(2)
