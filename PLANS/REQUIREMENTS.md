@@ -39,12 +39,12 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | `REMOTE_POLICY_HOST` | `127.0.0.1` | Literal loopback only unless a separately approved routing remedy is documented | 02,03 |
 | `REMOTE_POLICY_PORT` | `8000` | Integer `1..65535`; must match server listener | 02,03 |
 | `OPENPI_POLICY_PROFILE` | `pi0_aloha_sim` | Enum: `pi0_aloha_sim` or `pi05_aloha_base` | 02–06 |
-| `OPENPI_POLICY_BACKEND` | `jax` | Enum: `jax` or `pytorch`; JAX uses the pinned original checkpoint, PyTorch requires the matching local converted checkpoint; report the choice and never fall back implicitly | 02–06 |
+| `OPENPI_POLICY_BACKEND` | `pytorch` | Enum: `jax` or `pytorch`; the validated demo defaults to the matching converted PyTorch checkpoint, JAX remains an explicit diagnostic path, and neither may fall back implicitly | 02–06 |
 | `OPENPI_CONVERSION_RESTORE_MODE` | `auto` | Enum: `auto`, `full-float32`, or `partial-bfloat16`; auto uses Linux `MemAvailable` and selects partial BF16 only below 16 GiB | 02 |
 | `ALOHA_TASK` | `gym_aloha/AlohaTransferCube-v0` | Fixed milestone task; other tasks require a later documented contract | 01,04 |
 | `ALOHA_SEED` | `0` | Integer `0..2^32-1`; episode `i` uses this base plus `i`, range checked | 01,04 |
-| `ALOHA_ACTION_HORIZON` | `10` | Integer with `1 <= prefetch < horizon <= 50` | 04 |
-| `ALOHA_PREFETCH_STEPS` | `5` | Integer with `1 <= prefetch < horizon`; tune from tunneled end-to-end p95 | 04 |
+| `ALOHA_ACTION_HORIZON` | `30` | Integer with `1 <= prefetch < horizon <= 50` | 04 |
+| `ALOHA_PREFETCH_STEPS` | `25` | Integer with `1 <= prefetch < horizon`; tune from tunneled end-to-end p95 plus the explicit margin | 04 |
 | `ALOHA_EPISODES` | `3` | Positive integer; default produces explicit seeds 0,1,2 | 04 |
 | `RUN_OUTPUT_DIR` | `outputs` | Nonempty Mac path; created safely and ignored | 04,05 |
 | `GPU_METRICS_INTERVAL_SECONDS` | `1` | Finite positive number; never sampled per control step | 05 |

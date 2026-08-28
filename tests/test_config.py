@@ -10,7 +10,14 @@ from tools.remote_aloha.config import load_remote_config
 
 def test_defaults_when_env_file_is_missing(tmp_path: Path) -> None:
     config = load_mac_sim_config(tmp_path / "missing", {})
-    assert (config.task, config.seed, config.episodes, config.output_dir) == (DEFAULT_TASK, 0, 3, Path("outputs"))
+    assert (
+        config.task,
+        config.seed,
+        config.episodes,
+        config.action_horizon,
+        config.prefetch_steps,
+        config.output_dir,
+    ) == (DEFAULT_TASK, 0, 3, 30, 25, Path("outputs"))
 
 
 def test_file_values_and_environment_override(tmp_path: Path) -> None:
@@ -29,6 +36,9 @@ def test_file_values_and_environment_override(tmp_path: Path) -> None:
         ("ALOHA_EPISODES=0\n", {}),
         ("ALOHA_SEED=4294967295\nALOHA_EPISODES=2\n", {}),
         ("ALOHA_TASK=other\n", {}),
+        ("ALOHA_ACTION_HORIZON=10\nALOHA_PREFETCH_STEPS=10\n", {}),
+        ("ALOHA_ACTION_HORIZON=51\n", {}),
+        ("ALOHA_PREFETCH_STEPS=0\n", {}),
         ("RUN_OUTPUT_DIR=\n", {}),
         ("ALOHA_SEED=1 trailing\n", {}),
     ],
@@ -78,7 +88,7 @@ def test_remote_defaults_and_profile_contract(tmp_path: Path) -> None:
         "127.0.0.1",
         8000,
         "pi0_aloha_sim",
-        "jax",
+        "pytorch",
         "auto",
         60,
         30,

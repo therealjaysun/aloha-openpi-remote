@@ -7,6 +7,7 @@ import time
 import numpy as np
 
 from tools.remote_aloha.config import get_policy_profile
+from tools.remote_aloha.observation_contract import validate_policy_observation
 from tools.remote_aloha.policy_contract import validate_policy_response
 from tools.remote_aloha.policy_contract import validate_server_metadata
 from tools.remote_aloha.policy_contract import validate_server_timing
@@ -43,11 +44,12 @@ def run_policy_smoke(
 
         image = np.zeros((3, 224, 224), dtype=np.uint8)
         observation = {
-            "state": np.zeros(14, dtype=np.float32),
+            "state": np.zeros(14, dtype=np.float64),
             "images": {"cam_high": image},
         }
         if profile.default_prompt is not None:
             observation["prompt"] = profile.default_prompt
+        validate_policy_observation(observation)
         latencies_ms = []
         server_timing = []
         for _ in range(4):

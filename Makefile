@@ -3,7 +3,7 @@ VENV := examples/aloha_sim/.venv
 PYTHON := $(VENV)/bin/python
 RUFF := $(VENV)/bin/ruff
 
-.PHONY: help setup-mac doctor doctor-mac smoke-sim setup-pc doctor-pc convert-pc server tunnel smoke-policy stop test lint secret-scan ci
+.PHONY: help setup-mac doctor doctor-mac smoke-sim setup-pc doctor-pc convert-pc server tunnel smoke-policy run stop test lint secret-scan ci
 
 help:
 	@printf '%s\n' \
@@ -16,6 +16,7 @@ help:
 		'make server      Start the selected WSL server and Mac loopback tunnel' \
 		'make tunnel      Revalidate the running route and tunnel' \
 		'make smoke-policy Run bounded Mac-through-tunnel profile inference' \
+		'make run         Run the configured remote-policy simulation episodes' \
 		'make stop        Stop the owned Mac tunnel and WSL policy server' \
 		'make test        Run project pure tests' \
 		'make lint        Run project Ruff and shell syntax checks' \
@@ -52,6 +53,9 @@ tunnel:
 smoke-policy:
 	"$(PYTHON)" -m tools.remote_aloha.connection_check smoke
 
+run:
+	./scripts/run_aloha.sh
+
 stop:
 	@status=0; \
 	"$(PYTHON)" -m tools.remote_aloha.remote stop || status=1; \
@@ -68,8 +72,8 @@ test:
 
 lint:
 	@test -x "$(RUFF)" || { echo 'Missing Phase 01 environment; run: make setup-mac' >&2; exit 1; }
-	"$(RUFF)" check tools/remote_aloha tests scripts/serve_policy.py
-	"$(RUFF)" format --check tools/remote_aloha tests scripts/serve_policy.py
+	"$(RUFF)" check tools/remote_aloha tests scripts/serve_policy.py examples/aloha_sim/saver.py
+	"$(RUFF)" format --check tools/remote_aloha tests scripts/serve_policy.py examples/aloha_sim/saver.py
 	"$(RUFF)" check examples/convert_jax_model_to_pytorch.py
 	"$(RUFF)" format --check examples/convert_jax_model_to_pytorch.py
 	"$(RUFF)" check packages/openpi-client/src/openpi_client/websocket_client_policy.py src/openpi/serving/websocket_policy_server.py

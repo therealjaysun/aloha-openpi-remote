@@ -17,7 +17,7 @@ from tools.remote_aloha.config import RemoteConfig
 from tools.remote_aloha.config import load_remote_config
 
 PUBLIC_REPO = "https://github.com/therealjaysun/pi-robotics.git"
-PHASE_BRANCH = "codex/03-secure-connectivity"
+PHASE_BRANCH = "codex/04-end-to-end-control"
 UPSTREAM_SHA = "215abfb217dbac7d5f1273282331b9b1866c0479"
 _ROUTES = {"bash", "powershell", "cmd"}
 _SCAN_RECEIPT = Path(".runtime/secret-scan.sha")
@@ -412,7 +412,7 @@ def _candidate_sha() -> str:
     if _git("status", "--porcelain", "--untracked-files=all"):
         raise RemoteError("remote work requires a clean candidate checkout")
     if _git("rev-parse", f"origin/{PHASE_BRANCH}") != sha:
-        raise RemoteError("push the exact Phase 3 candidate before remote work")
+        raise RemoteError(f"push the exact {PHASE_BRANCH} candidate before remote work")
     try:
         runtime_metadata = _SCAN_RECEIPT.parent.lstat()
         metadata = _SCAN_RECEIPT.lstat()

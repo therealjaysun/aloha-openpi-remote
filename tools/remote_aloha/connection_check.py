@@ -534,9 +534,17 @@ def start(config: RemoteConfig, target: RemoteTarget) -> None:
         _start_locked(config, target)
 
 
-def check(config: RemoteConfig) -> None:
-    _verify(config)
+def verify_ready_tunnel(config: RemoteConfig) -> tuple[TunnelRecord, str]:
+    record = _verify(config)
+    candidate = _candidate_sha()
+    if record.source_sha != candidate:
+        raise RemoteError("the running tunnel source SHA differs from the current candidate")
     _health(config)
+    return record, candidate
+
+
+def check(config: RemoteConfig) -> None:
+    verify_ready_tunnel(config)
     print("Mac loopback SSH tunnel is healthy.")
 
 
@@ -575,11 +583,7 @@ def stop(config: RemoteConfig | None = None) -> None:
 
 
 def smoke(config: RemoteConfig) -> None:
-    record = _verify(config)
-    candidate = _candidate_sha()
-    if record.source_sha != candidate:
-        raise RemoteError("the running tunnel source SHA differs from the current candidate")
-    _health(config)
+    _, candidate = verify_ready_tunnel(config)
     try:
         summary = run_policy_smoke(
             profile_name=config.policy_profile.name,

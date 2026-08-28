@@ -1,6 +1,6 @@
 # Project status
 
-Planning baseline: 2026-08-26. Plans are complete; phases 00–03 are implemented, published, and validated. Phase 04 end-to-end control is next.
+Planning baseline: 2026-08-26. Plans are complete; phases 00–03 are implemented, published, and validated. Phase 04 end-to-end control implementation is in progress.
 
 Final plan review: 2026-08-28. Independent code/test, security, plan-traceability, and repository/PR audits were reconciled after real PC testing.
 
@@ -10,7 +10,7 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 | 01 Mac simulation | Complete; open for review | `codex/01-mac-simulation` | 2 | [PR 2](https://github.com/therealjaysun/pi-robotics/pull/2) | `codex/00-bootstrap` | `codex/01-mac-simulation` | 18 tests + Ruff/format/shell + doctor + two 900-step runs; hosted `pure-checks` + `secret-scan` passed | None | `44e1d5f` validated implementation; final evidence at branch HEAD |
 | 02 Remote GPU | Complete; ready for review | `codex/02-remote-gpu-server` | 3 | [PR 3](https://github.com/therealjaysun/pi-robotics/pull/3) | `codex/01-mac-simulation` | `codex/02-remote-gpu-server` | 118 Mac tests pass with one Linux-only skip; Ruff/format/shell/secret scan pass; both partial-BF16 conversions, finite-action smokes, second-session survival, and safe stops passed | None; JAX OOM remains a documented rejected path | Hardware candidate `38b5228`; final evidence at branch HEAD |
 | 03 Connectivity | Complete; ready for review | `codex/03-secure-connectivity` | 4 | [PR 4](https://github.com/therealjaysun/pi-robotics/pull/4) | `codex/02-remote-gpu-server` | `codex/03-secure-connectivity` | 171 Mac tests pass with one Linux-only skip; Ruff/format/shell/secret scan and hosted checks pass; both exact-candidate tunneled profile smokes and cleanup pass | None | Hardware implementation `0c64187`; final evidence at branch HEAD |
-| 04 End-to-end | Planned | `codex/04-end-to-end-control` | — | — | `codex/03-secure-connectivity` | `codex/04-end-to-end-control` | Not run | Depends on phases 01–03 | — |
+| 04 End-to-end | Implementing | `codex/04-end-to-end-control` | — | — | `codex/03-secure-connectivity` | `codex/04-end-to-end-control` | 205 local tests pass; lint/format/shell pass; Mac seeds 0–2 complete 900 steps at 13.76 ms aggregate p95 with decoded video; PC acceptance pending | None | Pending |
 | 05 Observability | Planned | `codex/05-observability` | — | — | `codex/04-end-to-end-control` | `codex/05-observability` | Not run | Depends on live inference | — |
 | 06 Hardening/docs | Planned | `codex/06-hardening-docs` | — | — | `codex/05-observability` | `codex/06-hardening-docs` | Not run | Depends on all evidence | — |
 
@@ -40,8 +40,8 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 
 ## Execution cursor
 
-- Active subphase: 04.01 observation/action adaptation when Phase 04 implementation is requested.
-- Machine gate: none. Phase 03 stopped every owned component; the RTX PC may be powered off until Phase 04 hardware acceptance.
+- Active subphase: 04.04 two-profile episode validation after local implementation/CI.
+- Machine gate: the RTX PC must be on and reachable for the final Phase 04 candidate.
 - Exact user action: none.
 - Recovery: rerun the E-PC-BF16 commands only if either converted artifact is removed or the pinned model/runtime changes.
 - Last verified Mac/WSL hardware candidate SHA: `0c641878451b33d419de6670f4fe422832275fdc`; upstream SHA: `215abfb217dbac7d5f1273282331b9b1866c0479`.
