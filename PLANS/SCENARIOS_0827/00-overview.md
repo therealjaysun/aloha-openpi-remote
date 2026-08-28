@@ -13,8 +13,8 @@
 - **Test commands:** `make test`; `make lint`; `make secret-scan`; four `ALOHA_SCENARIO=<id> make smoke-sim` runs; `make scenario-matrix`; `make scenario-metrics`; normal hosted checks and public audit; exact-candidate Mac/WSL validation only after the PC gate.
 - **Risks:** Novel-task zero-shot failure; compound bodies snag or tip; insufficient 224×224 recognition; empirically calibrated region is not a mathematical reachability proof; optional display slows control; interrupted video encoding may fail even though JSONL/manifest data survives.
 - **Rollback:** Leave or set `ALOHA_SCENARIO=transfer_cube`, which routes to the unchanged stock environment and identity action projection; disable the optional display; retain ignored partial artifacts; use `make stop` for owned server/tunnel cleanup.
-- **Current status:** Plan reviewed and technically ready. Implementation is not started and is preferably gated on merging PRs 1–7.
-- **Actual results:** Planning/source review only; no Push-π environment, policy episode, live view, or scenario video exists.
+- **Current status:** Implementation started on the explicitly scheduled pre-merge fallback branch. The shared pure contract and Mac simulator environment are locally validated; runtime/matrix/hardware work remains.
+- **Actual results:** All four project-owned Gym IDs compile/reset on the pinned Mac stack. The π model exposes `nq=23`, `nv=22`, `nu=16`; uppercase `P`/dotless `I` exposes `nq=30`, `nv=28`, `nu=16`; paired single/dual resets match by scene/layout hash and named poses. No policy episode, live view, scenario matrix, or PC run exists yet.
 - **Deviations:** “Single arm” means one active six-joint arm in the stock bimanual scene; both gripper slots remain fixed. A literal one-arm morphology is deferred unless measured occlusion/contact makes the controlled ablation invalid.
 - **PR:** Pending.
 - **Final commit SHA:** Pending.
@@ -74,7 +74,7 @@ No PC or policy inference is used until one committed descriptor freezes all geo
 - Randomize object position/yaw inside the calibrated region inset by full compound-body footprints. Reject body/body, body/goal, body/robot, already-successful, unsupported, and unstable layouts with a bounded attempt count. Record sampled and settled named poses; paired arm modes require byte-identical values.
 - Project-defined first-run success thresholds remain XY `<=0.03 m`, wrapped yaw `<=15°`, absolute roll/pitch `<=10°`, and COM height within `0.005 m` of rest, all true for five consecutive applied steps. These are Push-π thresholds, not PushT authority.
 - `lifted_ever` becomes permanently true if COM rises more than `0.01 m`; it prevents success. Terminate unsuccessfully if a transformed footprint leaves the source-derived tabletop boundary or roll/pitch exceeds `30°`. Otherwise truncate at 300 steps. Reward is `1` only on held success, else `0`.
-- For letters, uppercase `P` must match the `P` target and uppercase `I` the `I` target; one correct or swapped bodies fail. Report per-body final/minimum XY and yaw errors, held success, time-to-success, terminal reason, and lift/fall/off-table flags. Do not invent a composite progress score.
+- For letters, uppercase `P` must match the `P` target and uppercase `I` the `I` target; one correct or swapped bodies fail. Treat the dotless uppercase `I` as 180° yaw-symmetric; `P` and Greek π retain ordinary 360° wrapped yaw. Report per-body final/minimum XY and yaw errors, held success, time-to-success, terminal reason, and lift/fall/off-table flags. Do not invent a composite progress score.
 
 ## Participation, policy, and evidence contract
 
