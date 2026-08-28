@@ -11,7 +11,7 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | G03 | `pi0_aloha_sim` is the task-specific default; `pi05_aloha_base` is optional and explicitly experimental | 02–06 | server metadata and docs | Pass through Phase 04: E-PC-BF16, E-PC-CONTROL |
 | G04 | Policy hosts are loopback; Mac reaches WSL only through authenticated SSH local forwarding | 02,03,06 | listener/routing checks | Pass through Phase 03: E-PC-TUNNEL |
 | G05 | Machine values are discovered, not invented; private OS/SSH identity stays untracked | 00,02,03,06 | scan and doctor output | Pass through Phase 02: E-PC-SETUP |
-| G06 | Every shell script starts `set -euo pipefail`, quotes arguments, cleans temporary files, is rerunnable, and emits actionable failures | 00–06 | syntax/unit review | Pending |
+| G06 | Every project-added or project-modified operational shell script starts `set -euo pipefail`, quotes arguments, cleans temporary files, is rerunnable, and emits actionable failures | 00–06 | syntax/unit review | Pending |
 | G07 | `.env` is ignored; `.env.example` contains placeholders only; profile mapping is fixed and never evaluated as code | 00,02,06 | config tests and scan | Pass through Phase 02: E-MAC02 |
 | G08 | Exact upstream pin and Mac/WSL project SHA are recorded before remote tests | 00,02–06 | Git evidence | Pass through Phase 04: E-PC-SETUP, E-PC-CONTROL |
 | G09 | Weights, checkpoints, caches, raw logs/telemetry, videos, and machine paths remain ignored | 00–06 | tracked/candidate scan | Pass through Phase 04: E-MAC05 |
@@ -54,8 +54,8 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | `OPENPI_POLICY_METADATA_TIMEOUT_SECONDS` | `30` | Finite positive handshake receive deadline | 03 |
 | `OPENPI_POLICY_INFERENCE_TIMEOUT_SECONDS` | `300` | Finite positive request receive deadline; tune only from evidence | 03–05 |
 | `OPENPI_POLICY_CLOSE_TIMEOUT_SECONDS` | `10` | Finite positive close deadline | 03–05 |
-| `OPENPI_POLICY_RETRY_COUNT` | `2` | Integer `0..10`; connection-class errors only | 05 |
-| `OPENPI_POLICY_RETRY_BACKOFF_SECONDS` | `2` | Finite positive number, capped at 60 | 05 |
+| `OPENPI_POLICY_RETRY_COUNT` | `2` | Integer `0..10`; client construction/connect/metadata only, before reset or inference | 05 |
+| `OPENPI_POLICY_RETRY_BACKOFF_SECONDS` | `2` | Finite positive number, capped at 60; applies only to safe pre-inference retries | 05 |
 
 ## Public repository hygiene
 

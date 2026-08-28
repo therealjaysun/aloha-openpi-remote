@@ -3,7 +3,7 @@ VENV := examples/aloha_sim/.venv
 PYTHON := $(VENV)/bin/python
 RUFF := $(VENV)/bin/ruff
 
-.PHONY: help setup-mac doctor doctor-mac smoke-sim setup-pc doctor-pc convert-pc server tunnel smoke-policy run stop test lint secret-scan ci
+.PHONY: help setup-mac doctor doctor-mac smoke-sim setup-pc doctor-pc convert-pc server tunnel smoke-policy run metrics stop test lint secret-scan ci
 
 help:
 	@printf '%s\n' \
@@ -17,6 +17,7 @@ help:
 		'make tunnel      Revalidate the running route and tunnel' \
 		'make smoke-policy Run bounded Mac-through-tunnel profile inference' \
 		'make run         Run the configured remote-policy simulation episodes' \
+		'make metrics     Rebuild and validate the latest selected-profile summary' \
 		'make stop        Stop the owned Mac tunnel and WSL policy server' \
 		'make test        Run project pure tests' \
 		'make lint        Run project Ruff and shell syntax checks' \
@@ -55,6 +56,9 @@ smoke-policy:
 
 run:
 	./scripts/run_aloha.sh
+
+metrics:
+	"$(PYTHON)" -m tools.remote_aloha.metrics
 
 stop:
 	@status=0; \

@@ -76,6 +76,9 @@ def test_remote_defaults_and_profile_contract(tmp_path: Path) -> None:
         config.policy_metadata_timeout_seconds,
         config.policy_inference_timeout_seconds,
         config.policy_close_timeout_seconds,
+        config.policy_retry_count,
+        config.policy_retry_backoff_seconds,
+        config.gpu_metrics_interval_seconds,
         config.min_free_gib,
     ) == (
         "robot-gpu",
@@ -94,6 +97,9 @@ def test_remote_defaults_and_profile_contract(tmp_path: Path) -> None:
         30,
         300,
         10,
+        2,
+        2.0,
+        1.0,
         40,
     )
     assert set(POLICY_PROFILES) == {"pi0_aloha_sim", "pi05_aloha_base"}
@@ -121,7 +127,9 @@ def test_remote_file_values_and_environment_override(tmp_path: Path) -> None:
         "OPENPI_WSL_DISTRO='Ubuntu Dev'\nOPENPI_JAX_MEM_FRACTION=0.85\nOPENPI_POLICY_BACKEND=pytorch\n"
         "OPENPI_CONVERSION_RESTORE_MODE=partial-bfloat16\nLOCAL_POLICY_PORT=9001\n"
         "OPENPI_POLICY_CONNECT_TIMEOUT_SECONDS=61\nOPENPI_POLICY_METADATA_TIMEOUT_SECONDS=31\n"
-        "OPENPI_POLICY_CLOSE_TIMEOUT_SECONDS=11\n",
+        "OPENPI_POLICY_CLOSE_TIMEOUT_SECONDS=11\n"
+        "OPENPI_POLICY_RETRY_COUNT=3\nOPENPI_POLICY_RETRY_BACKOFF_SECONDS=0.5\n"
+        "GPU_METRICS_INTERVAL_SECONDS=1.5\n",
         encoding="utf-8",
     )
     config = load_remote_config(env_file, {"REMOTE_POLICY_PORT": "8123", "OPENPI_DATA_HOME": "/srv/open pi's"})
@@ -137,7 +145,10 @@ def test_remote_file_values_and_environment_override(tmp_path: Path) -> None:
         config.policy_connect_timeout_seconds,
         config.policy_metadata_timeout_seconds,
         config.policy_close_timeout_seconds,
-    ) == (61, 31, 11)
+        config.policy_retry_count,
+        config.policy_retry_backoff_seconds,
+        config.gpu_metrics_interval_seconds,
+    ) == (61, 31, 11, 3, 0.5, 1.5)
 
 
 @pytest.mark.parametrize(
@@ -178,6 +189,12 @@ def test_remote_file_values_and_environment_override(tmp_path: Path) -> None:
         ("OPENPI_POLICY_METADATA_TIMEOUT_SECONDS", "301", "at most"),
         ("OPENPI_POLICY_INFERENCE_TIMEOUT_SECONDS", "0", "positive"),
         ("OPENPI_POLICY_CLOSE_TIMEOUT_SECONDS", "0", "positive"),
+        ("OPENPI_POLICY_RETRY_COUNT", "11", "at most"),
+        ("OPENPI_POLICY_RETRY_BACKOFF_SECONDS", "nan", "finite positive"),
+        ("OPENPI_POLICY_RETRY_BACKOFF_SECONDS", "61", "at most"),
+        ("GPU_METRICS_INTERVAL_SECONDS", "0", "finite positive"),
+        ("GPU_METRICS_INTERVAL_SECONDS", "0.01", "at least"),
+        ("GPU_METRICS_INTERVAL_SECONDS", "61", "at most"),
         ("OPENPI_MIN_FREE_GIB", "0", "positive"),
         ("OPENPI_MIN_FREE_GIB", "1025", "at most"),
     ],

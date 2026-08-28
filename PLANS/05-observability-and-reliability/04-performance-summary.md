@@ -7,6 +7,6 @@
 - **Validation:** Known fixture calculations; empty/partial/single-sample runs; cross-check event counts and episode steps; ensure no machine identifiers.
 - **Acceptance:** Reviewer can determine whether infrastructure met the contract and compare both profiles without conflating transfer success with system health.
 - **Planned commit:** `docs(perf): summarize remote ALOHA runs`.
-- **Actual findings:** Failed-request GPU memory was measured, but no inference completed, so no cold/warm latency or task-success estimate is claimed.
-- **Remaining blockers:** Live episodes and GPU samples.
-- **Completion status:** Planned.
+- **Actual findings:** Phase 03 and 04 completed inference and episodes. Phase 04 recorded π₀ success 3/3, π₀.₅ success 0/3, active 45.44–47.09 Hz, and up to two underruns; sustained 50 Hz was not claimed. Phase 05 must reproduce these profiles with integrated GPU/local telemetry before publishing its final table.
+- **Remaining blockers:** Correlated Phase 05 GPU/local samples for the exact pushed Phase 05 candidate.
+- **Completion status:** Aggregation implementation and fixtures complete; both profile reports pending hardware runs.

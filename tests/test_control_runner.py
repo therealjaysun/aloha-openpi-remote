@@ -11,10 +11,14 @@ from examples.aloha_sim.saver import VideoSaver
 from tools.remote_aloha.config import POLICY_PROFILES
 from tools.remote_aloha.config import MacSimConfig
 from tools.remote_aloha.config import RemoteConfig
+from tools.remote_aloha.run import _connect_with_retry
+from tools.remote_aloha.run import _gpu_events
 from tools.remote_aloha.run import _run_seed
 from tools.remote_aloha.run import _validated_output_root
+from tools.remote_aloha.run import _write_performance_summary
 from tools.remote_aloha.run import control_episode
 from tools.remote_aloha.run import run
+from tools.remote_aloha.telemetry import JsonlWriter
 
 
 def _raw_observation() -> dict:
@@ -22,6 +26,206 @@ def _raw_observation() -> dict:
         "pixels": {"top": np.zeros((480, 640, 3), dtype=np.uint8)},
         "agent_pos": np.zeros(14, dtype=np.float64),
     }
+
+
+def _gpu_rows() -> list[dict[str, object]]:
+    identity = {
+        "schema": 1,
+        "run_id": "c" * 32,
+        "profile": "pi0_aloha_sim",
+        "server_pid": 4242,
+        "source_sha": "a" * 40,
+        "interval_ms": 1000,
+    }
+    return [
+        {**identity, "event": "sampler_started", "utc": "2026-08-28T08:00:00.000Z", "monotonic_ns": 1},
+        {
+            **identity,
+            "event": "gpu_sample",
+            "utc": "2026-08-28T08:00:00.100Z",
+            "monotonic_ns": 2,
+            "elapsed_ms": 0,
+            "sample_index": 0,
+            "memory_used_mib": 1024,
+            "utilization_percent": 25,
+            "server_rss_kib": 2048,
+        },
+        {
+            **identity,
+            "event": "gpu_sample",
+            "utc": "2026-08-28T08:00:01.100Z",
+            "monotonic_ns": 3,
+            "elapsed_ms": 1000,
+            "sample_index": 1,
+            "memory_used_mib": 1030,
+            "utilization_percent": 30,
+            "server_rss_kib": 2050,
+        },
+        {
+            **identity,
+            "event": "sampler_stopped",
+            "utc": "2026-08-28T08:00:01.200Z",
+            "monotonic_ns": 4,
+            "status": "interrupted",
+            "exit_status": 143,
+        },
+    ]
+
+
+def test_gpu_events_require_exact_identity_sequence_and_cadence(tmp_path: Path) -> None:
+    path = tmp_path / "gpu.jsonl"
+    path.write_text("".join(json.dumps(row) + "\n" for row in _gpu_rows()), encoding="utf-8")
+    events, result = _gpu_events(path, "c" * 32, "pi0_aloha_sim", "a" * 40, 1.0)
+    assert len(events) == result["gpu_sample_count"] == 2
+    assert result["gpu_span_ms"] == result["gpu_max_gap_ms"] == 1000
+
+
+@pytest.mark.parametrize(
+    ("row", "field", "value"),
+    [
+        (3, "status", "failed"),
+        (3, "exit_status", 0),
+        (2, "sample_index", 7),
+        (2, "elapsed_ms", 5000),
+        (1, "server_pid", 9999),
+        (1, "utc", "Z"),
+    ],
+)
+def test_gpu_events_reject_corrupt_or_failed_evidence(tmp_path: Path, row: int, field: str, value: object) -> None:
+    rows = _gpu_rows()
+    rows[row][field] = value
+    path = tmp_path / "gpu.jsonl"
+    path.write_text("".join(json.dumps(item) + "\n" for item in rows), encoding="utf-8")
+    with pytest.raises(ValueError, match="GPU telemetry"):
+        _gpu_events(path, "c" * 32, "pi0_aloha_sim", "a" * 40, 1.0)
+
+
+def test_gpu_events_reject_a_single_readiness_sample(tmp_path: Path) -> None:
+    rows = _gpu_rows()
+    del rows[2]
+    path = tmp_path / "gpu.jsonl"
+    path.write_text("".join(json.dumps(item) + "\n" for item in rows), encoding="utf-8")
+    with pytest.raises(ValueError, match="at least two"):
+        _gpu_events(path, "c" * 32, "pi0_aloha_sim", "a" * 40, 1.0)
+
+
+def test_performance_summary_rejects_gpu_samples_that_do_not_span_the_mac_run(tmp_path: Path) -> None:
+    telemetry_path = tmp_path / "seed-0.jsonl"
+    telemetry_rows = [
+        {
+            "schema": 1,
+            "event": "metadata",
+            "timestamp_utc": "2026-08-28T08:00:00.000Z",
+            "monotonic_ns": 1,
+            "run_id": "c" * 32,
+            "profile": "pi0_aloha_sim",
+            "source_sha": "a" * 40,
+        },
+        {
+            "schema": 1,
+            "event": "terminal",
+            "timestamp_utc": "2026-08-28T08:00:10.000Z",
+            "monotonic_ns": 10_000_000_001,
+            "status": "complete",
+        },
+    ]
+    telemetry_path.write_text("".join(json.dumps(row) + "\n" for row in telemetry_rows), encoding="utf-8")
+    gpu_path = tmp_path / "gpu-metrics.jsonl"
+    gpu_path.write_text("".join(json.dumps(row) + "\n" for row in _gpu_rows()), encoding="utf-8")
+    (tmp_path / "clock-correlation.json").write_text(
+        json.dumps(
+            {
+                "schema": 1,
+                "start": {"round_trip_uncertainty_ms": 1, "wsl_minus_mac_midpoint_ms": 0},
+                "end": {"round_trip_uncertainty_ms": 1, "wsl_minus_mac_midpoint_ms": 0},
+            }
+        ),
+        encoding="utf-8",
+    )
+    summary = {
+        "status": "passed",
+        "gpu_metrics_interval_seconds": 1.0,
+        "episodes": [
+            {
+                "seed": 0,
+                "infrastructure_pass": True,
+                "telemetry": {"path": str(telemetry_path)},
+                "episode": {"steps_applied": 1, "reward_sum": 0.0, "reward_max": 0.0},
+                "buffer": {},
+                "connection": {},
+            }
+        ],
+    }
+    with pytest.raises(ValueError, match="does not span"):
+        _write_performance_summary(tmp_path, summary, gpu_path)
+
+
+def test_connection_retry_is_bounded_before_episode_start(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+    transport = object()
+
+    def connect(config: RemoteConfig, source_sha: str):
+        calls.append(source_sha)
+        if len(calls) < 3:
+            raise TimeoutError("not ready")
+        return transport, {"ready": True}
+
+    sleeps = []
+    retries = []
+    monkeypatch.setattr("tools.remote_aloha.run._connect", connect)
+    progress = {"failures": 0, "retries": 0}
+    result = _connect_with_retry(
+        RemoteConfig(policy_retry_count=2, policy_retry_backoff_seconds=0.25),
+        "a" * 40,
+        progress,
+        emit=lambda event, **fields: retries.append((event, fields)),
+        sleep=sleeps.append,
+    )
+    assert result == (transport, {"ready": True})
+    assert len(calls) == 3
+    assert sleeps == [0.25, 0.25]
+    assert progress == {"failures": 2, "retries": 2}
+    assert [event for event, _ in retries] == ["retry", "retry"]
+
+
+def test_identity_or_application_error_is_never_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+
+    def connect(*args: object):
+        calls.append(True)
+        raise ValueError("metadata mismatch")
+
+    monkeypatch.setattr("tools.remote_aloha.run._connect", connect)
+    with pytest.raises(ValueError, match="metadata mismatch"):
+        _connect_with_retry(
+            RemoteConfig(),
+            "a" * 40,
+            {"failures": 0, "retries": 0},
+            sleep=lambda _: pytest.fail("must not retry"),
+        )
+    assert calls == [True]
+
+
+def test_connection_retry_exhaustion_reports_exact_bounded_counts(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+    sleeps = []
+
+    def connect(*args: object):
+        calls.append(True)
+        raise TimeoutError("still unavailable")
+
+    monkeypatch.setattr("tools.remote_aloha.run._connect", connect)
+    progress = {"failures": 0, "retries": 0}
+    with pytest.raises(TimeoutError, match="still unavailable"):
+        _connect_with_retry(
+            RemoteConfig(policy_retry_count=2, policy_retry_backoff_seconds=0.25),
+            "a" * 40,
+            progress,
+            sleep=sleeps.append,
+        )
+    assert len(calls) == 3
+    assert sleeps == [0.25, 0.25]
+    assert progress == {"failures": 3, "retries": 2}
 
 
 def test_control_episode_uses_exact_seed_steps_and_non_catchup_cadence() -> None:
@@ -261,7 +465,7 @@ def test_output_root_inside_repository_must_be_ignored(monkeypatch) -> None:
         _validated_output_root(Path("unignored-phase-output"))
 
 
-@pytest.mark.parametrize("outcome", ["complete", "interrupted"])
+@pytest.mark.parametrize("outcome", ["complete", "interrupted", "telemetry-close-failure"])
 def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, outcome: str) -> None:
     class Transport:
         def __init__(self) -> None:
@@ -314,19 +518,57 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
         "tools.remote_aloha.run.verify_video",
         lambda path, frames: {"bytes": path.stat().st_size, "fps": 50.0, "frames": frames},
     )
-    monkeypatch.setattr("tools.remote_aloha.run.package_versions", dict)
+    monkeypatch.setattr("tools.remote_aloha.run.package_versions", lambda: {"numpy": "1.26.4"})
+    if outcome == "telemetry-close-failure":
+
+        class FailingCloseWriter(JsonlWriter):
+            def close(self) -> None:
+                super().close()
+                raise OSError("telemetry close failed")
+
+        monkeypatch.setattr("tools.remote_aloha.run.JsonlWriter", FailingCloseWriter)
     output_dir = tmp_path / "seed-0"
+    arguments = (
+        MacSimConfig(episodes=1),
+        RemoteConfig(),
+        "a" * 40,
+        "b" * 40,
+        0,
+        output_dir,
+        "c" * 32,
+    )
     if outcome == "interrupted":
         with pytest.raises(KeyboardInterrupt):
-            _run_seed(MacSimConfig(episodes=1), RemoteConfig(), "source", "upstream", 0, output_dir)
+            _run_seed(*arguments)
+    elif outcome == "telemetry-close-failure":
+        with pytest.raises(OSError, match="telemetry close failed"):
+            _run_seed(*arguments)
     else:
-        result = _run_seed(MacSimConfig(episodes=1), RemoteConfig(), "source", "upstream", 0, output_dir)
+        result = _run_seed(*arguments)
         assert result["infrastructure_pass"] is True
     manifest = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["cleanup_pending"] is False
-    assert manifest["status"] == outcome
+    assert manifest["status"] == ("failed" if outcome == "telemetry-close-failure" else outcome)
     assert transport.closed
     assert environment.closed
+    telemetry = (output_dir / "telemetry.jsonl").read_text(encoding="utf-8").splitlines()
+    assert json.loads(telemetry[0])["event"] == "metadata"
+    assert json.loads(telemetry[-1])["event"] == "terminal"
+    assert (output_dir / "telemetry-summary.json").exists()
+    assert (output_dir / "telemetry-summary.md").exists()
+
+
+def test_run_seed_finalizes_manifest_when_telemetry_cannot_start(tmp_path: Path, monkeypatch) -> None:
+    def fail_writer(*args: object, **kwargs: object):
+        raise OSError("telemetry create failed")
+
+    monkeypatch.setattr("tools.remote_aloha.run.JsonlWriter", fail_writer)
+    output_dir = tmp_path / "seed-0"
+    with pytest.raises(OSError, match="telemetry create failed"):
+        _run_seed(MacSimConfig(episodes=1), RemoteConfig(), "a" * 40, "b" * 40, 0, output_dir, "c" * 32)
+    manifest = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["status"] == "failed"
+    assert manifest["cleanup_pending"] is False
 
 
 def test_run_writes_failed_root_summary(tmp_path: Path, monkeypatch) -> None:
@@ -336,10 +578,14 @@ def test_run_writes_failed_root_summary(tmp_path: Path, monkeypatch) -> None:
     )
     monkeypatch.setattr("tools.remote_aloha.run.load_remote_config", RemoteConfig)
     monkeypatch.setattr("tools.remote_aloha.run.verify_ready_tunnel", lambda config: ({}, "source"))
+    monkeypatch.setattr(
+        "tools.remote_aloha.run.start_gpu_sampler",
+        lambda *args: SimpleNamespace(check=lambda: None, stop=lambda output: None),
+    )
     monkeypatch.setattr("tools.remote_aloha.run._run_seed", lambda *args: (_ for _ in ()).throw(RuntimeError("lost")))
     with pytest.raises(RuntimeError, match="lost"):
         run()
-    summaries = list(tmp_path.glob("phase04/*/pi0_aloha_sim/summary.json"))
+    summaries = list(tmp_path.glob("phase05/*/pi0_aloha_sim/summary.json"))
     assert len(summaries) == 1
     summary = json.loads(summaries[0].read_text(encoding="utf-8"))
     assert summary["status"] == "failed"

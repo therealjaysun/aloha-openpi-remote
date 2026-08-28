@@ -7,8 +7,8 @@
 - **Validation:** Round-trip every event as JSON; NumPy scalar/NaN rejection; partial final line handling; aggregation math fixtures; benchmark subscriber p95 overhead under 1 ms on Mac.
 - **Acceptance:** Required run/output fields in `REQUIREMENTS.md` are available; valid lines survive interruption; no fsync/network per step; raw output/logs stay ignored; publishable summary is allowlisted and labels model profile.
 - **Planned commit:** `feat(telemetry): record local runtime events`.
-- **Actual findings:** Stock server returns `server_timing.infer_ms` plus previous-request total timing. At the audit pin stock Runtime uses `time.time`; phase 04 owns the monotonic runtime correction, while telemetry uses `time.monotonic_ns` and UTC only for event timestamps.
-- **Remaining blockers:** Live schema/timing metadata must be observed.
-- **Completion status:** Planned.
+- **Actual findings:** Stock server returns `server_timing.infer_ms` plus previous-request total timing. The implementation associates previous total time with request N-1, records monotonic/UTC events in private JSONL, preserves partial valid lines, measures write overhead, and emits allowlisted JSON/Markdown summaries. At the audit pin stock Runtime uses `time.time`; phase 04 owns the monotonic runtime correction.
+- **Remaining blockers:** Observe the live schema, timing, and write-overhead results for both profiles.
+- **Completion status:** Implementation and pure validation complete; hardware evidence pending.
 
 Minimal instrumentation: time the existing calls and expose metrics to one subscriber; do not introduce a logging framework or database.

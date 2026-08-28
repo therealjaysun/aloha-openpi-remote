@@ -13,9 +13,9 @@
 - **Test commands:** `make test`; `make metrics`; per-profile `make run`; interrupt/failure scenarios; parse every JSONL line; inspect summaries; verify no output tracked.
 - **Risks:** Telemetry blocks loop, corrupt line on crash, clock mismatch Mac/PC, GPU sampler orphan, sensitive paths in logs, retry causes stale actions.
 - **Rollback:** Disable subscribers/sampler while retaining core control loop; stop validated metrics PID; revert phase; keep partial ignored artifacts.
-- **Current status:** Plan complete; implementation not started.
-- **Actual results:** No telemetry or performance evidence exists.
-- **Deviations:** None.
+- **Current status:** Implementation and local validation complete; exact-candidate π₀/π₀.₅ hardware validation pending.
+- **Actual results:** Structured local/GPU telemetry, safe pre-inference retry, exact Mac sampler ownership, partial-result preservation, and publishable performance summaries are implemented. Phase 04 established the comparison baseline: π₀ task success 3/3, experimental π₀.₅ task success 0/3, active 45.44–47.09 Hz, and up to two underruns. Phase 05 hardware evidence is not claimed until both profiles run on the pushed candidate.
+- **Deviations:** Automatic retry is deliberately limited to client construction/connect/metadata before reset or inference. Once an inference may have been sent, replay is unsafe; the episode aborts and preserves partial evidence.
 - **PR:** Pending.
 - **Final commit SHA:** Pending.
 
