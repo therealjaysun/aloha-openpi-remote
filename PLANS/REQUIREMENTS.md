@@ -242,6 +242,27 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | DOD29 | Every blocker has evidence and exact recovery command | 00–06 | Pass: no unresolved blocker; historical failures retain recovery entries | E-PC-JAX, E-PC-CONVERT, E-MAC06, E-MAC07 |
 | DOD30 | No unexplained manual step remains | 06 | Pass | E-MAC06, E-MAC07 |
 
+## Deferred S0827 Push-π requirements
+
+These pending rows belong to the optional post-stack experiment and do not reopen phases 00–06. They become active only when S0827 is scheduled. Evidence references remain pending until exact-candidate validation exists.
+
+| ID | Requirement | Owner | Evidence | Status |
+| --- | --- | --- | --- | --- |
+| SP01 | Identify the work as custom PushT-inspired Push-π, never as a standard PushT benchmark or comparable score | S0827 | docs/source review | Pending |
+| SP02 | Preserve Transfer Cube as default; accept only the fixed `ALOHA_SCENARIO` enum and `ALOHA_DISPLAY=0|1` | S0827 | config tests | Pending |
+| SP03 | One project-owned Gymnasium implementation registers four fixed 300-step/50 Hz IDs without editing site-packages | S0827 | pure + Mac simulator tests | Pending |
+| SP04 | Preserve finite ALOHA `(14,)` observation/applied-action and `(50,14)` model-response contracts with top-camera prompt input | S0827 | contract tests + profile smoke | Pending |
+| SP05 | A committed descriptor freezes source-derived table bounds, geometry/physics, target/spawn region, pusher value, park tolerance, display cadence, outcome thresholds, and scene hash before GPU work | S0827 | Mac calibration evidence | Pending |
+| SP06 | Validate full model output, project the fixed-gripper/arm mask before stepping, and record exactly the projected command in trajectory telemetry | S0827 | projection/trajectory integration test | Pending |
+| SP07 | Deterministic paired layouts, named-body target matching, held pose success, and lift/fall/off-table failure use project-defined non-PushT thresholds | S0827 | outcome/reset tests | Pending |
+| SP08 | Fixed bounded scenario fields reuse existing per-step JSONL; publishable summaries use scenario/task allowlists and omit raw poses, machine IDs, and paths | S0827 | telemetry/sanitizer tests | Pending |
+| SP09 | One post-step frame per applied action feeds atomic complete/partial video and optional display-only Mac viewer; zero/encode failure is honest | S0827 | interruption/video/display tests | Pending |
+| SP10 | One fail-closed batch per profile contains all four scenarios × seeds 0–2, per-scenario summaries, paired checks, and a matrix rollup | S0827 | matrix-summary tests + hardware evidence | Pending |
+| SP11 | π₀ and experimental π₀.₅ results remain separate; infrastructure may pass with zero Push-π task successes | S0827 | summary review | Pending |
+| SP12 | Scenario telemetry remains below 1 ms write p95 and raw JSONL/videos/plots/manifests remain ignored | S0827 | benchmark + Git checks | Pending |
+| SP13 | Mac implementation/calibration/CI precede the PC gate; exact Mac/WSL SHA matches; no general CI or redundant display run occurs on PC | S0827 | logistics/hardware ledger | Pending |
+| SP14 | Stock Transfer Cube regression, normal local/hosted gates, 24 headless hardware episodes, artifact inspection, cleanup, and final evidence all pass before completion | S0827 | final S0827 evidence | Pending |
+
 ## Evidence and recovery ledger
 
 | Ref | Rows | Evidence | Exact recovery |

@@ -14,6 +14,15 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 | 05 Observability | Complete; open for review | `codex/05-observability` | 6 | [PR 6](https://github.com/therealjaysun/pi-robotics/pull/6) | `codex/04-end-to-end-control` | `codex/05-observability` | 297 passed + 1 platform skip; lint/format/Bash/secret and hosted checks pass; exact π₀/π₀.₅ hardware runs produced 1,661/1,661 samples and six verified 14-joint plots | None | Hardware implementation `2065dd9`; completion evidence at branch HEAD |
 | 06 Hardening/docs | Complete; open for review | `codex/06-hardening-docs` | 7 | [PR 7](https://github.com/therealjaysun/pi-robotics/pull/7) | `codex/05-observability` | `codex/06-hardening-docs` | 318 passed + 1 platform skip; 21 feasible upstream tests, lint/format/Bash, doctors, public/secret audits, plan/link/ancestry validators, hosted checks, and seven-PR status pass | None; final hardware proof remains Phase 5 `2065dd9`, with Phase 6 `90b0fed` smokes retained as historical evidence | Implementation `a8a3ca1`; final evidence at branch HEAD |
 
+## Deferred extension cursor
+
+- S0827 Push-π plan: reviewed and technically ready; implementation not started.
+- Identity: custom 3-D ALOHA Push-π experiment inspired by PushT, not the standard PushT benchmark.
+- Preferred branch gate: merge PRs 1–7, then branch `codex/push-pi-scenarios` from updated `main`. If explicitly scheduled sooner, stack it on `codex/06-hardening-docs` and retarget after merge.
+- Machine gate: Mac-only implementation, calibration, tests, exact candidate, push, and hosted checks first. Request `PC ready` only before the two-profile 24-episode matrix; no general CI runs on the PC.
+- Planning-only review on 2026-08-28 adds five suite files and 14 pending `SP` requirements. The Phase 6 totals below remain historical evidence for its earlier exact candidate.
+- Plan: [`SCENARIOS_0827/00-overview.md`](SCENARIOS_0827/00-overview.md).
+
 ## Audited state
 
 - Volatile snapshot at `2026-08-27T03:09:59Z`: Apple Silicon arm64, macOS 26.6.1, 18 GB RAM, 58 GiB workspace disk free. Rerun `make doctor-mac` before capacity decisions.

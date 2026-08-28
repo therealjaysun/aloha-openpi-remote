@@ -42,3 +42,7 @@ All seven PRs are open, ready, green, and correctly stacked for human review. [P
 Every PR includes: Summary; Phase plan; Stack position; Base PR dependency; Scope; Non-goals; Implementation details; Files changed; Tests executed; Test results; Evidence; Known limitations; Security considerations; Review guide; Rollback procedure; Checklist.
 
 Include exactly: `This is PR X of 7 in a stacked series. Review and merge the stack in numerical order.`
+
+## Post-stack experiment
+
+S0827 Push-π is not PR 8 of this series. Prefer `codex/push-pi-scenarios` from post-merge `main` with one standalone PR. If the user explicitly schedules it before merge, branch from `codex/06-hardening-docs`, base the temporary PR there, retain the seven-PR merge order, and retarget only after PR 7 lands.

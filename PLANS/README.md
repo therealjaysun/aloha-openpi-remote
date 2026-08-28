@@ -37,6 +37,14 @@ This directory is the execution contract for the Mac ALOHA simulator and remote 
 | 05 | [`05-observability-and-reliability/00-overview.md`](05-observability-and-reliability/00-overview.md) | JSONL telemetry, GPU metrics, recovery |
 | 06 | [`06-hardening-and-documentation/00-overview.md`](06-hardening-and-documentation/00-overview.md) | Tests, security audit, docs, release evidence |
 
+## Deferred extensions
+
+| Suite | Plan | Status | Relationship to completed stack |
+| --- | --- | --- | --- |
+| S0827 Push-π | [`SCENARIOS_0827/00-overview.md`](SCENARIOS_0827/00-overview.md) | Reviewed; ready after branch gate; not implemented | Custom PushT-inspired ALOHA experiment. Prefer one new PR from post-merge `main`; it is not an eighth member of the completed seven-PR phase stack. |
+
+Deferred suites own their pending requirements in `REQUIREMENTS.md`. They must preserve the stable interfaces above, pass the same privacy/security gates, and update `STATUS.md` when scheduled; their pending rows do not weaken or reopen completed phase evidence.
+
 ## Stable implementation interface
 
 Do not rename these targets without updating every plan and user document:
