@@ -127,6 +127,7 @@ def test_performance_summary_rejects_gpu_samples_that_do_not_span_the_mac_run(tm
             "timestamp_utc": "2026-08-28T08:00:10.000Z",
             "monotonic_ns": 10_000_000_001,
             "status": "complete",
+            "metrics": {"telemetry_write_ms": 0.2},
         },
     ]
     telemetry_path.write_text("".join(json.dumps(row) + "\n" for row in telemetry_rows), encoding="utf-8")
@@ -156,6 +157,10 @@ def test_performance_summary_rejects_gpu_samples_that_do_not_span_the_mac_run(tm
             }
         ],
     }
+    local_root = tmp_path / "local-only"
+    _write_performance_summary(local_root, summary)
+    local_performance = json.loads((local_root / "performance-summary.json").read_text(encoding="utf-8"))
+    assert local_performance["metrics"]["telemetry_write_ms"]["p95"] == 0.2
     with pytest.raises(ValueError, match="does not span"):
         _write_performance_summary(tmp_path, summary, gpu_path)
 

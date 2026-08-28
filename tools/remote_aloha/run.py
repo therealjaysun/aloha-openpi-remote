@@ -735,7 +735,14 @@ def _write_performance_summary(root: Path, summary: Mapping[str, object], gpu_pa
     first["seeds"] = [episode["seed"] for episode in episodes]
     events = [first]
     for group in event_groups:
-        events.extend(event for event in group[1:] if event.get("event") != "terminal")
+        for event in group[1:]:
+            if event.get("event") == "episode":
+                continue
+            combined_event = event
+            if event.get("event") == "terminal":
+                combined_event = {**event, "event": "episode"}
+                combined_event.pop("status", None)
+            events.append(combined_event)
     if gpu_path is not None:
         gpu_events, gpu_result = _gpu_events(
             gpu_path,
