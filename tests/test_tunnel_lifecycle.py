@@ -160,7 +160,7 @@ def test_stale_record_cleanup_and_stop_twice_signal_nothing(monkeypatch: pytest.
     config = RemoteConfig()
     connection_check.stop(config)
     connection_check.stop(config)
-    assert waits == [(_record(tmp_path), 10)]
+    assert waits == [(_record(tmp_path), 30)]
     assert not Path(".runtime/tunnel.json").exists()
 
 

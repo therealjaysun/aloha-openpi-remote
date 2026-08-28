@@ -550,7 +550,7 @@ def _stop_locked(config: RemoteConfig) -> None:
         return
     if record_exists and not socket_exists:
         record = _read_record()
-        _wait_for_stopped(record, 10)
+        _wait_for_stopped(record, 30)
         _RECORD.unlink()
         print("Removed a stale tunnel record; no process was signaled.")
         return
@@ -559,7 +559,7 @@ def _stop_locked(config: RemoteConfig) -> None:
     record = _read_record()
     _validate_socket()
     if _control(record.ssh_alias, "check", 2).returncode != 0:
-        _wait_for_stopped(record, 10)
+        _wait_for_stopped(record, 30)
         _remove_control_socket()
         _RECORD.unlink()
         print("Removed stale tunnel state; no process was signaled.")
