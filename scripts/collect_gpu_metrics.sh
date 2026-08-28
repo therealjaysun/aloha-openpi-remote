@@ -3,8 +3,8 @@ set -euo pipefail
 umask 077
 export LC_ALL=C
 
-[[ $# -eq 6 ]] || {
-    echo 'Expected output path, run ID, profile, server PID, source SHA, and interval seconds.' >&2
+[[ $# -eq 7 ]] || {
+    echo 'Expected output path, run ID, profile, server PID, source SHA, interval seconds, and policy port.' >&2
     exit 2
 }
 output="$1"
@@ -13,6 +13,7 @@ profile="$3"
 server_pid="$4"
 source_sha="$5"
 interval_seconds="$6"
+policy_port="$7"
 
 [[ "$output" == /* && "$output" == *.jsonl && "$output" != *$'\n'* && "$output" != *$'\r'* ]] || {
     echo 'Output must be an absolute JSONL path without control characters.' >&2
@@ -25,6 +26,10 @@ interval_seconds="$6"
     exit 2
 }
 [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid source SHA.' >&2; exit 2; }
+[[ "$policy_port" =~ ^[0-9]+$ ]] && (( 10#$policy_port >= 1 && 10#$policy_port <= 65535 )) || {
+    echo 'Invalid policy port.' >&2
+    exit 2
+}
 [[ "$interval_seconds" =~ ^[0-9]+([.][0-9]{1,3})?$ ]] &&
     awk -v value="$interval_seconds" 'BEGIN { exit !(value >= 0.1 && value <= 60) }' || {
     echo 'Interval must be between 0.1 and 60 seconds with at most three decimal places.' >&2
@@ -60,11 +65,27 @@ case "$output_parent/" in "$runtime/"*) ;; *) echo 'Output must remain inside th
 output="$output_parent/$(basename -- "$output")"
 [[ ! -e "$output" && ! -L "$output" ]] || { echo 'Refusing to overwrite an existing metrics file.' >&2; exit 1; }
 
-lock="$runtime/gpu-metrics-$run_id-$profile.lock"
+lock="$runtime/gpu-sampler.lock"
 [[ ! -L "$lock" ]] || { echo 'Sampler lock must not be a symbolic link.' >&2; exit 1; }
 exec 9>>"$lock"
 chmod 600 "$lock"
-flock -n 9 || { echo 'A GPU sampler already owns this run and profile.' >&2; exit 1; }
+flock -n 9 || { echo 'A GPU sampler is already active.' >&2; exit 1; }
+sampler_record="$runtime/gpu-sampler.json"
+if [[ -e "$sampler_record" || -L "$sampler_record" ]]; then
+    set +e
+    "$python" -m tools.remote_aloha.process_record verify "$sampler_record" >/dev/null 2>&1
+    record_status=$?
+    set -e
+    if (( record_status == 3 )); then
+        rm -- "$sampler_record"
+    elif (( record_status == 0 )); then
+        echo 'A verified GPU sampler is already running.' >&2
+        exit 1
+    else
+        echo 'The GPU sampler ownership record is unsafe or mismatched.' >&2
+        exit 1
+    fi
+fi
 
 open_output() {
     set -o noclobber
@@ -127,6 +148,7 @@ start_monotonic_ns="$current_monotonic_ns"
 last_monotonic_ns="$current_monotonic_ns"
 last_utc="$current_utc"
 sleeper_pid=
+record_owned=no
 
 cleanup() {
     local status=$?
@@ -136,6 +158,13 @@ cleanup() {
     if [[ -n "$sleeper_pid" ]]; then
         kill -TERM "$sleeper_pid" 2>/dev/null || true
         wait "$sleeper_pid" 2>/dev/null || true
+    fi
+    if [[ "$record_owned" == yes ]]; then
+        local recorded_pid
+        recorded_pid="$($python -m tools.remote_aloha.process_record verify "$sampler_record" 2>/dev/null)"
+        if [[ "$recorded_pid" == "$$" ]]; then
+            rm -- "$sampler_record"
+        fi
     fi
     local terminal_clock
     local terminal_monotonic_ns
@@ -158,6 +187,11 @@ trap cleanup EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+metrics_relative=".runtime/$(basename -- "$output")"
+"$python" -m tools.remote_aloha.process_record create "$sampler_record" "$$" "$profile" "$policy_port" \
+    "$source_sha" "$metrics_relative"
+record_owned=yes
 
 printf '{"schema":1,"event":"sampler_started","utc":"%s","monotonic_ns":%s,"run_id":"%s","profile":"%s","server_pid":%s,"source_sha":"%s","interval_ms":%s}\n' \
     "$current_utc" "$current_monotonic_ns" "$run_id" "$profile" "$server_pid" "$source_sha" "$interval_ms" >&8

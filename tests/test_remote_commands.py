@@ -18,6 +18,7 @@ from tools.remote_aloha.remote import _doctor_script
 from tools.remote_aloha.remote import _gpu_sampler_command
 from tools.remote_aloha.remote import _gpu_sampler_copy_script
 from tools.remote_aloha.remote import _gpu_sampler_ready_script
+from tools.remote_aloha.remote import _gpu_sampler_stop_script
 from tools.remote_aloha.remote import _read_launch_receipt
 from tools.remote_aloha.remote import _remote_script_command
 from tools.remote_aloha.remote import _setup_script
@@ -134,6 +135,7 @@ def test_default_tilde_setup_path_resolves_inside_wsl(tmp_path: Path) -> None:
             ".runtime/gpu-metrics-" + "b" * 32 + "-pi0_aloha_sim.jsonl",
             ".runtime/server-abc.log",
         ),
+        _gpu_sampler_stop_script(RemoteConfig(), expected_profile="pi0_aloha_sim", expected_source_sha="a" * 40),
     ],
 )
 def test_generated_wsl_bash_is_valid(script: str) -> None:
@@ -574,7 +576,7 @@ def test_stop_uses_the_original_receipt_target(monkeypatch: pytest.MonkeyPatch, 
 
     def fake_run_wsl(actual_target: RemoteTarget, script: str, **kwargs: object) -> str:
         captured.update({"target": actual_target, "script": script, **kwargs})
-        return ""
+        return "__ALOHA_GPU_SAMPLER_STOPPED__=absent" if kwargs["label"] == "gpu-sampler-stop" else ""
 
     monkeypatch.setattr(session, "run_wsl", fake_run_wsl)
     monkeypatch.setattr(session, "discover_target", lambda: pytest.fail("receipt target should be used"))
@@ -602,6 +604,8 @@ def test_gpu_sampler_checks_exact_mac_owner_and_stops_through_record(monkeypatch
     session = RemoteSession(RemoteConfig())
 
     def run_wsl(target: RemoteTarget, script: str, **kwargs: object) -> str:
+        if kwargs["label"] == "gpu-sampler-stop":
+            return "__ALOHA_GPU_SAMPLER_STOPPED__=stopped"
         if kwargs["label"] == "gpu-metrics-copy":
             return "__ALOHA_GPU_METRICS__=" + base64.b64encode(b"metrics\n").decode() + "\n__ALOHA_SERVER_LOG__="
         return "\n".join(

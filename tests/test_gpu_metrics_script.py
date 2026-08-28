@@ -38,6 +38,16 @@ def _stage_sampler(
         repo / ".venv/bin/python",
         """#!/usr/bin/env bash
 set -eu
+if [[ "${1-}" == -m && "${3-}" == create ]]; then
+    printf '%s\\n' "$5" >"$4"
+    chmod 600 "$4"
+    exit 0
+fi
+if [[ "${1-}" == -m && "${3-}" == verify ]]; then
+    [[ -f "$4" ]] || exit 3
+    cat "$4"
+    exit 0
+fi
 if (( $# == 2 )); then
     printf '%s\\t%s\\n' '2000000000' '2026-08-28T08:00:01.000Z'
     exit 0
@@ -106,7 +116,7 @@ exec /bin/realpath "$1"
 
 
 def _args(script: Path, output: Path) -> list[str]:
-    return [str(script), str(output), RUN_ID, PROFILE, "4242", SHA, "0.1"]
+    return [str(script), str(output), RUN_ID, PROFILE, "4242", SHA, "0.1", "8000"]
 
 
 @pytest.mark.parametrize(("stop_signal", "expected_status"), [(signal.SIGHUP, 129), (signal.SIGTERM, 143)])
@@ -135,6 +145,7 @@ def test_sampler_writes_private_sanitized_jsonl_and_stops_on_signal(
     assert rows[0]["event"] == "sampler_started"
     assert rows[-1]["event"] == "sampler_stopped"
     assert rows[-1]["status"] == "interrupted"
+    assert not (output.parent / "gpu-sampler.json").exists()
     assert samples
     assert all(sample["memory_used_mib"] == 1234 for sample in samples)
     assert all(sample["utilization_percent"] == 56 for sample in samples)
@@ -154,6 +165,7 @@ def test_sampler_fails_closed_when_server_identity_changes(tmp_path: Path) -> No
     rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
     assert [row["event"] for row in rows] == ["sampler_started", "gpu_sample", "sampler_stopped"]
     assert rows[-1]["status"] == "failed"
+    assert not (output.parent / "gpu-sampler.json").exists()
     assert "identity changed" in result.stderr
 
 
@@ -164,7 +176,7 @@ def test_sampler_refuses_duplicate_owner_without_creating_output(tmp_path: Path)
         _args(script, output), env=environment, capture_output=True, text=True, timeout=5, check=False
     )
     assert result.returncode == 1
-    assert "already owns" in result.stderr
+    assert "already active" in result.stderr
     assert not output.exists()
 
 
@@ -176,11 +188,12 @@ def test_sampler_refuses_duplicate_owner_without_creating_output(tmp_path: Path)
         (3, "1", "Invalid server PID"),
         (4, "not-a-sha", "Invalid source SHA"),
         (5, "0", "Interval must be"),
+        (6, "0", "Invalid policy port"),
     ],
 )
 def test_sampler_rejects_invalid_identity_arguments(tmp_path: Path, position: int, value: str, message: str) -> None:
     output = tmp_path / "metrics.jsonl"
-    arguments = [str(output), RUN_ID, PROFILE, "4242", SHA, "1"]
+    arguments = [str(output), RUN_ID, PROFILE, "4242", SHA, "1", "8000"]
     arguments[position] = value
     result = subprocess.run([str(SCRIPT), *arguments], capture_output=True, text=True, timeout=5, check=False)
     assert result.returncode == 2
@@ -191,7 +204,9 @@ def test_sampler_source_has_bounded_private_single_query_contract() -> None:
     source = SCRIPT.read_text(encoding="utf-8")
     assert "set -euo pipefail" in source
     assert "umask 077" in source
+    assert 'lock="$runtime/gpu-sampler.lock"' in source
     assert "flock -n 9" in source
+    assert "process_record create" in source
     assert "process_record import verify_record" in source
     assert "timeout --signal=TERM --kill-after=2s 5s" in source
     assert source.count('5s "$smi"') == 1

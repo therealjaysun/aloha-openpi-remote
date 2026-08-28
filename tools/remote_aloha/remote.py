@@ -66,6 +66,18 @@ class GpuSampler:
             raise RemoteError("the Mac GPU sampler ownership record identifies another process")
 
     def stop(self, output_dir: Path) -> Path:
+        stopped_output = self.session.run_wsl(
+            self.target,
+            _gpu_sampler_stop_script(
+                self.session.config,
+                expected_profile=self.profile,
+                expected_source_sha=self.source_sha,
+            ),
+            timeout=self.session.config.ssh_connect_timeout_seconds + 50,
+            label="gpu-sampler-stop",
+        )
+        if _markers(stopped_output).get("GPU_SAMPLER_STOPPED") not in {"absent", "stale", "stopped"}:
+            raise RemoteError("the remote GPU sampler did not return a verified stop receipt")
         failure = None
         try:
             try:
@@ -842,7 +854,7 @@ def _gpu_sampler_command(
         'case "$metrics_relative" in .runtime/gpu-metrics-*.jsonl) ;; *) exit 2 ;; esac',
         'cd "$repo"',
         'exec "$repo/scripts/collect_gpu_metrics.sh" "$repo/$metrics_relative" "$run_id" "$profile" '
-        '"$server_pid" "$source_sha" "$interval"',
+        f'"$server_pid" "$source_sha" "$interval" "{config.policy_port}"',
     ]
     return "\n".join(lines) + "\n"
 
@@ -872,18 +884,17 @@ def _gpu_sampler_ready_script(config: RemoteConfig, remote_metrics_path: str) ->
 
 
 def _gpu_sampler_copy_script(config: RemoteConfig, remote_metrics_path: str, server_log: str) -> str:
-    lock = remote_metrics_path.removesuffix(".jsonl") + ".lock"
     lines = [
         "#!/usr/bin/env bash",
         "set -euo pipefail",
         'export PATH="$HOME/.local/bin:$PATH"',
         _encoded_assignment("remote_input", config.remote_dir),
         _encoded_assignment("metrics_relative", remote_metrics_path),
-        _encoded_assignment("lock_relative", lock),
+        _encoded_assignment("lock_relative", ".runtime/gpu-sampler.lock"),
         _encoded_assignment("server_log_relative", server_log),
         'case "$remote_input" in "~/"*) repo="$HOME/${remote_input:2}" ;; /*) repo="$remote_input" ;; *) exit 2 ;; esac',
         'case "$metrics_relative" in .runtime/gpu-metrics-*.jsonl) ;; *) exit 2 ;; esac',
-        'case "$lock_relative" in .runtime/gpu-metrics-*.lock) ;; *) exit 2 ;; esac',
+        '[[ "$lock_relative" == .runtime/gpu-sampler.lock ]] || exit 2',
         'case "$server_log_relative" in .runtime/*.log) ;; *) exit 2 ;; esac',
         'cd "$repo"',
         "stopped=no",
@@ -903,6 +914,57 @@ def _gpu_sampler_copy_script(config: RemoteConfig, remote_metrics_path: str, ser
         '    tail -n 500 -- "$server_log_relative" | tail -c 262144 | base64 -w0',
         "fi",
         "printf '\\n'",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _gpu_sampler_stop_script(
+    config: RemoteConfig,
+    *,
+    expected_profile: str = "",
+    expected_source_sha: str = "",
+) -> str:
+    lines = [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        'export PATH="$HOME/.local/bin:$PATH"',
+        _encoded_assignment("remote_input", config.remote_dir),
+        _encoded_assignment("expected_profile", expected_profile),
+        _encoded_assignment("expected_source_sha", expected_source_sha),
+        'case "$remote_input" in "~/"*) repo="$HOME/${remote_input:2}" ;; /*) repo="$remote_input" ;; *) exit 2 ;; esac',
+        'cd "$repo"',
+        'record=".runtime/gpu-sampler.json"',
+        'if [[ ! -e "$record" && ! -L "$record" ]]; then echo "__ALOHA_GPU_SAMPLER_STOPPED__=absent"; exit 0; fi',
+        '[[ -f "$record" && ! -L "$record" ]] || { echo "GPU sampler record is unsafe." >&2; exit 1; }',
+        'if [[ -n "$expected_profile" ]]; then',
+        '    [[ "$(.venv/bin/python -m tools.remote_aloha.process_record field "$record" profile)" == "$expected_profile" ]] || { echo "GPU sampler profile differs." >&2; exit 1; }',
+        "fi",
+        'if [[ -n "$expected_source_sha" ]]; then',
+        '    [[ "$(.venv/bin/python -m tools.remote_aloha.process_record field "$record" source_sha)" == "$expected_source_sha" ]] || { echo "GPU sampler source differs." >&2; exit 1; }',
+        "fi",
+        "set +e",
+        'pid="$(.venv/bin/python -m tools.remote_aloha.process_record verify "$record" 2>/dev/null)"',
+        "verify_status=$?",
+        "set -e",
+        'if (( verify_status == 3 )); then rm -- "$record"; echo "__ALOHA_GPU_SAMPLER_STOPPED__=stale"; exit 0; fi',
+        '(( verify_status == 0 )) || { echo "GPU sampler identity is corrupt or mismatched." >&2; exit 1; }',
+        '.venv/bin/python -m tools.remote_aloha.process_record signal "$record" TERM >/dev/null',
+        'for _ in {1..300}; do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done',
+        'if kill -0 "$pid" 2>/dev/null; then',
+        '    [[ "$(.venv/bin/python -m tools.remote_aloha.process_record verify "$record")" == "$pid" ]] || { echo "GPU sampler identity changed before KILL." >&2; exit 1; }',
+        '    .venv/bin/python -m tools.remote_aloha.process_record signal "$record" KILL >/dev/null',
+        '    for _ in {1..100}; do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done',
+        "fi",
+        'kill -0 "$pid" 2>/dev/null && { echo "Owned GPU sampler did not stop." >&2; exit 1; }',
+        'if [[ -e "$record" || -L "$record" ]]; then',
+        "    set +e",
+        '    .venv/bin/python -m tools.remote_aloha.process_record verify "$record" >/dev/null 2>&1',
+        "    verify_status=$?",
+        "    set -e",
+        '    (( verify_status == 3 )) || { echo "GPU sampler record was not released safely." >&2; exit 1; }',
+        '    rm -- "$record"',
+        "fi",
+        'echo "__ALOHA_GPU_SAMPLER_STOPPED__=stopped"',
     ]
     return "\n".join(lines) + "\n"
 
@@ -980,6 +1042,7 @@ def start_gpu_sampler(config: RemoteConfig, run_id: str, source_sha: str, output
         stdout.close()
         raise
     record_created = False
+    sampler_submitted = False
     try:
         process = subprocess.Popen(
             [*ssh_argv(config), build_wsl_command(target.route, target.distro)],
@@ -992,6 +1055,7 @@ def start_gpu_sampler(config: RemoteConfig, run_id: str, source_sha: str, output
         assert process.stdin is not None
         process.stdin.write(_gpu_sampler_command(config, remote_metrics_path, run_id, server_pid, source_sha).encode())
         process.stdin.close()
+        sampler_submitted = True
         ready = _markers(
             session.run_wsl(
                 target,
@@ -1037,6 +1101,21 @@ def start_gpu_sampler(config: RemoteConfig, run_id: str, source_sha: str, output
             raise RemoteError("the live GPU sampler start/sample records do not match this run")
         clock_start = _clock_probe(session, target, "gpu-clock-start")
     except BaseException:
+        cleanup_error = None
+        if sampler_submitted:
+            try:
+                session.run_wsl(
+                    target,
+                    _gpu_sampler_stop_script(
+                        config,
+                        expected_profile=config.policy_profile.name,
+                        expected_source_sha=source_sha,
+                    ),
+                    timeout=config.ssh_connect_timeout_seconds + 50,
+                    label="gpu-sampler-startup-stop",
+                )
+            except BaseException as error:
+                cleanup_error = error
         if "process" in locals():
             try:
                 if record_created:
@@ -1048,14 +1127,14 @@ def start_gpu_sampler(config: RemoteConfig, run_id: str, source_sha: str, output
                     except subprocess.TimeoutExpired:
                         process.kill()
                         process.wait(timeout=10)
-            except BaseException as cleanup_error:
-                stdout.close()
-                stderr.close()
-                raise RemoteError(
-                    "GPU sampler startup failed and its Mac process could not be cleaned safely"
-                ) from cleanup_error
+            except BaseException as error:
+                cleanup_error = cleanup_error or error
         stdout.close()
         stderr.close()
+        if cleanup_error is not None:
+            raise RemoteError(
+                "GPU sampler startup failed and its processes could not be cleaned safely"
+            ) from cleanup_error
         raise
     return GpuSampler(
         session,
@@ -1116,10 +1195,6 @@ def server(session: RemoteSession) -> None:
 
 
 def stop(session: RemoteSession) -> None:
-    try:
-        stop_sampler(timeout_seconds=30)
-    except SamplerRecordError as error:
-        raise RemoteError("the Mac GPU sampler could not be stopped safely; server cleanup was retained") from error
     receipt = _read_launch_receipt()
     config = session.config
     if receipt is not None:
@@ -1135,6 +1210,22 @@ def stop(session: RemoteSession) -> None:
         target = RemoteTarget(str(receipt["route"]), str(receipt["wsl_distro"]))
     else:
         target = session.discover_target()
+    sampler_output = session.run_wsl(
+        target,
+        _gpu_sampler_stop_script(
+            config,
+            expected_profile=str(receipt["profile"]) if receipt is not None else "",
+            expected_source_sha=str(receipt["source_sha"]) if receipt is not None else "",
+        ),
+        timeout=config.ssh_connect_timeout_seconds + 50,
+        label="gpu-sampler-stop",
+    )
+    if _markers(sampler_output).get("GPU_SAMPLER_STOPPED") not in {"absent", "stale", "stopped"}:
+        raise RemoteError("the remote GPU sampler did not return a verified stop receipt")
+    try:
+        stop_sampler(timeout_seconds=30)
+    except SamplerRecordError as error:
+        raise RemoteError("the Mac GPU sampler could not be stopped safely; server cleanup was retained") from error
     session.run_wsl(
         target,
         _remote_script_command(config, "stop_policy_server.sh", [str(config.policy_port)]),
