@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import base64
 from dataclasses import asdict
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 
 import pytest
@@ -11,20 +13,37 @@ import pytest
 from tools.remote_aloha import connection_check
 from tools.remote_aloha.config import RemoteConfig
 from tools.remote_aloha.remote import RemoteError
+from tools.remote_aloha.remote import RemoteTarget
 
 
 def test_tunnel_argv_is_one_explicit_loopback_forward() -> None:
     config = RemoteConfig(local_policy_port=8123, policy_port=8456)
-    argv = connection_check.build_tunnel_argv(config, Path(".runtime/test.sock"))
-    assert argv[:4] == ["ssh", "-T", "-N", "-f"]
-    assert argv[-3:] == ["-L", "127.0.0.1:8123:127.0.0.1:8456", "robot-gpu"]
+    argv = connection_check.build_tunnel_argv(config, "holder", Path(".runtime/test.sock"))
+    assert argv[:4] == ["ssh", "-T", "-f", "-n"]
+    assert argv[-4:] == ["-L", "127.0.0.1:8123:127.0.0.1:8456", "robot-gpu", "holder"]
     assert "ExitOnForwardFailure=yes" in argv
     assert "StrictHostKeyChecking=yes" in argv
     assert "ForwardAgent=no" in argv
     assert "ForwardX11=no" in argv
     assert "PermitLocalCommand=no" in argv
     assert "ClearAllForwardings=yes" not in argv
+    assert "-N" not in argv
     assert "-g" not in argv
+
+
+def test_windows_holder_is_fixed_to_selected_distro_record_and_run_id() -> None:
+    command = connection_check.build_holder_command(
+        RemoteConfig(policy_port=8123),
+        RemoteTarget("powershell", "Ubuntu-24.04"),
+        "a" * 40,
+        "b" * 32,
+    )
+    launcher = base64.b64decode(command.rsplit(" ", 1)[1]).decode("utf-16le")
+    payloads = [base64.b64decode(value).decode() for value in re.findall(r"FromBase64String\('([^']+)'\)", launcher)]
+    assert payloads[0] == "Ubuntu-24.04"
+    assert "hold_policy_server.sh" in payloads[1]
+    assert "b" * 32 in launcher
+    assert "wsl.exe --distribution $distro" in launcher
 
 
 def test_alias_validation_is_quiet_and_rejects_configured_forwards(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -58,7 +77,7 @@ def _record(tmp_path: Path) -> connection_check.TunnelRecord:
     control = tmp_path / ".runtime" / "tunnel.sock"
     command = f"ssh: {control.resolve()} [mux]"
     return connection_check.TunnelRecord(
-        schema=1,
+        schema=2,
         pid=4242,
         process_start="Thu Aug 27 12:00:00 2026",
         command_sha256=hashlib.sha256(command.encode()).hexdigest(),
@@ -69,6 +88,9 @@ def _record(tmp_path: Path) -> connection_check.TunnelRecord:
         remote_port=8000,
         source_sha="a" * 40,
         control_socket=".runtime/tunnel.sock",
+        route="powershell",
+        wsl_distro="Ubuntu-24.04",
+        holder_run_id="b" * 32,
     )
 
 
@@ -110,7 +132,7 @@ def test_start_rejects_local_port_collision(monkeypatch: pytest.MonkeyPatch, tmp
 
     monkeypatch.setattr(connection_check.socket, "socket", lambda *args: OccupiedSocket())
     with pytest.raises(RemoteError, match="already occupied"):
-        connection_check.start(RemoteConfig(local_policy_port=8123))
+        connection_check.start(RemoteConfig(local_policy_port=8123), RemoteTarget("powershell", "Ubuntu-24.04"))
 
 
 def test_lifecycle_lock_rejects_concurrent_operation(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -227,7 +249,7 @@ def test_failed_start_cleans_only_the_recorded_tunnel(monkeypatch: pytest.Monkey
 
     monkeypatch.setattr(connection_check, "_shutdown_verified", cleanup)
     with pytest.raises(RemoteError, match="health failed"):
-        connection_check.start(RemoteConfig())
+        connection_check.start(RemoteConfig(), RemoteTarget("powershell", "Ubuntu-24.04"))
     assert len(cleaned) == 1
     assert not Path(".runtime/tunnel.json").exists()
 
@@ -266,7 +288,7 @@ def test_launch_failure_captures_and_cleans_a_live_control_socket(
     monkeypatch.setattr(connection_check, "_shutdown_verified", cleanup)
     expected_error = KeyboardInterrupt if outcome == "interrupt" else RemoteError
     with pytest.raises(expected_error):
-        connection_check.start(RemoteConfig())
+        connection_check.start(RemoteConfig(), RemoteTarget("powershell", "Ubuntu-24.04"))
     assert len(cleaned) == 1
     assert not Path(".runtime/tunnel.json").exists()
     assert not Path(".runtime/tunnel.sock").exists()
@@ -282,7 +304,7 @@ def test_duplicate_start_is_rejected_before_launch(monkeypatch: pytest.MonkeyPat
         lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("SSH must not be launched")),
     )
     with pytest.raises(RemoteError, match="already exists"):
-        connection_check.start(RemoteConfig())
+        connection_check.start(RemoteConfig(), RemoteTarget("powershell", "Ubuntu-24.04"))
 
 
 def test_verify_rejects_changed_process_identity(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

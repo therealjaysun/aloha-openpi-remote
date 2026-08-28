@@ -60,7 +60,7 @@ At gate P1, Codex validates steps 1–8 for Phase 02 and stops at the first real
 
 - Stop verified owned processes before changing the WSL checkout SHA.
 - Store each server, tunnel, and GPU-sampler runtime record atomically in ignored state. It includes PID, OS start identity, exact command signature, run/profile, port, and source SHA; launch wrappers use `exec` so the PID is the owned process.
-- A stop command never signals a PID whose identity differs. `make stop` is best-effort across all components, reports every failure, verifies processes/listeners afterward, and returns nonzero on uncertainty.
+- A stop command never signals a PID whose identity differs. `make stop` stops the verified remote server first, then releases its SSH-owned WSL holder/tunnel. If remote cleanup fails, it deliberately retains holder state, reports failure, and returns nonzero rather than risking teardown during uncertain ownership.
 - Raw server/sampler logs stay ignored on their originating machine. Copy them to the ignored run directory when required; only an allowlisted sanitized summary may be published.
 
 Machine-specific values live only in local SSH configuration, ignored `.env`, or ignored raw evidence; plans, commits, PRs, published summaries, and example telemetry use placeholders.

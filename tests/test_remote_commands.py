@@ -4,6 +4,7 @@ import subprocess
 
 import pytest
 
+from tools.remote_aloha import connection_check
 from tools.remote_aloha import remote as remote_module
 from tools.remote_aloha.config import RemoteConfig
 from tools.remote_aloha.remote import RemoteError
@@ -383,20 +384,47 @@ def test_server_passes_jax_memory_fraction_to_wsl(monkeypatch: pytest.MonkeyPatc
     session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04", jax_mem_fraction="0.85"))
     target = RemoteTarget("powershell", "Ubuntu-24.04")
     monkeypatch.setattr(session, "discover_target", lambda: target)
-    scripts = []
+    events = []
 
     def fake_run_wsl(*args: object, **kwargs: object) -> str:
-        scripts.append(str(args[1]))
-        return "__ALOHA_SERVER__=ready" if len(scripts) == 2 else ""
+        events.append(("server", str(args[1])))
+        return ""
 
     monkeypatch.setattr(session, "run_wsl", fake_run_wsl)
+    monkeypatch.setattr(
+        connection_check, "start", lambda config, actual_target: events.append(("holder", actual_target))
+    )
+    monkeypatch.setattr(remote_module, "route", lambda actual_session: events.append(("route", actual_session)))
     remote_module.server(session)
+    script = events[0][1]
     fraction = base64.b64encode(b"0.85").decode()
     backend = base64.b64encode(b"jax").decode()
     candidate = base64.b64encode(("a" * 40).encode()).decode()
-    assert f'arg1="$(printf %s {backend} | base64 -d)"' in scripts[0]
-    assert f'arg6="$(printf %s {fraction} | base64 -d)"' in scripts[0]
-    assert f'arg7="$(printf %s {candidate} | base64 -d)"' in scripts[0]
+    assert f'arg1="$(printf %s {backend} | base64 -d)"' in script
+    assert f'arg6="$(printf %s {fraction} | base64 -d)"' in script
+    assert f'arg7="$(printf %s {candidate} | base64 -d)"' in script
+    assert [event[0] for event in events] == ["server", "holder", "route"]
+
+
+def test_server_failure_stops_remote_before_tunnel(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(remote_module, "_candidate_sha", lambda: "a" * 40)
+    session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04"))
+    target = RemoteTarget("powershell", "Ubuntu-24.04")
+    monkeypatch.setattr(session, "discover_target", lambda: target)
+    events = []
+    monkeypatch.setattr(session, "run_wsl", lambda *args, **kwargs: events.append("server") or "")
+
+    def fail_holder(*args: object) -> None:
+        events.append("holder")
+        raise RemoteError("holder failed")
+
+    monkeypatch.setattr(connection_check, "start", fail_holder)
+    monkeypatch.setattr(remote_module, "stop", lambda actual_session: events.append("remote-stop"))
+    monkeypatch.setattr(connection_check, "stop", lambda config: events.append("tunnel-stop"))
+    with pytest.raises(RemoteError, match="holder failed"):
+        remote_module.server(session)
+    assert events == ["server", "holder", "remote-stop", "tunnel-stop"]
 
 
 def test_convert_uses_one_bounded_allowlisted_remote_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

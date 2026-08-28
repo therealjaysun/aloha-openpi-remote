@@ -13,8 +13,8 @@ help:
 		'make setup-pc    Install the exact candidate inside verified WSL' \
 		'make doctor-pc   Discover WSL2, Ubuntu, RTX 3090, disk, and tools' \
 		'make convert-pc  Convert the selected profile; partial BF16 below 16 GiB available RAM' \
-		'make server      Start the selected loopback policy server in WSL' \
-		'make tunnel      Validate routing and start the Mac loopback SSH tunnel' \
+		'make server      Start the selected WSL server and Mac loopback tunnel' \
+		'make tunnel      Revalidate the running route and tunnel' \
 		'make smoke-policy Run bounded Mac-through-tunnel profile inference' \
 		'make stop        Stop the owned Mac tunnel and WSL policy server' \
 		'make test        Run project pure tests' \
@@ -47,15 +47,19 @@ server:
 
 tunnel:
 	"$(PYTHON)" -m tools.remote_aloha.remote route
-	"$(PYTHON)" -m tools.remote_aloha.connection_check start
+	"$(PYTHON)" -m tools.remote_aloha.connection_check check
 
 smoke-policy:
 	"$(PYTHON)" -m tools.remote_aloha.connection_check smoke
 
 stop:
 	@status=0; \
-	"$(PYTHON)" -m tools.remote_aloha.connection_check stop || status=1; \
 	"$(PYTHON)" -m tools.remote_aloha.remote stop || status=1; \
+	if (( status == 0 )); then \
+		"$(PYTHON)" -m tools.remote_aloha.connection_check stop || status=1; \
+	else \
+		echo 'Remote server cleanup failed; the WSL holder and tunnel were retained.' >&2; \
+	fi; \
 	exit $$status
 
 test:

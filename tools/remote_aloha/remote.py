@@ -707,28 +707,30 @@ def server(session: RemoteSession) -> None:
         candidate,
     ]
     _write_launch_receipt(config, candidate, target)
-    session.run_wsl(
-        target,
-        _remote_script_command(config, "start_policy_server.sh", args),
-        timeout=config.server_startup_timeout_seconds + 75,
-        label="server-start",
-    )
-    check = _remote_script_command(
-        config,
-        "check_policy_server.sh",
-        [config.policy_profile.name, config.policy_host, str(config.policy_port), candidate],
-    )
-    facts = _markers(
+    from tools.remote_aloha import connection_check
+
+    try:
         session.run_wsl(
             target,
-            check,
-            timeout=config.ssh_connect_timeout_seconds + 15,
-            label="server-survival",
+            _remote_script_command(config, "start_policy_server.sh", args),
+            timeout=config.server_startup_timeout_seconds + 75,
+            label="server-start",
         )
-    )
-    if facts.get("SERVER") != "ready":
-        raise RemoteError("policy server did not survive the start SSH session")
-    print(f"{config.policy_backend} policy server ready for {config.policy_profile.name} on WSL loopback.")
+        connection_check.start(config, target)
+        route(session)
+    except BaseException:
+        try:
+            stop(session)
+        except BaseException as stop_error:
+            raise RemoteError(
+                "server setup failed and remote cleanup could not be verified; tunnel state was retained"
+            ) from stop_error
+        try:
+            connection_check.stop(config)
+        except BaseException as tunnel_error:
+            raise RemoteError("server setup failed and verified tunnel cleanup could not finish") from tunnel_error
+        raise
+    print(f"{config.policy_backend} policy server and Mac tunnel ready for {config.policy_profile.name}.")
 
 
 def stop(session: RemoteSession) -> None:

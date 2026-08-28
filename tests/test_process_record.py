@@ -9,6 +9,7 @@ import pytest
 from tools.remote_aloha.process_record import RecordError
 from tools.remote_aloha.process_record import StaleProcessError
 from tools.remote_aloha.process_record import create_record
+from tools.remote_aloha.process_record import hold_record
 from tools.remote_aloha.process_record import launch_recorded_process
 from tools.remote_aloha.process_record import read_record
 from tools.remote_aloha.process_record import signal_record
@@ -72,6 +73,26 @@ def test_identity_mismatch_and_stale_process_are_rejected(tmp_path: Path) -> Non
     (proc_root / str(PID)).rmdir()
     with pytest.raises(StaleProcessError, match="no longer exists"):
         verify_record(path, proc_root)
+
+
+def test_holder_exits_on_removed_record_and_rejects_replacement(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    path, proc_root = _record(tmp_path)
+    monkeypatch.setattr("tools.remote_aloha.process_record.time.sleep", lambda _: path.unlink())
+    hold_record(path, profile="pi0_aloha_sim", port=8000, source_sha=SHA, proc_root=proc_root)
+
+    path, proc_root = _record(tmp_path)
+
+    def replace_record(_: float) -> None:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["source_sha"] = "b" * 40
+        path.write_text(json.dumps(data), encoding="utf-8")
+        path.chmod(0o600)
+
+    monkeypatch.setattr("tools.remote_aloha.process_record.time.sleep", replace_record)
+    with pytest.raises(RecordError, match="changed while held"):
+        hold_record(path, profile="pi0_aloha_sim", port=8000, source_sha=SHA, proc_root=proc_root)
 
 
 def test_signal_gate_calls_kill_only_after_full_identity_match(tmp_path: Path) -> None:

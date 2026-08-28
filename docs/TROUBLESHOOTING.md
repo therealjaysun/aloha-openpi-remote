@@ -18,6 +18,10 @@ Stop the process that legitimately owns `LOCAL_POLICY_PORT` or choose another va
 
 Run `make stop`. A valid stale record is removed without signaling; a malformed record, unknown socket, changed PID identity, or non-socket control path fails closed and requires inspection rather than `pkill` or `killall`.
 
+## WSL server exits when the SSH command returns
+
+Use `make server`, which starts the owned policy process and immediately makes its loopback tunnel the synchronous WSL lifetime holder. Do not create a detached `wsl.exe`, service, scheduled task, `.wslconfig` change, or distro-wide shutdown workaround. If startup fails, `make stop` verifies the remote server first and retains the holder on any ownership uncertainty.
+
 ## Policy connection times out
 
 Check the owned WSL server, Windows-loopback route, Mac loopback listener, and exact profile/backend/SHA in that order. Increase a timeout only after measured evidence; never disable it.

@@ -1,6 +1,6 @@
 # Project status
 
-Planning baseline: 2026-08-26. Plans are complete; phases 00–02 are implemented, published, and validated. Phase 03 secure connectivity is locally implemented and awaits exact-candidate tunnel acceptance.
+Planning baseline: 2026-08-26. Plans are complete; phases 00–02 are implemented, published, and validated. Phase 03 secure connectivity is locally implemented; its first hardware run found and reproduced Windows idle-WSL teardown, and the integrated SSH-owned lifetime fix awaits final two-profile acceptance.
 
 Final plan review: 2026-08-27. Independent code/test, pinned-source memory, plan-traceability, and repository/PR audits were reconciled after real PC testing.
 
@@ -9,7 +9,7 @@ Final plan review: 2026-08-27. Independent code/test, pinned-source memory, plan
 | 00 Bootstrap | Complete; open for review | `codex/00-bootstrap` | 1 | [PR 1](https://github.com/therealjaysun/pi-robotics/pull/1) | `main` | `codex/00-bootstrap` | Local fail-closed scan + hosted `secret-scan` passed; private upstream jobs skipped explicitly | None | `62083a5` |
 | 01 Mac simulation | Complete; open for review | `codex/01-mac-simulation` | 2 | [PR 2](https://github.com/therealjaysun/pi-robotics/pull/2) | `codex/00-bootstrap` | `codex/01-mac-simulation` | 18 tests + Ruff/format/shell + doctor + two 900-step runs; hosted `pure-checks` + `secret-scan` passed | None | `44e1d5f` validated implementation; final evidence at branch HEAD |
 | 02 Remote GPU | Complete; ready for review | `codex/02-remote-gpu-server` | 3 | [PR 3](https://github.com/therealjaysun/pi-robotics/pull/3) | `codex/01-mac-simulation` | `codex/02-remote-gpu-server` | 118 Mac tests pass with one Linux-only skip; Ruff/format/shell/secret scan pass; both partial-BF16 conversions, finite-action smokes, second-session survival, and safe stops passed | None; JAX OOM remains a documented rejected path | Hardware candidate `38b5228`; final evidence at branch HEAD |
-| 03 Connectivity | Local candidate; hardware pending | `codex/03-secure-connectivity` | 4 | Pending creation | `codex/02-remote-gpu-server` | `codex/03-secure-connectivity` | 167 Mac tests pass with one Linux-only skip; Ruff/format/shell pass; tunnel/client/security focused tests pass | Windows-loopback and both tunneled profile smokes require the PC | Candidate at branch HEAD pending secret scan/push |
+| 03 Connectivity | Local holder fix; final hardware pending | `codex/03-secure-connectivity` | 4 | [Draft PR 4](https://github.com/therealjaysun/pi-robotics/pull/4) | `codex/02-remote-gpu-server` | `codex/03-secure-connectivity` | 170 Mac tests pass with one Linux-only skip; Ruff/format/shell pass; holder/tunnel/rollback/client/security tests pass | Final integrated π₀/π₀.₅ idle-survival, tunnel, listener, and cleanup acceptance | Candidate at branch HEAD pending secret scan/push |
 | 04 End-to-end | Planned | `codex/04-end-to-end-control` | — | — | `codex/03-secure-connectivity` | `codex/04-end-to-end-control` | Not run | Depends on phases 01–03 | — |
 | 05 Observability | Planned | `codex/05-observability` | — | — | `codex/04-end-to-end-control` | `codex/05-observability` | Not run | Depends on live inference | — |
 | 06 Hardening/docs | Planned | `codex/06-hardening-docs` | — | — | `codex/05-observability` | `codex/06-hardening-docs` | Not run | Depends on all evidence | — |
@@ -39,18 +39,18 @@ Final plan review: 2026-08-27. Independent code/test, pinned-source memory, plan
 
 ## Execution cursor
 
-- Active subphase: 03.02 real Windows-to-WSL loopback validation, then 03.03–04 tunnel and both profile smokes.
+- Active subphase: 03.03 integrated SSH-owned WSL lifetime acceptance, then final 03.04 two-profile tunnel smokes.
 - Machine gate: publish the exact secret-scanned Phase 03 candidate, then keep the RTX PC on and awake for bounded validation.
 - Exact user action: none if the previously connected PC remains on; otherwise turn it on and reply `PC ready` when requested.
 - Recovery: rerun the E-PC-BF16 commands only if either converted artifact is removed or the pinned model/runtime changes.
 - Last verified Mac/WSL hardware candidate SHA: `38b5228418c729d39d1c4fe551ef5ddcbef9e49e`; upstream SHA: `215abfb217dbac7d5f1273282331b9b1866c0479`.
-- PR state: PRs 1–3 are open and green; draft PR 4 will be created from the exact Phase 03 candidate; PRs 5–7 remain pending. No auto-merge is enabled.
+- PR state: PRs 1–3 are open and green; PR 4 is a draft; PRs 5–7 remain pending. No auto-merge is enabled.
 
 Update this cursor immediately before pausing for GitHub login, `conversion host ready`, `PC ready`, PC console work, or power-off.
 
 ## Hardware coordination
 
 - Phase 02 hardware coordination is complete. Both converted artifacts remain in the PC-local OpenPI cache.
-- Phase 03 now needs the PC for Windows-loopback, Mac tunnel, two-profile inference, listener non-exposure, and verified cleanup. No PC-side CI runs.
+- Phase 03 now needs the PC for final holder-integrated Windows-loopback, Mac tunnel, two-profile inference, listener non-exposure, and verified cleanup. No PC-side CI runs.
 - Codex will use the existing private alias and request `PC ready` only if the machine is no longer reachable.
 - Full procedure: [`EXECUTION_LOGISTICS.md`](EXECUTION_LOGISTICS.md).

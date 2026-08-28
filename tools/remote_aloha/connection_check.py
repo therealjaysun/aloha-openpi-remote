@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 from contextlib import contextmanager
 from dataclasses import asdict
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import shutil
 import socket
 import stat
@@ -24,7 +26,10 @@ from tools.remote_aloha.config import RemoteConfig
 from tools.remote_aloha.config import load_remote_config
 from tools.remote_aloha.policy_smoke import run_policy_smoke
 from tools.remote_aloha.remote import RemoteError
+from tools.remote_aloha.remote import RemoteTarget
 from tools.remote_aloha.remote import _candidate_sha
+from tools.remote_aloha.remote import _remote_script_command
+from tools.remote_aloha.remote import powershell_command
 
 _RECORD = Path(".runtime/tunnel.json")
 _CONTROL_SOCKET = Path(".runtime/tunnel.sock")
@@ -46,6 +51,9 @@ class TunnelRecord:
     remote_port: int
     source_sha: str
     control_socket: str
+    route: str
+    wsl_distro: str
+    holder_run_id: str
 
 
 def _run(arguments: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
@@ -107,13 +115,44 @@ def _validate_alias(alias: str, timeout: int) -> None:
         )
 
 
-def build_tunnel_argv(config: RemoteConfig, control_socket: Path = _CONTROL_SOCKET) -> list[str]:
+def build_holder_command(config: RemoteConfig, target: RemoteTarget, candidate: str, run_id: str) -> str:
+    if target.route not in {"bash", "powershell", "cmd"}:
+        raise RemoteError("the WSL holder route is invalid")
+    if not _SHA.fullmatch(candidate) or not re.fullmatch(r"[0-9a-f]{32}", run_id):
+        raise RemoteError("the WSL holder identity is invalid")
+    payload = _remote_script_command(
+        config,
+        "hold_policy_server.sh",
+        [config.policy_profile.name, str(config.policy_port), candidate, run_id],
+    )
+    encoded_payload = base64.b64encode(payload.encode()).decode("ascii")
+    if target.route == "bash":
+        return f"printf %s {encoded_payload} | base64 -d | " f"env OPENPI_HOLDER_RUN_ID={run_id} bash -s --"
+    if not target.distro or target.distro.startswith("-") or any(ord(char) < 32 for char in target.distro):
+        raise RemoteError("the WSL holder requires a safe explicit distro")
+    encoded_distro = base64.b64encode(target.distro.encode()).decode("ascii")
+    launcher = rf"""
+$ErrorActionPreference = 'Stop'
+$distro = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{encoded_distro}'))
+$payload = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{encoded_payload}'))
+$runId = '{run_id}'
+$payload | & wsl.exe --distribution $distro --exec /usr/bin/env "OPENPI_HOLDER_RUN_ID=$runId" /bin/bash -c "tr -d '\r' | bash -s --"
+exit $LASTEXITCODE
+""".strip()
+    return powershell_command(launcher)
+
+
+def build_tunnel_argv(
+    config: RemoteConfig,
+    holder_command: str,
+    control_socket: Path = _CONTROL_SOCKET,
+) -> list[str]:
     forward = f"{config.local_policy_host}:{config.local_policy_port}:" f"{config.policy_host}:{config.policy_port}"
     return [
         "ssh",
         "-T",
-        "-N",
         "-f",
+        "-n",
         "-o",
         "BatchMode=yes",
         "-o",
@@ -143,6 +182,7 @@ def build_tunnel_argv(config: RemoteConfig, control_socket: Path = _CONTROL_SOCK
         "-L",
         forward,
         config.ssh_alias,
+        holder_command,
     ]
 
 
@@ -226,7 +266,7 @@ def _health(config: RemoteConfig) -> None:
 
 def _validate_record(record: TunnelRecord) -> None:
     if (
-        record.schema != 1
+        record.schema != 2
         or record.pid <= 1
         or not record.process_start
         or not re.fullmatch(r"[0-9a-f]{64}", record.command_sha256)
@@ -237,6 +277,11 @@ def _validate_record(record: TunnelRecord) -> None:
         or not 1 <= record.remote_port <= 65535
         or not _SHA.fullmatch(record.source_sha)
         or record.control_socket != str(_CONTROL_SOCKET)
+        or record.route not in {"bash", "powershell", "cmd"}
+        or not record.wsl_distro
+        or record.wsl_distro.startswith("-")
+        or any(ord(char) < 32 for char in record.wsl_distro)
+        or not re.fullmatch(r"[0-9a-f]{32}", record.holder_run_id)
     ):
         raise RemoteError("the tunnel ownership record is invalid")
 
@@ -370,12 +415,17 @@ def _shutdown_verified(record: TunnelRecord, timeout: int) -> None:
         _RECORD.unlink()
 
 
-def _capture_record(config: RemoteConfig, candidate: str) -> TunnelRecord:
+def _capture_record(
+    config: RemoteConfig,
+    target: RemoteTarget,
+    candidate: str,
+    run_id: str,
+) -> TunnelRecord:
     _validate_socket()
     pid = _control_pid(config.ssh_alias, config.ssh_connect_timeout_seconds)
     process_start, _, command_hash = _process_identity(pid, config.ssh_connect_timeout_seconds)
     record = TunnelRecord(
-        schema=1,
+        schema=2,
         pid=pid,
         process_start=process_start,
         command_sha256=command_hash,
@@ -386,12 +436,20 @@ def _capture_record(config: RemoteConfig, candidate: str) -> TunnelRecord:
         remote_port=config.policy_port,
         source_sha=candidate,
         control_socket=str(_CONTROL_SOCKET),
+        route=target.route,
+        wsl_distro=target.distro,
+        holder_run_id=run_id,
     )
     _write_record(record)
     return record
 
 
-def _record_for_cleanup(config: RemoteConfig, candidate: str) -> TunnelRecord | None:
+def _record_for_cleanup(
+    config: RemoteConfig,
+    target: RemoteTarget,
+    candidate: str,
+    run_id: str,
+) -> TunnelRecord | None:
     if _RECORD.exists() or _RECORD.is_symlink():
         record = _read_record()
         if (
@@ -401,6 +459,9 @@ def _record_for_cleanup(config: RemoteConfig, candidate: str) -> TunnelRecord | 
             record.remote_host,
             record.remote_port,
             record.source_sha,
+            record.route,
+            record.wsl_distro,
+            record.holder_run_id,
         ) != (
             config.ssh_alias,
             config.local_policy_host,
@@ -408,33 +469,37 @@ def _record_for_cleanup(config: RemoteConfig, candidate: str) -> TunnelRecord | 
             config.policy_host,
             config.policy_port,
             candidate,
+            target.route,
+            target.distro,
+            run_id,
         ):
             raise RemoteError("the interrupted tunnel ownership record does not match this launch")
         return record
     if _CONTROL_SOCKET.exists() or _CONTROL_SOCKET.is_symlink():
-        return _capture_record(config, candidate)
+        return _capture_record(config, target, candidate, run_id)
     return None
 
 
-def _start_locked(config: RemoteConfig) -> None:
+def _start_locked(config: RemoteConfig, target: RemoteTarget) -> None:
     if _RECORD.exists() or _RECORD.is_symlink() or _CONTROL_SOCKET.exists() or _CONTROL_SOCKET.is_symlink():
         raise RemoteError("a tunnel record or control socket already exists; run make stop")
     candidate = _candidate_sha()
+    run_id = secrets.token_hex(16)
     _validate_alias(config.ssh_alias, config.ssh_connect_timeout_seconds)
     if not _local_port_is_free(config.local_policy_host, config.local_policy_port):
         raise RemoteError("the configured Mac loopback port is already occupied")
-    arguments = build_tunnel_argv(config)
+    arguments = build_tunnel_argv(config, build_holder_command(config, target, candidate, run_id))
     record = None
     try:
         result = _run(arguments, timeout=config.ssh_connect_timeout_seconds + 10)
         if result.returncode:
             raise RemoteError("the SSH local forward could not start")
-        record = _capture_record(config, candidate)
+        record = _capture_record(config, target, candidate, run_id)
         _validate_listener(record.pid, config)
         _health(config)
     except BaseException:
         try:
-            record = record or _record_for_cleanup(config, candidate)
+            record = record or _record_for_cleanup(config, target, candidate, run_id)
         except BaseException as ownership_error:
             raise RemoteError(
                 "tunnel startup failed before ownership could be verified; control state was retained"
@@ -451,9 +516,9 @@ def _start_locked(config: RemoteConfig) -> None:
     print("Mac loopback SSH tunnel is ready.")
 
 
-def start(config: RemoteConfig) -> None:
+def start(config: RemoteConfig, target: RemoteTarget) -> None:
     with _lifecycle_lock():
-        _start_locked(config)
+        _start_locked(config, target)
 
 
 def check(config: RemoteConfig) -> None:
@@ -538,8 +603,8 @@ def main() -> None:
     config = load_remote_config()
     try:
         if args.command == "start":
-            start(config)
-        elif args.command == "check":
+            raise RemoteError("start the tunnel with make server so WSL ownership is known")
+        if args.command == "check":
             check(config)
         elif args.command == "stop":
             stop(config)

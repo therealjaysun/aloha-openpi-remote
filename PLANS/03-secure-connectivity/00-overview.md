@@ -13,10 +13,10 @@
 - **Test commands:** `make tunnel`; `make smoke-policy` per profile; `make stop`; `lsof -nP -iTCP:8000 -sTCP:LISTEN`; remote listener/routing checks; unit tests.
 - **Risks:** Wrong shell quoting, stale PID, local port collision, Windows-to-WSL localhost forwarding differences, mirrored networking exposure, leaking identifiers in logs.
 - **Rollback:** Stop only validated tunnel PID; revert scripts; do not remove SSH keys/config or alter firewall/networking.
-- **Current status:** Locally implemented and validated; exact-candidate Windows-loopback, Mac tunnel, and two-profile hardware acceptance remain.
-- **Actual results:** The private alias, strict key/host trust, bounded SSH, remote cmd route, explicit WSL distro, and WSL loopback policy health are proven in Phase 02. Phase 03 adds quiet alias validation, fixed Windows-loopback health/non-wildcard checks, an exact Mac IPv4-loopback OpenSSH ControlMaster forward, private atomic ownership, bounded WebSocket stages, explicit close, browser-Origin rejection, bounded default frames, generic remote errors, and sanitized Mac smoke evidence. Local tests pass; no Phase 03 tunnel has run yet.
-- **Deviations:** A single Python ControlMaster manager replaces separate start/stop shell scripts. This uses OpenSSH's authenticated control socket for shutdown instead of a macOS verify-then-signal PID race; the existing WSL smoke shell remains an internal Phase 02 diagnostic.
-- **PR:** Pending.
+- **Current status:** Locally implemented and validated; exact-candidate two-profile idle-survival/tunnel acceptance remains.
+- **Actual results:** The first real Phase 03 run proved Windows-loopback routing, an exact Mac IPv4-loopback listener, and a four-call tunneled π₀ smoke. It also found that this Windows host stops the WSL VM and its background policy process after the final Windows-side `wsl.exe` exits. A bounded diagnostic proved that one synchronous Windows WSL client prevents teardown. The project now makes the existing SSH ControlMaster run that fixed holder command, tied to the original verified server record and a random run ID. Local tests cover holder quoting/identity, record removal/replacement, launch cleanup, rollback order, client deadlines, Origin/frame/error handling, and safe repeated stop. Final π₀ and π₀.₅ hardware acceptance remains.
+- **Deviations:** A single Python ControlMaster manager replaces separate start/stop shell scripts. The ControlMaster is both the exact loopback tunnel and the WSL lifetime holder, avoiding detached Windows processes or system configuration. Shutdown remains authenticated through its private control socket; WSL server signaling remains PIDfd-gated.
+- **PR:** Draft [PR 4](https://github.com/therealjaysun/pi-robotics/pull/4).
 - **Final commit SHA:** Pending.
 
 ## Machine handoff
