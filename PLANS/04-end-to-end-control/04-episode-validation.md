@@ -7,6 +7,6 @@
 - **Validation:** Six run manifests/videos (three per profile) or exact hardware blockers; replay artifact metadata; no tracked outputs.
 - **Acceptance:** Each available profile completes three episodes with valid actions and no fatal schema/network errors; actual success rate and limitations are explicit.
 - **Planned commit:** `test(runtime): validate complete remote-policy episodes`.
-- **Actual findings:** Not run. Expected π₀ profile is task-specific; π₀.₅ base profile may have low/zero success and that does not invalidate connectivity infrastructure.
+- **Actual findings:** Exact implementation `0fca61f` passed three episodes per profile. π₀ infrastructure/task success was 3/3 and ended in 201/218/293 steps. Experimental π₀.₅ infrastructure success was 3/3 and task success was 0/3 at the 300-step limit. All six manifests and videos validated; active control was 45.44–47.09 Hz, so the target remains unclaimed rather than rounded up.
 - **Remaining blockers:** None; the bounded partial-BF16 PyTorch path and secure tunnel returned valid actions for both profiles.
-- **Completion status:** Hardware episode validation pending.
+- **Completion status:** Complete; see E-PC-CONTROL.

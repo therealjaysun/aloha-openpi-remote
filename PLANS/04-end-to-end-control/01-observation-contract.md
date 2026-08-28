@@ -7,6 +7,6 @@
 - **Validation:** Valid stock observation/action plus missing key, wrong layout/dtype/shape, unknown camera, NaN/Inf, short chunk, identity mismatch, and nominal-box-exceeding but finite absolute action cases.
 - **Acceptance:** Same validator is used by policy smoke and runtime; errors name field/expected/actual; no server call on invalid input and no sim step on invalid action.
 - **Planned commit:** `feat(runtime): validate ALOHA policy contracts`.
-- **Actual findings:** Stock sim produces only `cam_high`; wrist cameras are optional/masked by `AlohaInputs`. Both profiles share the same ALOHA input/output transform and 50×14 wire action shape.
+- **Actual findings:** Stock sim produces only `cam_high`; wrist cameras are optional/masked by `AlohaInputs`. Both profiles shared the validated ALOHA input/output transform and 50×14 wire action shape on the exact hardware candidate. Malformed input/action tests prove rejection before transport or simulation stepping; finite absolute actions are not clipped.
 - **Remaining blockers:** None; Phase 03 observed and validated real metadata for both profiles.
-- **Completion status:** Implemented locally; hardware episode validation pending.
+- **Completion status:** Complete; all six hardware episodes passed the contract without schema termination.

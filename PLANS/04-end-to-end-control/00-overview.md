@@ -13,11 +13,11 @@
 - **Test commands:** `make test`; `make smoke-sim`; for each profile/backend run `make server`, `make tunnel`, `make smoke-policy`, `ALOHA_SEED=0 ALOHA_EPISODES=3 OPENPI_POLICY_BACKEND=pytorch make run`, inspect summaries/videos, then `make stop`; finish with `git status --short`.
 - **Risks:** Synchronous inference stalls 50 Hz; prefetch chunk becomes stale; buffer underrun; action discontinuity; network loss; invalid/NaN action damages simulated state; output loss on interruption.
 - **Rollback:** Select stock synchronous `ActionChunkBroker` path for diagnosis or revert phase; stop simulation/tunnel/server; retain partial ignored outputs.
-- **Current status:** Implementation and Mac validation complete; two-profile hardware acceptance pending.
-- **Actual results:** 205 tests plus lint/format/shell gates pass; the real Mac simulator completed seeds 0–2 for 900 total steps at 13.76 ms aggregate p95 with a decoded 300-frame, 50 fps video. No policy-controlled episode has run on this candidate yet.
+- **Current status:** Complete; implementation, Mac validation, two-profile exact-candidate hardware acceptance, artifact validation, and cleanup passed.
+- **Actual results:** Hardware implementation `0fca61f` passed 205 tests plus lint/format/shell/secret gates; the native Mac simulator completed seeds 0–2 for 900 total steps at 13.76 ms aggregate p95 with a decoded 300-frame, 50 fps video. Through the private tunnel, π₀ completed seeds 0/1/2 in 201/218/293 steps and reported task success 3/3; experimental π₀.₅ completed all three 300-step limits and reported task success 0/3. All six infrastructure results and decoded videos passed. Active control measured 45.44–47.09 Hz, warmed request p95 measured 451.71–612.38 ms, and 0–2 underruns occurred per episode, so no uninterrupted 50 Hz claim is made.
 - **Deviations:** Both π₀ and experimental π₀.₅ profiles are first-class runtime selections; evaluation labels remain distinct. A direct fresh-per-episode loop replaces planned patches to the generic upstream Runtime, eliminating unrelated shared-runtime behavior and cross-episode state from this demo path.
-- **PR:** Pending.
-- **Final commit SHA:** Pending.
+- **PR:** [PR 5](https://github.com/therealjaysun/pi-robotics/pull/5).
+- **Final commit SHA:** Hardware implementation `0fca61f796f018706d1af51d00ab562b68509eef`; final evidence at branch head.
 
 ## Minimal runtime design
 
@@ -27,4 +27,4 @@ Use a direct monotonic one-episode loop with one fresh Gym environment, WebSocke
 
 ## Machine handoff
 
-This is a both-machines phase: keep the PC on/awake for inference while the Mac runs MuJoCo. Restart server and tunnel after any PC reboot; do not require a second workspace or manual source copy.
+This was a both-machines phase: the PC supplied inference while the Mac ran MuJoCo. Both owned server/tunnel lifecycles are stopped, and the PC is safe to power off until Phase 05 hardware validation.

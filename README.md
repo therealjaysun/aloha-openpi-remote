@@ -35,7 +35,7 @@ Both profiles use the same `(50, 14)` ALOHA action-chunk contract. Results are r
 - Phase 1: native Mac simulation and video validated.
 - Phase 2: WSL, CUDA, locked setup, bounded checkpoint conversion, both RTX inference profiles, loopback lifecycle, and clean shutdown validated.
 - Phase 3: secure tunnel, WSL lifetime ownership, bounded client, and real two-profile tunneled inference validated.
-- Phase 4: end-to-end buffered control and native Mac simulation validated; two-profile remote-policy episode acceptance is in progress.
+- Phase 4: end-to-end buffered control validated for three π₀ and three π₀.₅ episodes on the exact Mac/RTX candidate.
 - Phases 5–6: observability, reliability, and final hardening planned.
 
 See [`PLANS/STATUS.md`](PLANS/STATUS.md) for the live execution cursor and [`PLANS/README.md`](PLANS/README.md) for the AI-readable implementation plans.
@@ -71,6 +71,8 @@ make stop
 ```
 
 `make run` requires an already-running, exact-candidate server/tunnel; it does not start or replace shared remote state. It runs one fresh seeded simulator and one fresh client per episode, records post-step video, and separates infrastructure success from the environment's `is_success`. Repeat the server, smoke, run, and stop sequence with `pi05_aloha_base`. Ubuntu 22.04 is the upstream-supported target; this project also permits an explicitly selected Ubuntu 24.04 environment only after it passes the same locked dependency and GPU checks.
+
+Phase 4 infrastructure passed all six episodes. π₀ solved all three seeded transfers; experimental π₀.₅ solved none. The observed active control rate was 45.4–47.1 Hz because tunneled inference tails caused up to two buffer underruns per episode. The runner therefore records the 50 Hz target but does not claim it was sustained.
 
 ### Memory-bounded recovery
 

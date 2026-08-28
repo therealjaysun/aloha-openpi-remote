@@ -7,6 +7,6 @@
 - **Validation:** `git log --graph --decorate --all`; `gh pr list/view/diff/checks` for 1–7; final `make doctor test lint secret-scan`; repository/file/link audit; verify PRs open and auto-merge off.
 - **Acceptance:** No unexplained pending item or unsupported success claim; blockers contain sanitized exact logs and recovery commands; human can review/merge in order; final branch is complete.
 - **Planned commit:** `docs(release): record final validation evidence`.
-- **Actual findings:** Phases 00–03 are complete; E-PC-JAX/E-PC-CONVERT were resolved for the demo by the bounded partial-BF16 PyTorch path, and both profiles passed secure tunneled inference. The repository is public, PRs 1–4 remain open, and the current branch is not release-ready.
-- **Remaining blockers:** Implement/validate Phases 04–06 and complete the seven-PR review stack.
+- **Actual findings:** Phases 00–04 are complete; E-PC-JAX/E-PC-CONVERT were resolved for the demo by the bounded partial-BF16 PyTorch path, and both profiles passed complete tunneled simulation episodes with honest cadence/task-result separation. The repository is public, PRs 1–5 remain open, and the current branch is not release-ready.
+- **Remaining blockers:** Implement/validate Phases 05–06 and complete the seven-PR review stack.
 - **Completion status:** Planned.
