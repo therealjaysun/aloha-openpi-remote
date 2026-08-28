@@ -15,7 +15,7 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | G07 | `.env` is ignored; `.env.example` contains placeholders only; profile mapping is fixed and never evaluated as code | 00,02,06 | config tests and scan | Pass: E-MAC02, E-MAC06 |
 | G08 | Exact upstream pin and Mac/WSL project SHA are recorded before remote tests | 00,02–06 | Git evidence | Pass through Phase 05: E-PC-SETUP, E-PC-CONTROL, E-PC-OBS |
 | G09 | Weights, checkpoints, caches, raw logs/telemetry, videos, and machine paths remain ignored | 00–06 | tracked/candidate scan | Pass: E-MAC05, E-PC-OBS, E-MAC06 |
-| G10 | All seven PRs remain open for human review; no merge/auto-merge/automatic dependent-branch deletion | 00,06 | GitHub PR evidence | Pass: E-MAC06 |
+| G10 | All seven PRs remain open for human review; no merge/auto-merge/automatic dependent-branch deletion | 00,06 | GitHub PR evidence | Pass: E-MAC06, E-MAC07 |
 | MK01 | Stable targets exist: `doctor doctor-mac doctor-pc setup-mac setup-pc convert-pc server tunnel smoke-sim smoke-policy run metrics stop test lint secret-scan public-audit pr-status` | 00–06 | `make help` and invocations | Pass: E-MAC06 |
 | MF01 | Native fallback evidence records package/version/command/error, checks a compatible version and source install, uses the narrowest adjustment, considers Rosetta only after proven arm64 failure, never silently moves simulation to PC, and creates `05-native-blocker.md` if unresolved | 01 | blocker or native evidence | Pass: E-MAC01; native execution succeeded after narrower path/FFmpeg fixes, so engine/source/Rosetta escalation was unnecessary |
 
@@ -174,7 +174,7 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | T09 | Telemetry serialization | 05 | pytest | Pass: E-PC-OBS |
 | T10 | Metrics aggregation | 05 | pytest | Pass: E-PC-OBS |
 | T11 | PID/start-identity validation | 02,03,05 | pytest/shell test | Pass through Phase 05 locally and on hardware: E-MAC02, E-PC-OBS |
-| T12 | Public-output sanitization | 00,06 | pytest/scan | Pass: E-MAC06 |
+| T12 | Public-output sanitization | 00,06 | pytest/scan | Pass: E-MAC06, E-MAC07 |
 | T13 | Representative direct-BF16 versus FP32→BF16 value equivalence, incomplete/duplicate mapping failure, and explicit backend routing | 02 | focused converter/backend tests + real one-leaf proof | Pass: E-PC-BF16 |
 | T14 | Joint-vector validation, fixed-limit normalization, step coverage, interruption preservation, atomic plot generation, and all-series verification | 05 | focused synthetic tests + hardware plot inspection | Pass: E-PC-TRAJ |
 
@@ -184,28 +184,28 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 
 | ID | Required section | Owner | Status | Evidence/recovery ref |
 | --- | --- | --- | --- | --- |
-| DOC01 | Architecture diagram | 06 | Pass | E-MAC06 |
-| DOC02 | Project status | 06 | Pass | E-MAC06 |
-| DOC03 | Public repository URL | 00,06 | Pass | E-GH, E-MAC06 |
-| DOC04 | Upstream OpenPI commit | 00,06 | Pass | E-MAC06 |
-| DOC05 | Mac prerequisites | 06 | Pass | E-MAC06 |
-| DOC06 | PC prerequisites | 06 | Pass | E-MAC06 |
-| DOC07 | Initial SSH/fingerprint setup | 03,06 | Pass | E-PC-TUNNEL, E-MAC06 |
-| DOC08 | Exact first-run commands | 06 | Pass | E-MAC06 |
-| DOC09 | Model server start/stop | 02,06 | Pass | E-PC-STOP, E-MAC06 |
-| DOC10 | Tunnel start/stop | 03,06 | Pass | E-PC-TUNNEL, E-MAC06 |
-| DOC11 | Simulation-only execution | 01,06 | Pass | E-MAC01, E-MAC06 |
-| DOC12 | Policy-only execution | 03,06 | Pass | E-PC-TUNNEL, E-MAC06 |
-| DOC13 | Complete-system execution | 04,06 | Pass | E-PC-CONTROL, E-PC-OBS, E-MAC06 |
-| DOC14 | Output locations | 05,06 | Pass | E-PC-OBS, E-MAC06 |
-| DOC15 | RTX 3090 verification | 02,06 | Pass | E-PC-SETUP, E-MAC06 |
-| DOC16 | Action chunking and honest 50 Hz explanation | 04–06 | Pass | E-PC-CONTROL, E-PC-OBS, E-MAC06 |
-| DOC17 | Known macOS limitations | 01,06 | Pass | E-MAC01, E-MAC06 |
-| DOC18 | Troubleshooting | 01–06 | Pass | E-MAC06 |
-| DOC19 | Pull-request stack | 00,06 | Pass | E-MAC06 |
-| DOC20 | Human review order | 00,06 | Pass | E-MAC06 |
-| DOC21 | Attribution, independent status, and substantial differences from upstream | 00,06 | Pass | E-MAC06 |
-| DOC22 | Public-repository security considerations | 00,06 | Pass | E-MAC06 |
+| DOC01 | Architecture diagram | 06 | Pass | E-MAC06, E-MAC07 |
+| DOC02 | Project status | 06 | Pass | E-MAC06, E-MAC07 |
+| DOC03 | Public repository URL | 00,06 | Pass | E-GH, E-MAC06, E-MAC07 |
+| DOC04 | Upstream OpenPI commit | 00,06 | Pass | E-MAC06, E-MAC07 |
+| DOC05 | Mac prerequisites | 06 | Pass | E-MAC06, E-MAC07 |
+| DOC06 | PC prerequisites | 06 | Pass | E-MAC06, E-MAC07 |
+| DOC07 | Initial SSH/fingerprint setup | 03,06 | Pass | E-PC-TUNNEL, E-MAC06, E-MAC07 |
+| DOC08 | Exact first-run commands | 06 | Pass | E-MAC06, E-MAC07 |
+| DOC09 | Model server start/stop | 02,06 | Pass | E-PC-STOP, E-MAC06, E-MAC07 |
+| DOC10 | Tunnel start/stop | 03,06 | Pass | E-PC-TUNNEL, E-MAC06, E-MAC07 |
+| DOC11 | Simulation-only execution | 01,06 | Pass | E-MAC01, E-MAC06, E-MAC07 |
+| DOC12 | Policy-only execution | 03,06 | Pass | E-PC-TUNNEL, E-MAC06, E-MAC07 |
+| DOC13 | Complete-system execution | 04,06 | Pass | E-PC-CONTROL, E-PC-OBS, E-MAC06, E-MAC07 |
+| DOC14 | Output locations | 05,06 | Pass | E-PC-OBS, E-PC-TRAJ, E-MAC06, E-MAC07 |
+| DOC15 | RTX 3090 verification | 02,06 | Pass | E-PC-SETUP, E-MAC06, E-MAC07 |
+| DOC16 | Action chunking and honest 50 Hz explanation | 04–06 | Pass | E-PC-CONTROL, E-PC-OBS, E-PC-TRAJ, E-MAC06, E-MAC07 |
+| DOC17 | Known macOS limitations | 01,06 | Pass | E-MAC01, E-MAC06, E-MAC07 |
+| DOC18 | Troubleshooting | 01–06 | Pass | E-MAC06, E-MAC07 |
+| DOC19 | Pull-request stack | 00,06 | Pass | E-MAC06, E-MAC07 |
+| DOC20 | Human review order | 00,06 | Pass | E-MAC06, E-MAC07 |
+| DOC21 | Attribution, independent status, and substantial differences from upstream | 00,06 | Pass | E-MAC06, E-MAC07 |
+| DOC22 | Public-repository security considerations | 00,06 | Pass | E-MAC06, E-MAC07 |
 
 ## Definition of done
 
@@ -220,7 +220,7 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | DOD07 | All phase branches are pushed | 00–06 | Pass | E-GH, E-MAC05, E-PC-OBS, E-MAC06 |
 | DOD08 | Seven-PR stack exists | 00–06 | Pass | E-MAC06 |
 | DOD09 | PRs remain open for human review | 00–06 | Pass | E-MAC06 |
-| DOD10 | Final branch contains the complete project | 06 | Pass | E-MAC06 |
+| DOD10 | Final branch contains the complete project | 06 | Pass | E-MAC06, E-MAC07 |
 | DOD11 | Mac creates/steps dual-arm ALOHA sim | 01 | Pass | E-MAC01 |
 | DOD12 | Mac renders/saves video | 01 | Pass | E-MAC01 |
 | DOD13 | WSL detects RTX 3090 | 02 | Pass | E-PC-SETUP |
@@ -232,15 +232,15 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | DOD19 | At least one complete policy-controlled episode runs | 04 | Pass: six episodes across both profiles | E-PC-CONTROL |
 | DOD20 | Videos and structured metrics are saved | 04,05 | Pass through Phase 05 | E-PC-CONTROL, E-PC-OBS |
 | DOD21 | GPU memory and inference latency are reported | 02,05 | Pass | E-PC-BF16, E-PC-OBS |
-| DOD22 | Unit tests pass | 00–06 | Pass locally and hosted through Phase 06 | E-MAC03, E-MAC04, E-MAC05, E-PC-OBS, E-PC-TRAJ, E-MAC06 |
-| DOD23 | Relevant upstream checks pass or exact infeasible lane is recorded | 00,06 | Pass: feasible upstream client tests passed; heavyweight Linux/CUDA/data lane recorded infeasible | E-MAC06 |
-| DOD24 | CPU-only public CI is configured where practical | 00 | Pass: hosted checks are green through Phase 06 | E-GH, E-MAC03, E-MAC04, E-MAC05, E-MAC06 |
-| DOD25 | No credentials or machine secrets are committed | 00–06 | Pass | E-MAC05, E-PC-OBS, E-MAC06 |
-| DOD26 | Public-repository hygiene passes | 00,06 | Pass | E-MAC05, E-PC-OBS, E-MAC06 |
-| DOD27 | Complete workflow is documented | 06 | Pass | E-MAC06 |
-| DOD28 | Human merge instructions are documented | 00 | Pass | E-MAC06 |
-| DOD29 | Every blocker has evidence and exact recovery command | 00–06 | Pass: no unresolved blocker; historical failures retain recovery entries | E-PC-JAX, E-PC-CONVERT, E-MAC06 |
-| DOD30 | No unexplained manual step remains | 06 | Pass | E-MAC06 |
+| DOD22 | Unit tests pass | 00–06 | Pass locally and hosted through Phase 06 | E-MAC03, E-MAC04, E-MAC05, E-PC-OBS, E-PC-TRAJ, E-MAC06, E-MAC07 |
+| DOD23 | Relevant upstream checks pass or exact infeasible lane is recorded | 00,06 | Pass: feasible upstream client tests passed; heavyweight Linux/CUDA/data lane recorded infeasible | E-MAC06, E-MAC07 |
+| DOD24 | CPU-only public CI is configured where practical | 00 | Pass: hosted checks are green through Phase 06 | E-GH, E-MAC03, E-MAC04, E-MAC05, E-MAC06, E-MAC07 |
+| DOD25 | No credentials or machine secrets are committed | 00–06 | Pass | E-MAC05, E-PC-OBS, E-MAC06, E-MAC07 |
+| DOD26 | Public-repository hygiene passes | 00,06 | Pass | E-MAC05, E-PC-OBS, E-MAC06, E-MAC07 |
+| DOD27 | Complete workflow is documented | 06 | Pass | E-MAC06, E-MAC07 |
+| DOD28 | Human merge instructions are documented | 00 | Pass | E-MAC06, E-MAC07 |
+| DOD29 | Every blocker has evidence and exact recovery command | 00–06 | Pass: no unresolved blocker; historical failures retain recovery entries | E-PC-JAX, E-PC-CONVERT, E-MAC06, E-MAC07 |
+| DOD30 | No unexplained manual step remains | 06 | Pass | E-MAC06, E-MAC07 |
 
 ## Evidence and recovery ledger
 
@@ -262,5 +262,7 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | E-MAC04 | G09, PH12, PH15–PH17, DOD22, DOD24–DOD26 | Mac + GitHub-hosted Linux; `2026-08-28T06:34:00Z`; Phase 03 implementation candidate `0c641878451b33d419de6670f4fe422832275fdc`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; profile N/A; raw artifact N/A. `make ci`, `make secret-scan`, and `git diff --check` exited 0: 171 tests passed with 1 Mac-skipped Linux PIDfd test; Ruff, formatting, Bash, and fail-closed candidate scanning passed. Both hosted `pure-checks` jobs and both hosted `secret-scan` jobs passed on PR 4 at this exact implementation SHA. Final evidence documentation separately revalidated 43 tracked plan files, 7 phase overviews, 29 structured subphases, 31 config keys, 153 unique requirements, 30 definition-of-done IDs, and all tracked local links. | Rerun `make ci && make secret-scan`, the documented plan validator, and `gh pr checks 4 --repo therealjaysun/pi-robotics`. |
 | E-MAC05 | G09, PH16–PH17, R03, R09–R12, R20–R21, T06–T08, DOD07–DOD09, DOD22, DOD24–DOD26 | Mac + GitHub-hosted Linux; `2026-08-28T07:34:37Z`–`2026-08-28T07:50:52Z`; Phase 04 hardware implementation `0fca61f796f018706d1af51d00ab562b68509eef`, final CI fix `6915777c8978e437d1892e4e4993902097a6f479`, upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; profile N/A. Local `make ci`, isolated hashed-lock test/lint reproduction, `make secret-scan`, `git diff --check`, and real `make smoke-sim` exited 0: 205 tests passed with one Mac-skipped Linux PIDfd test; Ruff, formatting, Bash, fail-closed commit/candidate scans, 900 Mac simulation steps, 13.76 ms aggregate p95, and a decoded 300-frame 50 fps video passed. The first hosted Phase 04 job exposed missing Pillow/imageio entries in the lightweight test lock; adding only those already-used packages and synchronizing the concurrency test removed the Linux collection failure. Both subsequent `pure-checks` runs and both `secret-scan` runs passed on `6915777`. The suite covers strict observation/action contracts, elapsed-chunk replacement, single-request concurrency, bounded close, exact step/cadence accounting, interruption cleanup, and atomic partial/final manifests. Ignored Mac smoke manifest `outputs/phase01/20260828T073437.886416Z/manifest.json` SHA-256 `ca6c115e229739a3bca6e170905f510cb5ca62192c255c8ba3298514fe5d33b5`. | Rerun `make ci && make secret-scan && make smoke-sim`, then `gh pr checks 5 --repo therealjaysun/pi-robotics`. |
 | E-MAC06 | G04–G07, G09–G10, MK01, PH01–PH20, R01, T12, DOC01–DOC22, DOD01–DOD10, DOD22–DOD30 | Mac, GitHub-hosted Linux, and Mac→Windows cmd→Ubuntu-24.04 WSL2 RTX 3090; `2026-08-28T17:44:00Z`–`2026-08-28T17:51:00Z`; implementation/hardware SHA `90b0fed97f6763d98d0c4ba4505f1365eb60f8b3`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`. `make ci`, `make doctor`, `make secret-scan`, `make public-audit`, `git diff --check`, project-owned Markdown link validation, plan structure validation, 21 feasible upstream client tests, and all four hosted PR 7 checks exited 0: 292 project tests passed with one macOS-skipped Linux PIDfd test; Ruff/format/Bash passed; 43 tracked plan Markdown files contain 7 phase overviews, 29 structured subphases, 28 live configuration keys, 153 requirement IDs, and 30 DOD rows. Exact-SHA `OPENPI_WSL_DISTRO=Ubuntu-24.04 make doctor-pc` and `make setup-pc` passed. For π₀ and experimental π₀.₅, `OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE=<profile> OPENPI_POLICY_BACKEND=pytorch make server`, `make smoke-policy`, and `make stop` passed with four finite `(50,14)` chunks and exact source SHA; cold/warmed client latency was 1,821.98/334.09 ms and 2,169.38/373.36 ms respectively. Sanitized ignored smoke summaries: `outputs/phase03/20260828T174754.559082Z/policy-smoke-pi0_aloha_sim.json` SHA-256 `cf35b847cc61ac3a59efcecc6dc76aa4ef003ba15562a666b50c6fb3d1106018`; `outputs/phase03/20260828T174901.770911Z/policy-smoke-pi05_aloha_base.json` SHA-256 `f75710ceb2d88859d9c87fc5876c4f285b60937bb9e6664da69de2616b51c18c`; ignored setup log SHA-256 `33aa06d1d3159087a8dff60d9ec3ca9fa0ba05ea3da17c7fbec27f7e493f893d`. Both identity-verified stops passed, local records were absent, and the final PC doctor reported port 8000 free. Full-episode/GPU metrics remain the exact Phase 5 E-PC-OBS evidence. The current artifacts are sharded partial-BF16; monolithic full-FP32 filename acceptance passed source tests but was not hardware-run. | No blocker. To reproduce the lightweight release gate run `make ci && make doctor && make secret-scan && make public-audit && make pr-status`; to repeat hardware smokes, run the exact setup/profile sequence above and always finish with `make stop`. |
+
+| E-MAC07 | G10, T12, DOC01–DOC22, DOD10, DOD22–DOD30 | Mac + GitHub-hosted Linux; `2026-08-28T18:53:00Z`–`2026-08-28T18:56:50Z`; final implementation SHA `a8a3ca14833b4e2f7f440e00cc0ea98b21a61a58`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; profile N/A; raw artifact N/A. `make ci`, `make doctor`, `make public-audit`, `make secret-scan`, `git diff --check`, 21 feasible upstream client tests, plan/link/branch-stack validation, both hosted `pure-checks` and `secret-scan` jobs, and `make pr-status` exited 0. Results: 318 project tests passed with one platform skip; Ruff/format/Bash passed; the Mac and repository doctors passed; 51 project commits passed both publication scans; 48 plan files contain 7 overviews, 29 structured subphases, 28 live configuration keys, 157 requirement IDs, and 30 DOD rows; all project-owned Markdown links and branch ancestry passed; PRs 1–7 are open, ready, correctly stacked, green, and manual-merge only. Exact hardware remains E-PC-TRAJ at parent candidate `2065dd9d`; historical Phase 6 smokes remain E-MAC06 at `90b0fed`. No redundant GPU run was added because final integration changed only local validation/finalization/docs and the user explicitly excluded it. | No blocker. Reproduce with `make ci && make doctor && make public-audit && make secret-scan && make pr-status`; do not rerun hardware unless a hardware-affecting candidate changes. |
 
 Phase 06 does not convert a blocked row to pass. It reports the blocker and the single exact command or user action that resumes it.

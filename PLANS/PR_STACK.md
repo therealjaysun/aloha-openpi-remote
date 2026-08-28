@@ -23,7 +23,7 @@ main
 | 6/7 | `codex/05-observability` | `codex/04-end-to-end-control` | `feat(telemetry): record control and GPU metrics` |
 | 7/7 | `codex/06-hardening-docs` | `codex/05-observability` | `docs: harden and document the complete workflow` |
 
-All seven PRs are open for human review. [PR 7](https://github.com/therealjaysun/pi-robotics/pull/7) contains the completed final branch; none is configured for auto-merge.
+All seven PRs are open, ready, green, and correctly stacked for human review. [PR 7](https://github.com/therealjaysun/pi-robotics/pull/7) contains final implementation candidate `a8a3ca1`; none is configured for auto-merge.
 
 ## Per-phase procedure
 
