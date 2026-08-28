@@ -3,12 +3,14 @@ VENV := examples/aloha_sim/.venv
 PYTHON := $(VENV)/bin/python
 RUFF := $(VENV)/bin/ruff
 
-.PHONY: help setup-mac doctor doctor-mac smoke-sim setup-pc doctor-pc convert-pc server tunnel smoke-policy run metrics stop test lint secret-scan ci
+.PHONY: help setup-mac doctor doctor-mac doctor-repo smoke-sim setup-pc doctor-pc convert-pc server tunnel smoke-policy run metrics stop test lint secret-scan public-audit pr-status ci
 
 help:
 	@printf '%s\n' \
 		'make setup-mac   Create the native Python 3.10 simulator environment' \
+		'make doctor      Validate the Mac environment and public repository' \
 		'make doctor-mac  Validate native imports, rendering, and FFmpeg' \
+		'make doctor-repo Validate clean Git remotes and GitHub project access' \
 		'make smoke-sim   Run three 300-step ALOHA simulation episodes' \
 		'make setup-pc    Install the exact candidate inside verified WSL' \
 		'make doctor-pc   Discover WSL2, Ubuntu, RTX 3090, disk, and tools' \
@@ -22,6 +24,8 @@ help:
 		'make test        Run project pure tests' \
 		'make lint        Run project Ruff and shell syntax checks' \
 		'make secret-scan Scan the project range and publishable candidates' \
+		'make public-audit Audit public history, attribution, and generated files' \
+		'make pr-status   Verify all seven PRs are open, stacked, and green' \
 		'make ci          Run local CPU-only CI checks'
 
 setup-mac:
@@ -30,7 +34,10 @@ setup-mac:
 doctor-mac:
 	./scripts/doctor_mac.sh
 
-doctor: doctor-mac
+doctor: doctor-mac doctor-repo
+
+doctor-repo:
+	./scripts/doctor_repo.sh
 
 smoke-sim:
 	./scripts/smoke_sim.sh
@@ -86,5 +93,11 @@ lint:
 
 secret-scan:
 	./scripts/secret_scan.sh
+
+public-audit:
+	./scripts/public_repo_audit.sh
+
+pr-status:
+	./scripts/pr_status.sh
 
 ci: test lint

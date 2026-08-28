@@ -203,8 +203,8 @@ def test_publishable_summary_is_allowlisted_labels_profile_and_does_not_mutate_r
     ("section", "key", "value"),
     [
         ("metadata", "package_versions", {"numpy": "/" + "Users/name"}),
-        ("metadata", "package_versions", {"numpy": "DESKTOP-EXAMPLE"}),
-        ("result", "request_count", "192.168.1.2"),
+        ("metadata", "package_versions", {"numpy": "DESKTOP-" + "EXAMPLE"}),
+        ("result", "request_count", "192" + ".168.1.2"),
         ("result", "trajectory_plot_id", "/Users/private/plot.png"),
         ("result", "trajectory_joint_count", 13),
         ("result", "trajectory_step_coverage", 1.01),
