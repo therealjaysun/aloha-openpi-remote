@@ -17,7 +17,7 @@
 - **Actual results:** The first real Phase 03 run proved Windows-loopback routing, an exact Mac IPv4-loopback listener, and a four-call tunneled π₀ smoke. It also found that this Windows host stops the WSL VM and its background policy process after the final Windows-side `wsl.exe` exits. A bounded diagnostic proved that one synchronous Windows WSL client prevents teardown. The project now makes the existing SSH ControlMaster run that fixed holder command, tied to the original verified server record and a random run ID. Final code candidate `0c641878451b33d419de6670f4fe422832275fdc` passed both profiles after the idle-teardown window: fresh Windows/WSL route, Windows non-wildcard listener check, exact Mac IPv4-loopback listener, four finite `(50,14)` calls, bounded server-first cleanup, zero exact holder processes, and stop twice. π₀ cold/warmed client latency was 2,555.95/360.17 ms; experimental π₀.₅ was 1,871.78/371.08 ms. See E-PC-TUNNEL.
 - **Deviations:** A single Python ControlMaster manager replaces separate start/stop shell scripts. The ControlMaster is both the exact loopback tunnel and the WSL lifetime holder, avoiding detached Windows processes or system configuration. Shutdown remains authenticated through its private control socket; WSL server signaling remains PIDfd-gated.
 - **PR:** [PR 4](https://github.com/therealjaysun/pi-robotics/pull/4).
-- **Final implementation SHA:** `0c641878451b33d419de6670f4fe422832275fdc`.
+- **Final implementation SHA:** Hardware candidate `0c641878451b33d419de6670f4fe422832275fdc`; final branch tip `e0a7021d79082bc6c43b18b801b770dcd08ec323`.
 
 ## Machine handoff
 

@@ -103,7 +103,7 @@ def test_default_tilde_remote_path_resolves_inside_wsl(tmp_path: Path) -> None:
 
 
 def test_default_tilde_setup_path_resolves_inside_wsl(tmp_path: Path) -> None:
-    prefix = _setup_script(RemoteConfig(), "a" * 40).split("lifecycle_state=", 1)[0]
+    prefix = _setup_script(RemoteConfig(), "a" * 40, "codex/06-hardening-docs").split("lifecycle_state=", 1)[0]
     result = subprocess.run(
         ["bash"],
         input=prefix + "printf '%s' \"$remote_dir\"\n",
@@ -116,11 +116,19 @@ def test_default_tilde_setup_path_resolves_inside_wsl(tmp_path: Path) -> None:
     assert result.stdout == str(tmp_path / "src" / "openpi")
 
 
+def test_candidate_rejects_an_older_phase_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        remote_module, "_git", lambda *args: "codex/05-observability" if args[0] == "branch" else "a" * 40
+    )
+    with pytest.raises(RemoteError, match="codex/06-hardening-docs"):
+        _candidate_sha()
+
+
 @pytest.mark.parametrize(
     "script",
     [
         _doctor_script(8000),
-        _setup_script(RemoteConfig(), "a" * 40),
+        _setup_script(RemoteConfig(), "a" * 40, "codex/06-hardening-docs"),
         _remote_script_command(RemoteConfig(), "example.sh", ["one", "two"]),
         _gpu_sampler_command(
             RemoteConfig(),
@@ -151,7 +159,7 @@ def test_doctor_checks_evdev_build_prerequisites() -> None:
 
 
 def test_setup_migrates_only_the_known_pre_rename_origin() -> None:
-    script = _setup_script(RemoteConfig(), "a" * 40)
+    script = _setup_script(RemoteConfig(), "a" * 40, "codex/06-hardening-docs")
     assert "legacy_repo_url" in script
     assert 'remote set-url origin "$repo_url"' in script
 
@@ -180,7 +188,7 @@ def test_doctor_accepts_selected_ubuntu_2404_and_requires_uv(monkeypatch: pytest
     with pytest.raises(RemoteError, match="select it explicitly"):
         remote_module.doctor(RemoteSession(RemoteConfig()), target)
     uv = "missing"
-    with pytest.raises(RemoteError, match="uv is missing"):
+    with pytest.raises(RemoteError, match="curl -LsSf https://astral.sh/uv/install.sh"):
         remote_module.doctor(session, target)
 
 
@@ -357,11 +365,12 @@ def test_candidate_gate_rejects_every_unpublished_or_unscanned_state(
     def fake_git(*arguments: str) -> str:
         if arguments == ("rev-parse", "HEAD"):
             return sha
+        branch = "codex/06-hardening-docs"
         if arguments == ("branch", "--show-current"):
-            return "wrong" if failure == "branch" else remote_module.PHASE_BRANCH
+            return "wrong" if failure == "branch" else branch
         if arguments == ("status", "--porcelain", "--untracked-files=all"):
             return " M file" if failure == "dirty" else ""
-        if arguments == ("rev-parse", f"origin/{remote_module.PHASE_BRANCH}"):
+        if arguments == ("rev-parse", f"origin/{branch}"):
             return "b" * 40 if failure == "origin" else sha
         raise AssertionError(arguments)
 
@@ -384,11 +393,12 @@ def test_candidate_gate_rejects_every_unpublished_or_unscanned_state(
 def test_candidate_gate_accepts_exact_clean_pushed_scan(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
     sha = "a" * 40
+    branch = "codex/06-hardening-docs"
     answers = {
         ("rev-parse", "HEAD"): sha,
-        ("branch", "--show-current"): remote_module.PHASE_BRANCH,
+        ("branch", "--show-current"): branch,
         ("status", "--porcelain", "--untracked-files=all"): "",
-        ("rev-parse", f"origin/{remote_module.PHASE_BRANCH}"): sha,
+        ("rev-parse", f"origin/{branch}"): sha,
     }
     monkeypatch.setattr(remote_module, "_git", lambda *arguments: answers[arguments])
     receipt = tmp_path / ".runtime" / "secret-scan.sha"
@@ -656,6 +666,46 @@ def test_gpu_sampler_check_rejects_another_recorded_process(monkeypatch) -> None
     )
     with pytest.raises(RemoteError, match="another process"):
         sampler.check()
+
+
+def test_gpu_sampler_remote_stop_failure_still_cleans_local_owner(monkeypatch, tmp_path: Path) -> None:
+    class Process:
+        pid = 4242
+        waited = False
+
+        def poll(self):
+            return None
+
+        def wait(self, timeout: int):
+            self.waited = True
+            return -15
+
+    process = Process()
+    session = RemoteSession(RemoteConfig())
+    monkeypatch.setattr(session, "run_wsl", lambda *args, **kwargs: (_ for _ in ()).throw(TimeoutError("remote")))
+    stopped = []
+    monkeypatch.setattr(remote_module, "stop_sampler", lambda **kwargs: stopped.append(kwargs) or True)
+    stdout = io.BytesIO()
+    stderr = io.BytesIO()
+    sampler = GpuSampler(
+        session,
+        RemoteTarget("powershell", "Ubuntu-24.04"),
+        process,
+        stdout,
+        stderr,
+        "b" * 32,
+        "pi0_aloha_sim",
+        "a" * 40,
+        ".runtime/gpu.jsonl",
+        ".runtime/server.log",
+        {},
+    )
+    with pytest.raises(TimeoutError, match="remote"):
+        sampler.stop(tmp_path)
+    assert stopped == [{"timeout_seconds": 30}]
+    assert process.waited
+    assert stdout.closed
+    assert stderr.closed
 
 
 def test_smoke_requires_a_second_session_survival_check(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

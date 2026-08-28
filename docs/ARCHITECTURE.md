@@ -72,7 +72,7 @@ The GPU sampler follows the same rule. It takes an exclusive per-run/profile loc
 
 ## Retry and failure semantics
 
-Client connect, metadata, inference, close, SSH, and server startup operations all have finite deadlines. The default two retries and two-second fixed backoff apply only to connection, timeout, EOF, and WebSocket-close errors during initial client construction and metadata validation, before simulator reset or inference. Each retry closes the failed transport and creates and identity-checks a fresh client. Once an inference may have been sent, transport failure is not retried because replay could duplicate a request whose server outcome is unknown. Schema, non-finite, model, and application errors are never retried.
+Client connect, metadata receive, inference receive, close, SSH, and server startup operations have finite deadlines. The pinned synchronous WebSocket client does not expose a separate deadline for a backpressured outbound `send`; observations are bounded below 1 MiB and interruption/close is the recovery boundary. The default two retries and two-second fixed backoff apply only to connection, timeout, EOF, and WebSocket-close errors during initial client construction and metadata validation, before simulator reset or inference. Each retry closes the failed transport and creates and identity-checks a fresh client. Once an inference may have been sent, transport failure is not retried because replay could duplicate a request whose server outcome is unknown. Schema, non-finite, model, and application errors are never retried.
 
 Initial retry exhaustion stops before the episode starts. Any later inference timeout or disconnect aborts the episode, closes the transport, discards buffered state, and preserves partial evidence. No action from a failed request, old client, elapsed response prefix, or previous episode is executed. Cleanup and evidence finalization still run.
 
@@ -93,7 +93,7 @@ The repository retains upstream history and licenses but adds a bounded demo int
 - two explicit ALOHA profiles and strict environment/metadata/observation/action validation;
 - direct partial-BF16 checkpoint restoration for memory-constrained conversion and explicit backend routing;
 - loopback server host/health/identity metadata and PyTorch checkpoint serving;
-- finite WebSocket connect/metadata/inference/close behavior with idempotent close;
+- finite WebSocket receive/close deadlines with bounded observations and idempotent close;
 - Windows-shell/WSL discovery, exact-SHA setup, process records, server lifetime holder, and private SSH tunnel ownership;
 - a fresh-per-seed monotonic simulator loop, step-aware one-request buffer, atomic video/result finalization, bounded retry, local JSONL aggregation, and owned GPU sampling;
 - public-repository secret gates, pinned CI actions, structured phase plans, and a seven-PR review stack.

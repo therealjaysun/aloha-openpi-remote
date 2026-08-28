@@ -7,9 +7,9 @@
 - **Validation:** Fresh-shell command walkthrough on each available machine; link check; compare every documented target/flag/default to source and `make help`; search for private identifiers/paths.
 - **Acceptance:** `REQUIREMENTS.md` DOC01–DOC22 pass or carry exact external blockers; preferred quick start works or stops with one exact next command; both profiles are selectable; substantial upstream differences are listed; no stale/invented/manual step.
 - **Planned commit:** `docs(setup): document complete Mac and RTX workflow`.
-- **Actual findings:** The project-owned README now separates the Mac simulation from WSL inference, links the pinned original OpenPI README, documents both selectable profiles, and states the current memory blocker without claiming successful inference.
-- **Remaining blockers:** Phases 03–05 commands/results and the final troubleshooting/release walkthrough.
-- **Completion status:** Planned.
+- **Actual findings:** README, architecture, security, contribution, and troubleshooting documents now cover DOC01–DOC22: project identity/upstream link and pin, Mac/PC/SSH prerequisites, explicit Ubuntu selection, both profiles, partial-BF16 automatic selection, every stable Make target, output boundaries, measured Phase 05 results, honest cadence limits, recovery, attribution, and seven-PR review order. Every documented target exists and all project-owned Markdown links resolve; inherited unmodified upstream docs are outside this link claim.
+- **Remaining blockers:** None.
+- **Completion status:** Complete.
 
 Planned profile examples:
 

@@ -79,7 +79,8 @@ if [[ "$backend" == pytorch ]]; then
     checkpoint_label="$profile"
     [[ "$profile" != pi05_aloha_base ]] || checkpoint_label=pi05_base
     checkpoint="$data_home/openpi-assets/checkpoints/${checkpoint_label}_pytorch"
-    [[ -f "$checkpoint/model.safetensors.index.json" && -f "$checkpoint/config.json" && -d "$checkpoint/assets" ]] || {
+    [[ ( -f "$checkpoint/model.safetensors" || -f "$checkpoint/model.safetensors.index.json" ) &&
+        -f "$checkpoint/config.json" && -d "$checkpoint/assets" ]] || {
         echo 'Selected PyTorch checkpoint is incomplete; run make convert-pc first.' >&2
         exit 1
     }

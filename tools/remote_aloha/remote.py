@@ -23,7 +23,6 @@ from tools.remote_aloha.sampler_record import stop_sampler
 from tools.remote_aloha.sampler_record import verify_sampler_record
 
 PUBLIC_REPO = "https://github.com/therealjaysun/pi-robotics.git"
-PHASE_BRANCH = "codex/05-observability"
 UPSTREAM_SHA = "215abfb217dbac7d5f1273282331b9b1866c0479"
 _ROUTES = {"bash", "powershell", "cmd"}
 _SCAN_RECEIPT = Path(".runtime/secret-scan.sha")
@@ -66,33 +65,38 @@ class GpuSampler:
             raise RemoteError("the Mac GPU sampler ownership record identifies another process")
 
     def stop(self, output_dir: Path) -> Path:
-        stopped_output = self.session.run_wsl(
-            self.target,
-            _gpu_sampler_stop_script(
-                self.session.config,
-                expected_profile=self.profile,
-                expected_source_sha=self.source_sha,
-            ),
-            timeout=self.session.config.ssh_connect_timeout_seconds + 50,
-            label="gpu-sampler-stop",
-        )
-        if _markers(stopped_output).get("GPU_SAMPLER_STOPPED") not in {"absent", "stale", "stopped"}:
-            raise RemoteError("the remote GPU sampler did not return a verified stop receipt")
         failure = None
         try:
             try:
+                stopped_output = self.session.run_wsl(
+                    self.target,
+                    _gpu_sampler_stop_script(
+                        self.session.config,
+                        expected_profile=self.profile,
+                        expected_source_sha=self.source_sha,
+                    ),
+                    timeout=self.session.config.ssh_connect_timeout_seconds + 50,
+                    label="gpu-sampler-stop",
+                )
+                if _markers(stopped_output).get("GPU_SAMPLER_STOPPED") not in {"absent", "stale", "stopped"}:
+                    raise RemoteError("the remote GPU sampler did not return a verified stop receipt")
+            except BaseException as error:
+                failure = error
+            try:
                 stopped = stop_sampler(timeout_seconds=30)
             except SamplerRecordError as error:
-                failure = RemoteError("the Mac-owned GPU sampler could not be stopped safely")
-                failure.__cause__ = error
+                if failure is None:
+                    failure = RemoteError("the Mac-owned GPU sampler could not be stopped safely")
+                    failure.__cause__ = error
                 stopped = False
             if not stopped and self.process.poll() is None and failure is None:
                 failure = RemoteError("the live GPU sampler has no verified Mac ownership record")
-            if failure is None:
+            if stopped or self.process.poll() is not None:
                 try:
                     self.process.wait(timeout=10)
                 except subprocess.TimeoutExpired:
-                    failure = RemoteError("the stopped GPU sampler SSH process could not be reaped")
+                    if failure is None:
+                        failure = RemoteError("the stopped GPU sampler SSH process could not be reaped")
         finally:
             self.stdout.close()
             self.stderr.close()
@@ -511,9 +515,16 @@ def doctor(session: RemoteSession, target: RemoteTarget | None = None) -> Remote
     if "3090" not in facts.get("GPU_NAME", ""):
         raise RemoteError("RTX 3090 validation failed")
     if facts.get("TOOLS") != "ready":
-        raise RemoteError(f"required WSL tools are missing: {facts.get('TOOLS', 'unknown')}")
+        raise RemoteError(
+            f"required WSL tools are missing: {facts.get('TOOLS', 'unknown')}; run inside the selected WSL: "
+            "sudo apt-get update && sudo apt-get install -y build-essential curl git iproute2 "
+            "linux-libc-dev time util-linux"
+        )
     if facts.get("UV") == "missing":
-        raise RemoteError("uv is missing in the selected WSL distro")
+        raise RemoteError(
+            "uv is missing in the selected WSL distro; run inside it: "
+            "curl -LsSf https://astral.sh/uv/install.sh | sh"
+        )
     available_ram_kib = facts.get("RAM_AVAILABLE_KIB", "")
     if not available_ram_kib.isdigit() or int(available_ram_kib) <= 0:
         raise RemoteError("WSL available system RAM could not be measured")
@@ -545,16 +556,17 @@ def _git(*arguments: str) -> str:
     return result.stdout.strip()
 
 
-def _candidate_sha() -> str:
+def _candidate() -> tuple[str, str]:
     sha = _git("rev-parse", "HEAD")
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise RemoteError("local candidate SHA is invalid")
-    if _git("branch", "--show-current") != PHASE_BRANCH:
-        raise RemoteError(f"remote work requires branch {PHASE_BRANCH}")
+    branch = _git("branch", "--show-current")
+    if branch not in {"main", "codex/06-hardening-docs"}:
+        raise RemoteError("remote work requires main or codex/06-hardening-docs")
     if _git("status", "--porcelain", "--untracked-files=all"):
         raise RemoteError("remote work requires a clean candidate checkout")
-    if _git("rev-parse", f"origin/{PHASE_BRANCH}") != sha:
-        raise RemoteError(f"push the exact {PHASE_BRANCH} candidate before remote work")
+    if _git("rev-parse", f"origin/{branch}") != sha:
+        raise RemoteError(f"push the exact {branch} candidate before remote work")
     try:
         runtime_metadata = _SCAN_RECEIPT.parent.lstat()
         metadata = _SCAN_RECEIPT.lstat()
@@ -571,7 +583,11 @@ def _candidate_sha() -> str:
         or scanned != sha
     ):
         raise RemoteError("run make secret-scan on the exact pushed candidate before remote work")
-    return sha
+    return sha, branch
+
+
+def _candidate_sha() -> str:
+    return _candidate()[0]
 
 
 def _write_launch_receipt(config: RemoteConfig, candidate: str, target: RemoteTarget) -> None:
@@ -638,7 +654,7 @@ def _read_launch_receipt() -> dict[str, object] | None:
     return payload
 
 
-def _setup_script(config: RemoteConfig, candidate: str) -> str:
+def _setup_script(config: RemoteConfig, candidate: str, branch: str) -> str:
     data_home = config.data_home
     return f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -648,7 +664,7 @@ umask 077
 {_encoded_assignment('data_input', data_home)}
 {_encoded_assignment('repo_url', PUBLIC_REPO)}
 {_encoded_assignment('legacy_repo_url', 'https://github.com/therealjaysun/aloha-openpi-remote.git')}
-{_encoded_assignment('branch', PHASE_BRANCH)}
+{_encoded_assignment('branch', branch)}
 {_encoded_assignment('candidate', candidate)}
 {_encoded_assignment('upstream_sha', UPSTREAM_SHA)}
 min_free_gib={config.min_free_gib}
@@ -737,11 +753,11 @@ printf '__ALOHA_SETUP__=passed\n'
 def setup(session: RemoteSession) -> None:
     if _read_launch_receipt() is not None:
         raise RemoteError("run make stop before changing the remote installation")
-    candidate = _candidate_sha()
+    candidate, branch = _candidate()
     target = doctor(session)
     output = session.run_wsl(
         target,
-        _setup_script(session.config, candidate),
+        _setup_script(session.config, candidate, branch),
         timeout=session.config.server_startup_timeout_seconds + 45,
         label="setup-pc",
         command_timeout=session.config.server_startup_timeout_seconds,

@@ -17,7 +17,7 @@ case "$*" in
   "rev-parse --show-toplevel") printf '%s\\n' '{REPO}' ;;
   "status --porcelain=v1 --untracked-files=all") [ -z "${{FAKE_STATUS_ERROR:-}}" ] || exit 2; printf '%s' "${{FAKE_DIRTY:-}}" ;;
   "remote get-url origin"|"remote get-url --push origin") printf '%s\\n' 'https://github.com/therealjaysun/pi-robotics.git' ;;
-  "remote get-url upstream") printf '%s\\n' 'https://github.com/Physical-Intelligence/openpi.git' ;;
+  "remote get-url upstream") [ -z "${{FAKE_NO_UPSTREAM:-}}" ] || exit 2; printf '%s\\n' 'https://github.com/Physical-Intelligence/openpi.git' ;;
   "remote get-url --push upstream") printf '%s\\n' "${{FAKE_UPSTREAM_PUSH:-DISABLED}}" ;;
   *) exit 2 ;;
 esac
@@ -63,6 +63,15 @@ def test_repository_doctor_requires_disabled_upstream_push(tmp_path: Path) -> No
     assert result.returncode == 1
     assert "upstream push is not disabled" in result.stderr
     assert "git remote set-url --push upstream DISABLED" in result.stderr
+
+
+def test_repository_doctor_gives_add_command_for_missing_upstream(tmp_path: Path) -> None:
+    env = _fake_commands(tmp_path)
+    env["FAKE_NO_UPSTREAM"] = "1"
+    result = subprocess.run([SCRIPT], check=False, capture_output=True, text=True, env=env)
+    assert result.returncode == 1
+    assert "upstream remote is missing" in result.stderr
+    assert "git remote add upstream https://github.com/Physical-Intelligence/openpi.git" in result.stderr
 
 
 def test_repository_doctor_fails_when_git_status_cannot_run(tmp_path: Path) -> None:

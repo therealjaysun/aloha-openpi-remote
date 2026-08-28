@@ -183,7 +183,7 @@ If sampling failed, retain the private Phase 5 JSONL and server tail, run `make 
 
 ## Telemetry or a summary is partial
 
-Per-seed JSONL is line-buffered. The parser accepts every complete valid line and ignores only an incomplete final fragment; malformed complete/interior lines are errors. Terminal and summary files are written in `finally` and published atomically, so a failed or interrupted run should remain explicitly partial rather than disappear.
+Per-seed JSONL is line-buffered. The parser accepts every complete valid line and ignores only an incomplete final fragment; malformed complete/interior lines are errors. Terminal and summary files are written in `finally` and published atomically, so a failed or interrupted run should remain explicitly partial rather than disappear. If the telemetry writer cannot close cleanly, the manifest records `writer_closed=false` and no derived per-seed telemetry summary is published; treat the raw terminal line as unverified and use the manifest as authoritative.
 
 Check the ignored run without copying it into the repository:
 

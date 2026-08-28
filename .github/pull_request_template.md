@@ -8,13 +8,17 @@ This is PR X of 7 in a stacked series. Review and merge the stack in numerical o
 
 ## Base PR dependency
 
-## Scope and non-goals
+## Scope
+
+## Non-goals
 
 ## Implementation details
 
 ## Files changed
 
-## Tests and results
+## Tests executed
+
+## Test results
 
 ## Evidence
 
@@ -25,6 +29,8 @@ This is PR X of 7 in a stacked series. Review and merge the stack in numerical o
 ## Review guide
 
 ## Rollback procedure
+
+Retarget or close every dependent child PR before reverting this phase; do not delete a branch that still anchors the stack.
 
 ## Checklist
 

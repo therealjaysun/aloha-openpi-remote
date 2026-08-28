@@ -92,12 +92,14 @@ class BufferedPolicy:
     def _receive(self, step: int, *, waited: bool) -> None:
         if self._future is None:
             raise RuntimeError("no inference request is active")
+        future = self._future
         try:
             wait_started = time.monotonic()
             try:
-                response, latency_ms = self._future.result()
+                response, latency_ms = future.result()
             finally:
-                self._future = None
+                if future.done():
+                    self._future = None
             waited_ms = (time.monotonic() - wait_started) * 1000
             if waited:
                 if self._stats.request_count == 1:

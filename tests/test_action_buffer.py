@@ -348,6 +348,39 @@ def test_close_timeout_is_bounded_when_transport_does_not_unblock() -> None:
     assert transport.finished.wait(1)
 
 
+def test_interrupted_wait_retains_live_future_for_bounded_close() -> None:
+    class BlockingPolicy:
+        def __init__(self) -> None:
+            self.started = threading.Event()
+            self.release = threading.Event()
+
+        def infer(self, observation: dict) -> dict:
+            self.started.set()
+            assert self.release.wait(2)
+            return {"actions": _actions()}
+
+        def close(self) -> None:
+            return None
+
+    transport = BlockingPolicy()
+    policy = BufferedPolicy(transport, POLICY_PROFILES["pi0_aloha_sim"], 2, 1, close_timeout_seconds=0.01)
+    policy._submit(_observation(), 0)  # noqa: SLF001 - exercise the interrupted wait boundary
+    future = policy._future  # noqa: SLF001
+    assert future is not None
+    assert transport.started.wait(1)
+    original_result = future.result
+    future.result = lambda *args, **kwargs: (_ for _ in ()).throw(KeyboardInterrupt())
+    with pytest.raises(KeyboardInterrupt):
+        policy._receive(0, waited=True)  # noqa: SLF001
+    assert policy._future is future  # noqa: SLF001
+    future.result = original_result
+    started = time.monotonic()
+    with pytest.raises(TimeoutError, match="did not drain"):
+        policy.close()
+    assert time.monotonic() - started < 0.5
+    transport.release.set()
+
+
 @pytest.mark.parametrize(("horizon", "prefetch"), [(0, 1), (10, 0), (10, 10), (51, 1)])
 def test_invalid_buffer_configuration_is_rejected(horizon: int, prefetch: int) -> None:
     with pytest.raises(ValueError, match="buffering"):

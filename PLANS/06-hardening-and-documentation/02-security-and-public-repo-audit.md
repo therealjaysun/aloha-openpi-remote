@@ -7,6 +7,6 @@
 - **Validation:** `make secret-scan`; `git ls-files`; `git diff --cached --name-status`; `git log -p main..HEAD` scan; listener checks; clean generated-file status.
 - **Acceptance:** `REQUIREMENTS.md` PH01–PH20 pass; scanner has no suppressions hiding real findings; no sensitive/generated files exist in any phase commit; server/tunnel are loopback-only; no host-key/firewall weakening; attribution is intact.
 - **Planned commit:** `chore(security): audit public repository hygiene`.
-- **Actual findings:** Upstream has no root `NOTICE`; both root license files remain. Upstream CODEOWNERS was removed, the standalone public origin exists, and fail-closed Gitleaks plus explicit candidate checks pass through Phase 02.
-- **Remaining blockers:** Repeat the audit against the final Phase 06 history and live listener state.
-- **Completion status:** Planned.
+- **Actual findings:** `make public-audit` passed the preserved upstream pin/history, both license files, submodule URLs/gitlinks, independent/non-endorsement attribution, exact origin plus fetch-only upstream, project-added or project-modified history/current/untracked paths and content, binary/generated artifact patterns, and both Gitleaks scans. Inherited unmodified upstream examples are outside the project-identity scan. `make secret-scan` passed the exact candidate. Hosted baseline security now reconstructs the audited remotes before running both gates. Phase 05's final read-only probes found zero Mac, Windows, or WSL policy/sampler listeners or processes.
+- **Remaining blockers:** None.
+- **Completion status:** Complete.

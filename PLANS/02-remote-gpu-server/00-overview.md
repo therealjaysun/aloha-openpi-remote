@@ -17,7 +17,7 @@
 - **Actual results:** The pinned JAX π₀ path still OOMs on first inference, and the stock converter still exceeds current WSL RAM. The partial-BF16 path succeeded for `pi0_aloha_sim` and `pi05_aloha_base`: one-leaf proofs, complete mapping, standard sharded SafeTensors, fresh-model loads, explicit uncompiled PyTorch selection, four finite `(50,14)` actions per profile, CUDA/3090 model placement, WSL host/GPU sampling, cross-session survival, and safe stops passed. Project orchestration now selects that path automatically when Linux `MemAvailable` is below 16 GiB while keeping explicit overrides and the direct converter's full-FP32 default. Final hardware candidate `38b5228418c729d39d1c4fe551ef5ddcbef9e49e`; detailed metrics and hashes are E-PC-BF16.
 - **Deviations:** Added the user-requested π₀.₅ option as experimental `pi05_aloha` + `pi05_base` because upstream has no `pi05_aloha_sim`. Masked-camera compaction did not make JAX fit. The selected recovery uses direct BF16 leaf restore, disables the unused expert LM head, constructs/loads the target on CUDA, and disables optional PyTorch compilation because the measured autotune first call exited under the constrained host.
 - **PR:** [PR 3](https://github.com/therealjaysun/pi-robotics/pull/3); hardware acceptance passed and the PR is ready for human review.
-- **Final implementation commit SHA:** Hardware candidate `38b5228418c729d39d1c4fe551ef5ddcbef9e49e`; final evidence documentation continues at branch HEAD.
+- **Final implementation commit SHA:** Hardware candidate `38b5228418c729d39d1c4fe551ef5ddcbef9e49e`; final branch tip `6fef5e2700d07dd3c9eeef373bcf72a011e67a0a`.
 
 ## Policy profiles
 

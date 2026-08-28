@@ -29,8 +29,13 @@ fi
     fail 'origin fetch URL is not the independent project.' "Run: git remote set-url origin $expected_origin"
 [[ "$(git remote get-url --push origin 2>/dev/null)" == "$expected_origin" ]] ||
     fail 'origin push URL is not the independent project.' "Run: git remote set-url --push origin $expected_origin"
-[[ "$(git remote get-url upstream 2>/dev/null)" == "$expected_upstream" ]] ||
+upstream_url="$(git remote get-url upstream 2>/dev/null || true)"
+if [[ "$upstream_url" != "$expected_upstream" ]]; then
+    if [[ -z "$upstream_url" ]]; then
+        fail 'upstream remote is missing.' "Run: git remote add upstream $expected_upstream"
+    fi
     fail 'upstream fetch URL is not official OpenPI.' "Run: git remote set-url upstream $expected_upstream"
+fi
 [[ "$(git remote get-url --push upstream 2>/dev/null)" == DISABLED ]] ||
     fail 'upstream push is not disabled.' 'Run: git remote set-url --push upstream DISABLED'
 

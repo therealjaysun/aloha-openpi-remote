@@ -34,7 +34,7 @@ Both profiles return the same finite floating `(50, 14)` wire chunk. The default
 Mac:
 
 - Apple Silicon macOS in a native `arm64` shell.
-- Git and [`uv`](https://docs.astral.sh/uv/) on `PATH`.
+- Git, GitHub CLI, [Gitleaks](https://github.com/gitleaks/gitleaks), and [`uv`](https://docs.astral.sh/uv/) on `PATH`.
 - A logged-in desktop session for native MuJoCo rendering and enough free space for the repository, ignored videos, and evidence.
 - `MUJOCO_GL` unset; Linux `egl` mode is rejected on macOS.
 
@@ -44,6 +44,14 @@ PC:
 - RTX 3090 with 24 GiB VRAM and a current NVIDIA Windows driver that supports CUDA in WSL. Do not install a Linux NVIDIA display driver inside WSL.
 - At least 40 GiB free on the WSL checkout and checkpoint-cache filesystems. The validated setup uses an explicitly selected `Ubuntu-24.04` distro; do not rely on the default when multiple WSL distros exist.
 - The PC and Mac on the same trusted network, with the PC signed in, awake, and not exposing port 8000.
+
+Inside the selected Ubuntu WSL Bash shell, install the doctor prerequisites and `uv` once. The project prepends `~/.local/bin` itself, so no manual PATH edit or PowerShell `source` command is needed:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential curl git iproute2 linux-libc-dev time util-linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
 ### One-time SSH trust
 
@@ -82,6 +90,9 @@ Start on the Mac. During stacked review, use the current published phase branch 
 ```bash
 git clone https://github.com/therealjaysun/pi-robotics.git
 cd pi-robotics
+git remote add upstream https://github.com/Physical-Intelligence/openpi.git
+git remote set-url --push upstream DISABLED
+git fetch --no-tags upstream main:refs/remotes/upstream/main
 # While the stack is open, use the exact active branch from PLANS/STATUS.md.
 git switch --track origin/codex/06-hardening-docs
 cp .env.example .env
@@ -149,6 +160,8 @@ One automatic, low-frequency RTX sampler covers the whole `make run`. It validat
 
 Initial client setup retries are also bounded: the default is two retries with a fixed two-second backoff, only for connection/timeout/EOF/WebSocket-close failures while connecting and validating metadata before the simulator resets. Once any inference may have been sent, a timeout or disconnect aborts the episode, closes the transport, discards the buffer, and preserves partial evidence; it is never replayed automatically. Invalid schemas, non-finite actions, and application errors also fail immediately. No stale action is applied.
 
+Connect, metadata receive, inference receive, and close have explicit deadlines. The pinned synchronous WebSocket library has no separate deadline for a backpressured `send`; observations are bounded below 1 MiB, and interruption/close is the recovery boundary. Do not claim every client I/O operation is independently time-bounded.
+
 ## Outputs and checks
 
 `RUN_OUTPUT_DIR` defaults to ignored `outputs/`; an in-repository override must also be Git-ignored, while an external override must be absolute. Raw evidence can contain machine details and must not be committed.
@@ -180,6 +193,6 @@ Development is a seven-PR stack. Review and merge it in numerical order, using m
 
 This project is derived from [Physical Intelligence's OpenPI repository](https://github.com/Physical-Intelligence/openpi) at pinned commit [`215abfb`](https://github.com/Physical-Intelligence/openpi/tree/215abfb217dbac7d5f1273282331b9b1866c0479). Read the [original OpenPI README](https://github.com/Physical-Intelligence/openpi/blob/215abfb217dbac7d5f1273282331b9b1866c0479/README.md) for model documentation, upstream setup, research context, and limitations.
 
-The original Git history, [`LICENSE`](LICENSE), and other upstream attribution are retained. Project additions include Mac/WSL setup, strict profile/config and data contracts, memory-bounded BF16 conversion, loopback server metadata and health checks, finite client I/O, SSH/WSL process ownership, buffered seeded control, atomic evidence/video validation, bounded retries, and local/GPU telemetry. The project does not train or redistribute weights and does not imply upstream endorsement.
+The original Git history, [`LICENSE`](LICENSE), and other upstream attribution are retained. Project additions include Mac/WSL setup, strict profile/config and data contracts, memory-bounded BF16 conversion, loopback server metadata and health checks, finite receive/close deadlines, SSH/WSL process ownership, buffered seeded control, atomic evidence/video validation, bounded retries, and local/GPU telemetry. The project does not train or redistribute weights and does not imply upstream endorsement.
 
 Security summary: secrets and machine identities stay in the Mac SSH config, ignored `.env`, or ignored raw evidence; weights/caches/videos/logs/telemetry are ignored; `origin` is the user repository and official `upstream` has push disabled; CI dependencies are pinned and permissions restricted; secret scanning fails closed before a remote candidate is accepted.

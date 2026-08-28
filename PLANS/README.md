@@ -44,7 +44,7 @@ Do not rename these targets without updating every plan and user document:
 ```text
 make doctor doctor-mac doctor-pc setup-mac setup-pc
 make convert-pc server tunnel smoke-sim smoke-policy run metrics stop
-make test lint secret-scan pr-status
+make test lint secret-scan public-audit pr-status
 ```
 
 Configuration stays in environment variables loaded from an ignored `.env`; the complete keys, defaults, and validation rules are in the `Configuration contract` table in [`REQUIREMENTS.md`](REQUIREMENTS.md). Reject non-loopback policy hosts and use a fixed profile-to-config/checkpoint `case` statement rather than executing configuration strings.
