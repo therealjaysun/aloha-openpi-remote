@@ -143,6 +143,7 @@ def test_doctor_accepts_selected_ubuntu_2404_and_requires_uv(monkeypatch: pytest
                 "__ALOHA_WSL2__=yes",
                 "__ALOHA_ARCH__=x86_64",
                 "__ALOHA_GPU_NAME__=NVIDIA GeForce RTX 3090",
+                "__ALOHA_RAM_AVAILABLE_KIB__=12000000",
                 "__ALOHA_TOOLS__=ready",
                 f"__ALOHA_UV__={uv}",
             ]
@@ -337,6 +338,8 @@ def test_convert_uses_one_bounded_allowlisted_remote_command(monkeypatch: pytest
                 "__ALOHA_CONVERSION_PARTIAL__=absent",
                 "__ALOHA_PROFILE__=pi0_aloha_sim",
                 f"__ALOHA_PROJECT_SHA__={'a' * 40}",
+                "__ALOHA_CONVERSION_RESTORE_MODE__=partial-bfloat16",
+                "__ALOHA_AVAILABLE_RAM_KIB__=12000000",
                 f"__ALOHA_MODEL_HASH__={'b' * 64}",
                 "__ALOHA_PROBE_MAX_RSS_KIB__=100",
                 "__ALOHA_FULL_MAX_RSS_KIB__=200",
@@ -353,6 +356,8 @@ def test_convert_uses_one_bounded_allowlisted_remote_command(monkeypatch: pytest
     assert captured["timeout"] == 7275
     assert "convert_policy_checkpoint.sh" in str(captured["script"])
     assert "bash -c" not in str(captured["script"])
+    auto_mode = base64.b64encode(b"auto").decode()
+    assert f'arg4="$(printf %s {auto_mode} | base64 -d)"' in str(captured["script"])
 
 
 def test_convert_rejects_nonpositive_resource_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -367,6 +372,8 @@ def test_convert_rejects_nonpositive_resource_evidence(monkeypatch: pytest.Monke
             "__ALOHA_CONVERSION_PARTIAL__=absent",
             "__ALOHA_PROFILE__=pi0_aloha_sim",
             f"__ALOHA_PROJECT_SHA__={'a' * 40}",
+            "__ALOHA_CONVERSION_RESTORE_MODE__=partial-bfloat16",
+            "__ALOHA_AVAILABLE_RAM_KIB__=12000000",
             f"__ALOHA_MODEL_HASH__={'b' * 64}",
             "__ALOHA_PROBE_MAX_RSS_KIB__=100",
             "__ALOHA_FULL_MAX_RSS_KIB__=200",
@@ -379,6 +386,58 @@ def test_convert_rejects_nonpositive_resource_evidence(monkeypatch: pytest.Monke
 
     with pytest.raises(RemoteError, match="complete validated evidence"):
         remote_module.convert(session)
+
+
+def test_convert_auto_requires_mode_matching_available_ram(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(remote_module, "_candidate_sha", lambda: "a" * 40)
+    session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04"))
+    monkeypatch.setattr(remote_module, "doctor", lambda actual_session: RemoteTarget("powershell", "Ubuntu-24.04"))
+    output = "\n".join(
+        [
+            "__ALOHA_CONVERSION__=passed",
+            "__ALOHA_CONVERSION_PARTIAL__=absent",
+            "__ALOHA_PROFILE__=pi0_aloha_sim",
+            f"__ALOHA_PROJECT_SHA__={'a' * 40}",
+            "__ALOHA_CONVERSION_RESTORE_MODE__=full-float32",
+            "__ALOHA_AVAILABLE_RAM_KIB__=12000000",
+            f"__ALOHA_MODEL_HASH__={'b' * 64}",
+            "__ALOHA_PROBE_MAX_RSS_KIB__=0",
+            "__ALOHA_FULL_MAX_RSS_KIB__=200",
+            "__ALOHA_GPU_PEAK_MIB__=300",
+            "__ALOHA_GPU_SAMPLES__=4",
+            "__ALOHA_REMOTE_EVIDENCE__=.runtime/conversion/20260827T120000Z-123",
+        ]
+    )
+    monkeypatch.setattr(session, "run_wsl", lambda *args, **kwargs: output)
+    with pytest.raises(RemoteError, match="complete validated evidence"):
+        remote_module.convert(session)
+
+
+def test_convert_explicit_full_mode_overrides_low_ram(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(remote_module, "_candidate_sha", lambda: "a" * 40)
+    config = RemoteConfig(wsl_distro="Ubuntu-24.04", conversion_restore_mode="full-float32")
+    session = RemoteSession(config)
+    monkeypatch.setattr(remote_module, "doctor", lambda actual_session: RemoteTarget("powershell", "Ubuntu-24.04"))
+    output = "\n".join(
+        [
+            "__ALOHA_CONVERSION__=passed",
+            "__ALOHA_CONVERSION_PARTIAL__=absent",
+            "__ALOHA_PROFILE__=pi0_aloha_sim",
+            f"__ALOHA_PROJECT_SHA__={'a' * 40}",
+            "__ALOHA_CONVERSION_RESTORE_MODE__=full-float32",
+            "__ALOHA_AVAILABLE_RAM_KIB__=12000000",
+            f"__ALOHA_MODEL_HASH__={'b' * 64}",
+            "__ALOHA_PROBE_MAX_RSS_KIB__=0",
+            "__ALOHA_FULL_MAX_RSS_KIB__=200",
+            "__ALOHA_GPU_PEAK_MIB__=300",
+            "__ALOHA_GPU_SAMPLES__=4",
+            "__ALOHA_REMOTE_EVIDENCE__=.runtime/conversion/20260827T120000Z-123",
+        ]
+    )
+    monkeypatch.setattr(session, "run_wsl", lambda *args, **kwargs: output)
+    remote_module.convert(session)
 
 
 def test_stop_uses_the_original_receipt_target(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

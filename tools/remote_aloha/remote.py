@@ -316,6 +316,7 @@ printf '__ALOHA_GPU_NAME__=%s\n' "${{gpu_name# }}"
 printf '__ALOHA_GPU_MEMORY_MIB__=%s\n' "${{gpu_memory// /}}"
 printf '__ALOHA_DRIVER__=%s\n' "${{gpu_driver// /}}"
 printf '__ALOHA_DISK_FREE_KIB__=%s\n' "$(df -Pk "$HOME" | awk 'NR==2 {{print $4}}')"
+printf '__ALOHA_RAM_AVAILABLE_KIB__=%s\n' "$(awk '$1 == \"MemAvailable:\" {{print $2; exit}}' /proc/meminfo)"
 printf '__ALOHA_PORT__=%s\n' "$port_state"
 printf '__ALOHA_PYTHON__=%s\n' "$(python3 --version 2>&1 || printf missing)"
 printf '__ALOHA_UV__=%s\n' "$(uv --version 2>/dev/null || printf missing)"
@@ -349,6 +350,9 @@ def doctor(session: RemoteSession, target: RemoteTarget | None = None) -> Remote
         raise RemoteError(f"required WSL tools are missing: {facts.get('TOOLS', 'unknown')}")
     if facts.get("UV") == "missing":
         raise RemoteError("uv is missing in the selected WSL distro")
+    available_ram_kib = facts.get("RAM_AVAILABLE_KIB", "")
+    if not available_ram_kib.isdigit() or int(available_ram_kib) <= 0:
+        raise RemoteError("WSL available system RAM could not be measured")
     summary = {
         "os": f"Ubuntu {version} WSL2",
         "openpi_support": "upstream" if version == "22.04" else "experimental",
@@ -357,6 +361,10 @@ def doctor(session: RemoteSession, target: RemoteTarget | None = None) -> Remote
         "gpu_memory_mib": facts.get("GPU_MEMORY_MIB"),
         "driver": facts.get("DRIVER"),
         "disk_free_kib": facts.get("DISK_FREE_KIB"),
+        "ram_available_kib": int(available_ram_kib),
+        "automatic_conversion_restore_mode": (
+            "partial-bfloat16" if int(available_ram_kib) < 16 * 1024 * 1024 else "full-float32"
+        ),
         "policy_port": facts.get("PORT"),
         "python": facts.get("PYTHON"),
         "uv": facts.get("UV"),
@@ -586,36 +594,56 @@ def convert(session: RemoteSession) -> None:
     config = session.config
     candidate = _candidate_sha()
     target = doctor(session)
-    args = [config.policy_profile.name, config.data_home, candidate, str(config.policy_port)]
+    args = [
+        config.policy_profile.name,
+        config.data_home,
+        candidate,
+        str(config.policy_port),
+        config.conversion_restore_mode,
+    ]
     output = session.run_wsl(
         target,
         _remote_script_command(config, "convert_policy_checkpoint.sh", args),
         timeout=7275,
-        label="partial-bf16-conversion",
+        label="checkpoint-conversion",
         command_timeout=7200,
     )
     facts = _markers(output)
     model_hash = facts.get("MODEL_HASH", "")
     remote_evidence = facts.get("REMOTE_EVIDENCE", "")
-    metric_names = ("PROBE_MAX_RSS_KIB", "FULL_MAX_RSS_KIB", "GPU_PEAK_MIB", "GPU_SAMPLES")
+    selected_mode = facts.get("CONVERSION_RESTORE_MODE", "")
+    available_ram_kib = facts.get("AVAILABLE_RAM_KIB", "")
+    metric_names = ("FULL_MAX_RSS_KIB", "GPU_PEAK_MIB", "GPU_SAMPLES")
     metrics = {name: facts.get(name, "") for name in metric_names}
+    expected_mode = config.conversion_restore_mode
+    if expected_mode == "auto" and available_ram_kib.isdigit():
+        expected_mode = "partial-bfloat16" if int(available_ram_kib) < 16 * 1024 * 1024 else "full-float32"
+    probe_rss = facts.get("PROBE_MAX_RSS_KIB", "")
     if (
         facts.get("CONVERSION") != "passed"
         or facts.get("CONVERSION_PARTIAL") != "absent"
         or facts.get("PROFILE") != config.policy_profile.name
         or facts.get("PROJECT_SHA") != candidate
+        or selected_mode != expected_mode
+        or not available_ram_kib.isdigit()
+        or int(available_ram_kib) <= 0
         or not re.fullmatch(r"[0-9a-f]{64}", model_hash)
         or not re.fullmatch(r"\.runtime/conversion/[0-9]{8}T[0-9]{6}Z-[0-9]+", remote_evidence)
         or any(not value.isdigit() or int(value) <= 0 for value in metrics.values())
+        or not probe_rss.isdigit()
+        or (selected_mode == "partial-bfloat16" and int(probe_rss) <= 0)
+        or (selected_mode == "full-float32" and int(probe_rss) != 0)
     ):
-        raise RemoteError("partial-BF16 conversion did not return complete validated evidence")
+        raise RemoteError("checkpoint conversion did not return complete validated evidence")
     summary = {
         "full_max_rss_kib": int(metrics["FULL_MAX_RSS_KIB"]),
         "gpu_peak_mib": int(metrics["GPU_PEAK_MIB"]),
         "gpu_samples": int(metrics["GPU_SAMPLES"]),
         "model_hash": model_hash,
-        "probe_max_rss_kib": int(metrics["PROBE_MAX_RSS_KIB"]),
+        "probe_max_rss_kib": int(probe_rss),
         "profile": config.policy_profile.name,
+        "restore_mode": selected_mode,
+        "available_ram_kib": int(available_ram_kib),
         "remote_evidence": remote_evidence,
         "status": "passed",
     }

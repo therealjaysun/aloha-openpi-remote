@@ -40,6 +40,7 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | `REMOTE_POLICY_PORT` | `8000` | Integer `1..65535`; must match server listener | 02,03 |
 | `OPENPI_POLICY_PROFILE` | `pi0_aloha_sim` | Enum: `pi0_aloha_sim` or `pi05_aloha_base` | 02–06 |
 | `OPENPI_POLICY_BACKEND` | `jax` | Enum: `jax` or `pytorch`; JAX uses the pinned original checkpoint, PyTorch requires the matching local converted checkpoint; report the choice and never fall back implicitly | 02–06 |
+| `OPENPI_CONVERSION_RESTORE_MODE` | `auto` | Enum: `auto`, `full-float32`, or `partial-bfloat16`; auto uses Linux `MemAvailable` and selects partial BF16 only below 16 GiB | 02 |
 | `ALOHA_TASK` | `gym_aloha/AlohaTransferCube-v0` | Fixed milestone task; other tasks require a later documented contract | 01,04 |
 | `ALOHA_SEED` | `0` | Integer `0..2^32-1`; episode `i` uses this base plus `i`, range checked | 01,04 |
 | `ALOHA_ACTION_HORIZON` | `10` | Integer with `1 <= prefetch < horizon <= 50` | 04 |
@@ -154,7 +155,7 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | R18 | Safe Windows→WSL quoting | 02,03 | PowerShell/cmd tests | Pass locally and on real cmd route: E-MAC02, E-PC-SETUP |
 | R19 | Stale/reused PID detection before signaling | 02,03,05 | lifecycle tests | Pass locally and for Phase 02 stop: E-MAC02, E-PC-STOP |
 | R20 | Partial run result preservation after failure | 04,05 | interrupt/write-failure tests | Pending |
-| R21 | Low-memory conversion is opt-in, preserves the default converter, consumes each expected parameter once, and publishes no failed partial artifact; runtime backend selection defaults to JAX, never falls back implicitly, and permits PyTorch only with a matching fresh-model-validated checkpoint | 02 | focused converter/backend tests + checkpoint validation | Pass: E-PC-BF16 |
+| R21 | Project conversion defaults to automatic selection: below 16 GiB Linux `MemAvailable` it uses bounded partial BF16, otherwise full FP32; explicit allowlisted overrides remain, the direct converter preserves its full-FP32 default, and no failed partial artifact is published. Runtime backend selection defaults to JAX, never falls back implicitly, and permits PyTorch only with a matching validated checkpoint | 02 | focused selector/converter/backend tests + checkpoint validation | Pass: E-PC-BF16 plus final Phase 02 amendment checks |
 
 ## Required pure tests
 

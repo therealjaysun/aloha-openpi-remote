@@ -12,7 +12,7 @@ help:
 		'make smoke-sim   Run three 300-step ALOHA simulation episodes' \
 		'make setup-pc    Install the exact candidate inside verified WSL' \
 		'make doctor-pc   Discover WSL2, Ubuntu, RTX 3090, disk, and tools' \
-		'make convert-pc  Try bounded partial-BF16 conversion for the selected profile' \
+		'make convert-pc  Convert the selected profile; partial BF16 below 16 GiB available RAM' \
 		'make server      Start the selected loopback policy server in WSL' \
 		'make smoke-policy Run bounded WSL-local profile inference' \
 		'make stop        Stop only the identity-verified WSL policy server' \

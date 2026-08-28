@@ -91,7 +91,7 @@ def test_secret_scan_receipt_is_symlink_safe_and_atomic() -> None:
     assert 'mv -f -- "$receipt_tmp" .runtime/secret-scan.sha' in source
 
 
-def test_partial_bfloat16_converter_is_opt_in_bounded_and_sharded() -> None:
+def test_partial_bfloat16_converter_is_auto_selected_bounded_and_sharded() -> None:
     converter = Path("examples/convert_jax_model_to_pytorch.py").read_text(encoding="utf-8")
     assert 'restore_mode: Literal["full-float32", "partial-bfloat16"] = "full-float32"' in converter
     assert "ocp.PLACEHOLDER" in converter
@@ -110,13 +110,20 @@ def test_partial_bfloat16_converter_is_opt_in_bounded_and_sharded() -> None:
     assert "realpath -e" in wrapper
     assert "conversion.lock" in wrapper
     assert "JAX_PLATFORMS=cpu" in wrapper
+    assert 'awk \'$1 == "MemAvailable:"' in wrapper
+    assert "16 * 1024 * 1024" in wrapper
+    assert "auto|full-float32|partial-bfloat16" in wrapper
+    assert '--restore-mode "$restore_mode"' in wrapper
     assert "checkpoint.partial" in wrapper
-    assert 'mv -- "$partial_checkpoint" "$final_checkpoint"' in wrapper
-    assert wrapper.index('mv -- "$partial_checkpoint" "$final_checkpoint"') < wrapper.index("published=yes")
+    assert 'mv -- "$temporary_checkpoint" "$final_checkpoint"' in wrapper
+    assert wrapper.index('mv -- "$temporary_checkpoint" "$final_checkpoint"') < wrapper.index("published=yes")
+    assert '"$temporary_checkpoint/model.safetensors"' in wrapper
     assert "__ALOHA_REMOTE_EVIDENCE__" in wrapper
     assert "pi0_aloha_sim)" in wrapper
     assert "pi05_aloha_base)" in wrapper
     assert "eval" not in wrapper
+    assert 'assets_source = pathlib.Path(checkpoint_dir) / "assets"' in converter
+    assert '"restore_mode": "full-float32"' in converter
 
     policy_loader = Path("src/openpi/policies/policy_config.py").read_text(encoding="utf-8")
     model_loader = Path("src/openpi/models/model.py").read_text(encoding="utf-8")

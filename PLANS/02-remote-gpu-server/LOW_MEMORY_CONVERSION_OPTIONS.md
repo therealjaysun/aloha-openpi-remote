@@ -5,7 +5,7 @@ This decision plan exists because the stock JAX policy loads in BF16 but first i
 ## Constraints
 
 - WSL sees about 11.7 GiB RAM, 8 GiB swap, 24 GiB RTX VRAM, and ample disk.
-- Preserve the stock `full-float32` converter behavior as the default.
+- Preserve the direct converter's stock `full-float32` default; project orchestration defaults to automatic selection.
 - No custom checkpoint format, allocator flags, public listener, destructive cache cleanup, or PC-side CI.
 - A failed experiment may retain ignored logs but must publish no checkpoint directory.
 - The explicit PyTorch demo backend disables optional `torch.compile` autotuning; the pinned JAX/default behavior remains unchanged.
@@ -46,6 +46,8 @@ This decision plan exists because the stock JAX policy loads in BF16 but first i
 ## Outcome
 
 Option C passed on the current PC for both profiles. π₀ and π₀.₅ each passed the one-leaf proof, full BF16 conversion, fresh sharded load, explicit PyTorch launch, four finite RTX actions, second-session survival, and safe stop. The ≥32 GiB stock-converter fallback was not needed. Exact memory, latency, artifact-hash, and raw-evidence hashes are recorded in E-PC-BF16.
+
+`make convert-pc` subsequently made the selection automatic: Linux `MemAvailable < 16 GiB` selects Option C; otherwise it selects the full-FP32 route. `OPENPI_CONVERSION_RESTORE_MODE` permits an intentional allowlisted override. Auto mode fails closed if available RAM cannot be measured and records both the measurement and selected mode.
 
 ## AI continuation capsule
 

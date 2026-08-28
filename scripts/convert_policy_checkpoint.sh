@@ -2,16 +2,22 @@
 set -euo pipefail
 umask 077
 
-[[ $# -eq 4 ]] || { echo 'Expected profile, data home, source SHA, and policy port.' >&2; exit 2; }
+[[ $# -eq 5 ]] || { echo 'Expected profile, data home, source SHA, policy port, and restore mode.' >&2; exit 2; }
 profile="$1"
 data_input="$2"
 expected_sha="$3"
 policy_port="$4"
+requested_restore_mode="$5"
 [[ "$expected_sha" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid source SHA.' >&2; exit 2; }
 [[ "$policy_port" =~ ^[0-9]+$ ]] && (( policy_port >= 1 && policy_port <= 65535 )) || {
     echo 'Invalid policy port.' >&2
     exit 2
 }
+case "$requested_restore_mode" in auto|full-float32|partial-bfloat16) ;; *)
+    echo 'Invalid conversion restore mode.' >&2
+    exit 2
+    ;;
+esac
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 [[ "$(git -C "$repo" rev-parse HEAD)" == "$expected_sha" ]] || { echo 'Remote source SHA mismatch.' >&2; exit 1; }
@@ -23,6 +29,20 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 }
 command -v timeout >/dev/null || { echo 'timeout is required.' >&2; exit 1; }
 command -v realpath >/dev/null || { echo 'realpath is required.' >&2; exit 1; }
+
+available_ram_kib="$(awk '$1 == "MemAvailable:" {print $2; exit}' /proc/meminfo)"
+[[ "$available_ram_kib" =~ ^[0-9]+$ ]] && (( 10#$available_ram_kib > 0 )) || {
+    echo 'Could not determine available system RAM from /proc/meminfo.' >&2
+    exit 1
+}
+restore_mode="$requested_restore_mode"
+if [[ "$restore_mode" == auto ]]; then
+    if (( 10#$available_ram_kib < 16 * 1024 * 1024 )); then
+        restore_mode=partial-bfloat16
+    else
+        restore_mode=full-float32
+    fi
+fi
 
 if [[ -z "$data_input" ]]; then data_home="$HOME/.cache/openpi"; else data_home="$data_input"; fi
 [[ "$data_home" == /* && "$data_home" != / && -d "$data_home" && ! -L "$data_home" ]] || {
@@ -88,7 +108,7 @@ run_root="$(realpath -e -- "$run_root")"
 chmod 700 "$run_root"
 printf '%s\n%s\n' "$expected_sha" "$profile" >"$run_root/owner"
 chmod 600 "$run_root/owner"
-partial_checkpoint="$run_root/checkpoint.partial"
+temporary_checkpoint="$run_root/checkpoint.partial"
 run_id="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 evidence="$repo/.runtime/conversion/$run_id"
 mkdir -m 700 "$evidence"
@@ -128,13 +148,17 @@ run_measured() {
     fi
 }
 
-run_measured probe 600 env JAX_PLATFORMS=cpu "$repo/.venv/bin/python" \
-    "$repo/examples/convert_jax_model_to_pytorch.py" \
-    --checkpoint-dir "$source_checkpoint" \
-    --config-name "$config_name" \
-    --precision bfloat16 \
-    --restore-mode partial-bfloat16 \
-    --partial-probe-only
+probe_rss=0
+if [[ "$restore_mode" == partial-bfloat16 ]]; then
+    run_measured probe 600 env JAX_PLATFORMS=cpu "$repo/.venv/bin/python" \
+        "$repo/examples/convert_jax_model_to_pytorch.py" \
+        --checkpoint-dir "$source_checkpoint" \
+        --config-name "$config_name" \
+        --precision bfloat16 \
+        --restore-mode partial-bfloat16 \
+        --partial-probe-only
+    probe_rss="$(awk -F: '/Maximum resident set size/ {gsub(/ /, "", $2); print $2}' "$evidence/probe.time")"
+fi
 
 smi="$(command -v nvidia-smi || true)"
 [[ -n "$smi" ]] || [[ ! -x /usr/lib/wsl/lib/nvidia-smi ]] || smi=/usr/lib/wsl/lib/nvidia-smi
@@ -147,49 +171,63 @@ run_measured full 6300 env JAX_PLATFORMS=cpu "$repo/.venv/bin/python" \
     "$repo/examples/convert_jax_model_to_pytorch.py" \
     --checkpoint-dir "$source_checkpoint" \
     --config-name "$config_name" \
-    --output-path "$partial_checkpoint" \
+    --output-path "$temporary_checkpoint" \
     --precision bfloat16 \
-    --restore-mode partial-bfloat16
+    --restore-mode "$restore_mode"
 
 kill "$sampler_pid" 2>/dev/null || true
 wait "$sampler_pid" 2>/dev/null || true
 sampler_pid=
-[[ -s "$partial_checkpoint/model.safetensors.index.json" ]] || { echo 'Sharded index is missing.' >&2; exit 1; }
-[[ -s "$partial_checkpoint/config.json" && -d "$partial_checkpoint/assets" ]] || {
+[[ -s "$temporary_checkpoint/config.json" && -d "$temporary_checkpoint/assets" ]] || {
     echo 'Converted config or assets are missing.' >&2
     exit 1
 }
-find "$partial_checkpoint" -maxdepth 1 -type f -name 'model-*.safetensors' -print -quit | grep -q . || {
-    echo 'Converted weight shards are missing.' >&2
-    exit 1
-}
-find "$partial_checkpoint" -type l -print -quit | grep -q . && {
+if [[ "$restore_mode" == partial-bfloat16 ]]; then
+    [[ -s "$temporary_checkpoint/model.safetensors.index.json" ]] || {
+        echo 'Sharded index is missing.' >&2
+        exit 1
+    }
+    find "$temporary_checkpoint" -maxdepth 1 -type f -name 'model-*.safetensors' -print -quit | grep -q . || {
+        echo 'Converted weight shards are missing.' >&2
+        exit 1
+    }
+else
+    [[ -s "$temporary_checkpoint/model.safetensors" ]] || {
+        echo 'Converted monolithic weights are missing.' >&2
+        exit 1
+    }
+fi
+find "$temporary_checkpoint" -type l -print -quit | grep -q . && {
     echo 'Converted artifact must not contain symlinks.' >&2
     exit 1
 }
-model_hash="$(cd "$partial_checkpoint" && find . -type f -print0 |
+model_hash="$(cd "$temporary_checkpoint" && find . -type f -print0 |
     LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')"
-probe_rss="$(awk -F: '/Maximum resident set size/ {gsub(/ /, "", $2); print $2}' "$evidence/probe.time")"
 full_rss="$(awk -F: '/Maximum resident set size/ {gsub(/ /, "", $2); print $2}' "$evidence/full.time")"
 gpu_peak="$(awk -F, 'BEGIN {m=0} {gsub(/ /, "", $1); if ($1+0>m) m=$1+0} END {print m}' "$evidence/gpu.csv")"
 gpu_samples="$(wc -l <"$evidence/gpu.csv" | tr -d ' ')"
-for metric in "$probe_rss" "$full_rss" "$gpu_peak" "$gpu_samples"; do
+for metric in "$full_rss" "$gpu_peak" "$gpu_samples"; do
     [[ "$metric" =~ ^[0-9]+$ ]] && (( 10#$metric > 0 )) || {
         echo 'Conversion resource evidence is missing or invalid.' >&2
         exit 1
     }
 done
+[[ "$probe_rss" =~ ^[0-9]+$ ]] && {
+    [[ "$restore_mode" == full-float32 && "$probe_rss" == 0 ]] || (( 10#$probe_rss > 0 ))
+} || { echo 'Conversion probe evidence is invalid.' >&2; exit 1; }
 awk -F, '{gsub(/ /, "", $1); gsub(/ /, "", $2); if ($1 !~ /^[0-9]+$/ || $2 !~ /^[0-9]+$/) exit 1}' \
     "$evidence/gpu.csv" || { echo 'GPU sampling evidence is invalid.' >&2; exit 1; }
 [[ ! -s "$evidence/gpu.err" ]] || { echo 'GPU sampling reported an error.' >&2; exit 1; }
 
-mv -- "$partial_checkpoint" "$final_checkpoint"
+mv -- "$temporary_checkpoint" "$final_checkpoint"
 published=yes
 rm -f -- "$run_root/owner"
 rmdir -- "$run_root" || true
 printf '__ALOHA_CONVERSION__=passed\n'
 printf '__ALOHA_PROFILE__=%s\n' "$profile"
 printf '__ALOHA_PROJECT_SHA__=%s\n' "$expected_sha"
+printf '__ALOHA_CONVERSION_RESTORE_MODE__=%s\n' "$restore_mode"
+printf '__ALOHA_AVAILABLE_RAM_KIB__=%s\n' "$available_ram_kib"
 printf '__ALOHA_MODEL_HASH__=%s\n' "$model_hash"
 printf '__ALOHA_PROBE_MAX_RSS_KIB__=%s\n' "$probe_rss"
 printf '__ALOHA_FULL_MAX_RSS_KIB__=%s\n' "$full_rss"
