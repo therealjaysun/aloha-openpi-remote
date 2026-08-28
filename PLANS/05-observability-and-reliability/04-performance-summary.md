@@ -7,6 +7,6 @@
 - **Validation:** Known fixture calculations; empty/partial/single-sample runs; cross-check event counts and episode steps; ensure no machine identifiers.
 - **Acceptance:** Reviewer can determine whether infrastructure met the contract and compare both profiles without conflating transfer success with system health.
 - **Planned commit:** `docs(perf): summarize remote ALOHA runs`.
-- **Actual findings:** Phase 03 and 04 completed inference and episodes. Phase 04 recorded π₀ success 3/3, π₀.₅ success 0/3, active 45.44–47.09 Hz, and up to two underruns; sustained 50 Hz was not claimed. Phase 05 must reproduce these profiles with integrated GPU/local telemetry before publishing its final table.
-- **Remaining blockers:** Correlated Phase 05 GPU/local samples for the exact pushed Phase 05 candidate.
-- **Completion status:** Aggregation implementation and fixtures complete; both profile reports pending hardware runs.
+- **Actual findings:** Candidate `de63e19` completed three episodes per profile. π₀: infrastructure/task 3/3, 731 steps, 38 requests, warmed inference mean/p95/max 327.28/392.83/448.95 ms, active-rate mean/p95 48.21/48.24 Hz, and GPU memory/utilization max 15,403 MiB/46%. Experimental π₀.₅: infrastructure 3/3, task 0/3, 900 steps, 40 requests, warmed inference mean/p95/max 418.27/515.54/672.15 ms, active-rate mean/p95 47.56/48.13 Hz, and GPU memory/utilization max 15,859 MiB/39%. Neither profile supports an uninterrupted 50 Hz claim.
+- **Remaining blockers:** None.
+- **Completion status:** Complete. Ignored summaries are `outputs/phase05/20260828T170424.866182Z/pi0_aloha_sim/performance-summary.json` and `outputs/phase05/20260828T170602.263300Z/pi05_aloha_base/performance-summary.json`; `make metrics` reproduced both.

@@ -8,7 +8,7 @@
 - **Acceptance:** Required run/output fields in `REQUIREMENTS.md` are available; valid lines survive interruption; no fsync/network per step; raw output/logs stay ignored; publishable summary is allowlisted and labels model profile.
 - **Planned commit:** `feat(telemetry): record local runtime events`.
 - **Actual findings:** Stock server returns `server_timing.infer_ms` plus previous-request total timing. The implementation associates previous total time with request N-1, records monotonic/UTC events in private JSONL, preserves partial valid lines, measures write overhead, and emits allowlisted JSON/Markdown summaries. At the audit pin stock Runtime uses `time.time`; phase 04 owns the monotonic runtime correction.
-- **Remaining blockers:** Observe the live schema, timing, and write-overhead results for both profiles.
-- **Completion status:** Implementation and pure validation complete; hardware evidence pending.
+- **Remaining blockers:** None.
+- **Completion status:** Complete. Both exact-candidate profile runs produced valid private JSONL and allowlisted summaries. Telemetry writes averaged 0.168 ms for π₀ and 0.175 ms for π₀.₅, below the 1 ms acceptance limit.
 
 Minimal instrumentation: time the existing calls and expose metrics to one subscriber; do not introduce a logging framework or database.

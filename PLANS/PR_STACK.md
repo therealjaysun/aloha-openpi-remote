@@ -23,6 +23,8 @@ main
 | 6/7 | `codex/05-observability` | `codex/04-end-to-end-control` | `feat(telemetry): record control and GPU metrics` |
 | 7/7 | `codex/06-hardening-docs` | `codex/05-observability` | `docs: harden and document the complete workflow` |
 
+PR 6 is [open](https://github.com/therealjaysun/pi-robotics/pull/6) at the completed Phase 05 branch. PR 7 remains to be created after Phase 06 validation.
+
 ## Per-phase procedure
 
 1. Confirm the parent branch is clean and locally code-complete/tested, or has an external blocker with evidence and an exact recovery command. A push is not required while GitHub is blocked.

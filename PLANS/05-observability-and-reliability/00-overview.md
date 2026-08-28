@@ -13,12 +13,12 @@
 - **Test commands:** `make test`; `make metrics`; per-profile `make run`; interrupt/failure scenarios; parse every JSONL line; inspect summaries; verify no output tracked.
 - **Risks:** Telemetry blocks loop, corrupt line on crash, clock mismatch Mac/PC, GPU sampler orphan, sensitive paths in logs, retry causes stale actions.
 - **Rollback:** Disable subscribers/sampler while retaining core control loop; stop validated metrics PID; revert phase; keep partial ignored artifacts.
-- **Current status:** Implementation and local validation complete; exact-candidate π₀/π₀.₅ hardware validation pending.
-- **Actual results:** Structured local/GPU telemetry, safe pre-inference retry, exact Mac sampler ownership, partial-result preservation, and publishable performance summaries are implemented. Phase 04 established the comparison baseline: π₀ task success 3/3, experimental π₀.₅ task success 0/3, active 45.44–47.09 Hz, and up to two underruns. Phase 05 hardware evidence is not claimed until both profiles run on the pushed candidate.
-- **Deviations:** Automatic retry is deliberately limited to client construction/connect/metadata before reset or inference. Once an inference may have been sent, replay is unsafe; the episode aborts and preserves partial evidence.
-- **PR:** Pending.
-- **Final commit SHA:** Pending.
+- **Current status:** Complete; open for review.
+- **Actual results:** Exact candidate `de63e19c37d8fd76fbda5b5a07a8f5a0b19b42d6` passed 273 tests with one platform skip, lint, Bash syntax, fail-closed secret scanning, and three hardware episodes per profile. Both profiles had complete GPU coverage and zero request retries/failures. π₀ task success was 3/3; experimental π₀.₅ task success was 0/3 without an infrastructure failure. Active rates averaged 48.21 Hz and 47.56 Hz respectively, so sustained 50 Hz is not claimed. Exact server, tunnel, sampler, and listener cleanup passed on Mac, Windows, and WSL.
+- **Deviations:** Automatic retry is deliberately limited to client construction/connect/metadata before reset or inference. Once an inference may have been sent, replay is unsafe; the episode aborts and preserves partial evidence. The first hardware run exposed an orphaned WSL sampler when the Mac SSH client was terminated; the final implementation added an explicit remote ownership record/stop and the exact-candidate rerun passed cleanup.
+- **PR:** [PR 6](https://github.com/therealjaysun/pi-robotics/pull/6).
+- **Final commit SHA:** Hardware implementation `de63e19c37d8fd76fbda5b5a07a8f5a0b19b42d6`; final evidence is at branch HEAD.
 
 ## Machine handoff
 
-Keep both machines on while collecting correlated telemetry. At phase end, stop and validate the owned GPU sampler/server/tunnel processes; do not announce that the PC may power off until any phase 06 hardware evidence is complete.
+Hardware collection and cleanup are complete. Phase 06 has no planned PC-only acceptance gate; the PC may be powered off unless an unexpected regression requires a hardware rerun.

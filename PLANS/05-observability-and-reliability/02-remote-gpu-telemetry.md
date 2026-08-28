@@ -8,5 +8,5 @@
 - **Acceptance:** GPU samples span inference and correlate by relative interval despite clock skew; sampler cleans up; profile/server/run/SHA correlation is unambiguous; raw identifiers remain ignored and are not committed.
 - **Planned commit:** `feat(telemetry): sample remote GPU metrics`.
 - **Actual findings:** Real WSL `nvidia-smi` device-level sampling works and captured earlier failed π₀ attempts. WSL does not provide reliable per-process GPU attribution here, so Phase 05 reports device memory/utilization plus verified policy-server host RSS from `/proc/<pid>/status`.
-- **Remaining blockers:** Correlated exact-candidate runs for both profiles.
-- **Completion status:** Sampler implementation and pure validation complete; hardware evidence pending.
+- **Remaining blockers:** None.
+- **Completion status:** Complete. π₀ captured 20 samples over 21.2 s with a 1.14 s maximum gap and 15,403 MiB peak GPU memory; π₀.₅ captured 24 samples over 25.6 s with a 1.14 s maximum gap and 15,859 MiB peak GPU memory. Clock uncertainty and drift are recorded, coverage passed, and verified sampler cleanup left no remote process or local record.

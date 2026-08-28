@@ -8,5 +8,5 @@
 - **Acceptance:** No infinite wait, broad catch, hidden failure, stale action replay, or unrelated kill; partial results remain readable; cleanup is idempotent.
 - **Planned commit:** `fix(runtime): bound remote failures and preserve partial runs`.
 - **Actual findings:** Stock client retries connection-refused forever and calls `recv()` without a project-level timeout; phase 03 owns the minimal OpenPI client patch. WebSockets 14.1 already supports the required bounded API.
-- **Remaining blockers:** Live startup/retry timing and owned sampler cleanup require exact-candidate hardware validation.
-- **Completion status:** Implementation and injected-failure validation complete; hardware evidence pending.
+- **Remaining blockers:** None.
+- **Completion status:** Complete. Injected failures pass locally, both hardware profiles completed with zero retry/failure events, and the exact verified server/tunnel/sampler stop path passed. The earlier SSH-child-only sampler stop failure was preserved as deviation evidence and fixed at the remote ownership boundary.
