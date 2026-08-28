@@ -7,8 +7,8 @@
 - **Validation:** Synthetic 14-joint round trip; shape/NaN/infinity rejection; exact step/sample coverage; monotonic elapsed-time checks; Ctrl+C/failure partial rows; 300-row writer benchmark with both vectors remains below 1 ms p95 on Mac.
 - **Acceptance:** Trajectory rows equal successfully applied steps for passing episodes; valid partial rows survive interruption; no per-step fsync/network/SSH; raw vectors and plot paths stay only in ignored private outputs; publishable output contains only bounded counts/status and a safe local ID.
 - **Planned commit:** `feat(telemetry): record local runtime events`.
-- **Actual findings:** Stock server returns `server_timing.infer_ms` plus previous-request total timing. The implementation associates previous total time with request N-1, records monotonic/UTC events in private JSONL, preserves partial valid lines, measures write overhead, and emits allowlisted JSON/Markdown summaries. At the audit pin stock Runtime uses `time.time`; phase 04 owns the monotonic runtime correction.
-- **Remaining blockers:** Local implementation/validation, then exact-candidate π₀ and π₀.₅ reruns and plot inspection.
-- **Completion status:** Amendment in progress. Prior writes averaged 0.168 ms for π₀ and 0.175 ms for π₀.₅; the larger trajectory rows must independently remain below 1 ms p95.
+- **Actual findings:** The existing `step` event now records the exact zero-based simulation step, one-based applied step, monotonic elapsed time, and finite 14-value actual/commanded vectors immediately after each successful step. Synthetic 300-row p95 was 0.110 ms; hardware episode p95 stayed at or below 0.162 ms for π₀ and 0.197 ms for π₀. All 1,661 hardware step rows matched applied-step order and survived in ignored line-buffered JSONL.
+- **Remaining blockers:** None.
+- **Completion status:** Complete at hardware candidate `2065dd9d`; focused shape/finite/coverage/interruption tests and both exact-candidate profile runs passed.
 
 Minimal instrumentation: time the existing calls and expose metrics to one subscriber; do not introduce a logging framework or database.

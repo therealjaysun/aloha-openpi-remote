@@ -13,12 +13,12 @@
 - **Test commands:** `make test`; `make lint`; `make secret-scan`; focused synthetic/interrupt/plot/overhead tests; `make metrics`; the existing three-episode π₀ and π₀.₅ `make run` sequence; inspect six plots and confirm outputs remain untracked.
 - **Risks:** Larger step rows exceed the 1 ms telemetry budget, plots obscure 14 series, bad limits mislead, interrupted rows diverge from applied steps, plot metadata leaks a path; existing network/process risks remain.
 - **Rollback:** Disable subscribers/sampler while retaining core control loop; stop validated metrics PID; revert phase; keep partial ignored artifacts.
-- **Current status:** Joint-trajectory amendment in progress on the existing Phase 5 candidate; prior evidence remains a baseline, not acceptance for the amendment.
-- **Actual results:** Baseline candidate `de63e19c37d8fd76fbda5b5a07a8f5a0b19b42d6` passed the original Phase 5 gates. New local and exact-candidate hardware results remain pending and will replace this completion claim only after both profile runs, six plot checks, telemetry-overhead measurement, and cleanup pass.
+- **Current status:** Complete; the joint-trajectory amendment passed on the existing Phase 5 candidate and PR.
+- **Actual results:** Exact candidate `2065dd9d5a5e7f21ea40a940944d48ac08c6da20` passed 297 tests with one platform skip, lint/format/Bash/secret gates, and hosted PR checks. RTX 3090 runs recorded exact 761/761 π₀ and 900/900 π₀.₅ step/sample coverage, 14 actual plus 14 commanded series, and six passing plots. π₀ infrastructure/task success was 3/3 and 2/3; experimental π₀.₅ was 3/3 and 0/3. Maximum episode telemetry-write p95 was 0.197 ms, below the 1 ms budget. All raw rows/plots are ignored, and final stop/residue checks passed.
 - **Deviations:** Automatic retry is deliberately limited to client construction/connect/metadata before reset or inference. Once an inference may have been sent, replay is unsafe; the episode aborts and preserves partial evidence. The first hardware run exposed an orphaned WSL sampler when the Mac SSH client was terminated; the final implementation added an explicit remote ownership record/stop and the exact-candidate rerun passed cleanup.
 - **PR:** [PR 6](https://github.com/therealjaysun/pi-robotics/pull/6).
-- **Final commit SHA:** Pending amended exact-candidate hardware validation; prior hardware baseline `de63e19c37d8fd76fbda5b5a07a8f5a0b19b42d6`.
+- **Final commit SHA:** Hardware-validated implementation `2065dd9d5a5e7f21ea40a940944d48ac08c6da20`; completion evidence is at branch HEAD.
 
 ## Machine handoff
 
-Keep the PC off during plan/code/local-test work. Request power-on only after the amended Phase 5 SHA is clean, pushed, secret-scanned, and ready for the existing two-profile hardware sequence.
+Phase 5 hardware coordination is complete. No additional GPU run is needed for this amendment.
