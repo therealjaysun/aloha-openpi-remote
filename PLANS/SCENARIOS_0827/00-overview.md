@@ -2,7 +2,7 @@
 
 > This is a custom 3-D ALOHA **Push-π** experiment inspired by PushT. It is not the standard PushT benchmark and its scores are not comparable to PushT results.
 
-- **Objective:** Evaluate one shared ALOHA tabletop-pushing environment across four seeded conditions: one rigid Greek π or two separate `p`/`i` bodies, with either the left arm's six joints active or both arms' six joints active, using π₀ and experimental π₀.₅ inference.
+- **Objective:** Evaluate one shared ALOHA tabletop-pushing environment across four seeded conditions: one rigid Greek π or two separate uppercase `P`/`I` bodies, with either the left arm's six joints active or both arms' six joints active, using π₀ and experimental π₀.₅ inference.
 - **Scope:** Four fixed scenario IDs; one project-owned Gymnasium environment; primitive compound bodies and visible targets; deterministic paired resets; fixed-gripper action projection; fixed scenario prompts; existing buffered control, JSONL telemetry, trajectories, videos, GPU sampling, SSH tunnel, and optional display-only Mac viewer.
 - **Non-goals:** Standard PushT compatibility; PushT reward comparison; training/fine-tuning; a literal 7-D/single-arm robot; planar end-effector constraints or a general IK system; custom meshes; free-text or mid-episode prompt GUI; browser dashboard; parallel policy servers; nonzero zero-shot success as an infrastructure requirement.
 - **Dependencies:** Completed phases 00–06; pinned OpenPI `215abfb217dbac7d5f1273282331b9b1866c0479`; installed `gym-aloha==0.1.1`; converted PyTorch π₀ and π₀.₅ artifacts.
@@ -38,8 +38,8 @@ Do not call a Push-π result a PushT benchmark result, reuse PushT's 95% score, 
 | `transfer_cube` (default) | `gym_aloha/AlohaTransferCube-v0` | Stock cube | Stock behavior | Existing profile behavior |
 | `push_pi_single` | `pi_robotics/PushPiSingleArm-v0` | One rigid π | Left six | `Push the pi-shaped block onto its matching target.` |
 | `push_pi_dual` | `pi_robotics/PushPiBimanual-v0` | One rigid π | Left and right six | Same as single |
-| `push_letters_single` | `pi_robotics/PushLettersSingleArm-v0` | Separate rigid `p` and `i` | Left six | `Push the p and i blocks onto their matching targets.` |
-| `push_letters_dual` | `pi_robotics/PushLettersBimanual-v0` | Separate rigid `p` and `i` | Left and right six | Same as single |
+| `push_letters_single` | `pi_robotics/PushLettersSingleArm-v0` | Separate rigid uppercase `P` and `I` | Left six | `Push the P and I blocks onto their matching targets.` |
+| `push_letters_dual` | `pi_robotics/PushLettersBimanual-v0` | Separate rigid uppercase `P` and `I` | Left and right six | Same as single |
 
 - Add `ALOHA_SCENARIO` as exactly the enum above and `ALOHA_DISPLAY=0|1`; unknown, blank-explicit, boolean-like, import-path, XML-path, or prompt values fail closed. Keep `ALOHA_TASK` pinned and backward compatible.
 - Resolve scenario → Gym ID, descriptor, arm mask, and prompt once in `MacSimConfig`. A scenario prompt overrides the profile default and is immutable for an episode.
@@ -74,7 +74,7 @@ No PC or policy inference is used until one committed descriptor freezes all geo
 - Randomize object position/yaw inside the calibrated region inset by full compound-body footprints. Reject body/body, body/goal, body/robot, already-successful, unsupported, and unstable layouts with a bounded attempt count. Record sampled and settled named poses; paired arm modes require byte-identical values.
 - Project-defined first-run success thresholds remain XY `<=0.03 m`, wrapped yaw `<=15°`, absolute roll/pitch `<=10°`, and COM height within `0.005 m` of rest, all true for five consecutive applied steps. These are Push-π thresholds, not PushT authority.
 - `lifted_ever` becomes permanently true if COM rises more than `0.01 m`; it prevents success. Terminate unsuccessfully if a transformed footprint leaves the source-derived tabletop boundary or roll/pitch exceeds `30°`. Otherwise truncate at 300 steps. Reward is `1` only on held success, else `0`.
-- For letters, `p` must match the `p` target and `i` the `i` target; one correct or swapped bodies fail. Report per-body final/minimum XY and yaw errors, held success, time-to-success, terminal reason, and lift/fall/off-table flags. Do not invent a composite progress score.
+- For letters, uppercase `P` must match the `P` target and uppercase `I` the `I` target; one correct or swapped bodies fail. Report per-body final/minimum XY and yaw errors, held success, time-to-success, terminal reason, and lift/fall/off-table flags. Do not invent a composite progress score.
 
 ## Participation, policy, and evidence contract
 

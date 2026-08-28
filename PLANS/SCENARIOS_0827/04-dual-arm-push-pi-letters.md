@@ -1,6 +1,6 @@
-# S0827.04 — Two-arm Push-`pi` letters
+# S0827.04 — Two-arm Push-`PI` letters
 
-- **Objective:** Evaluate the same independently initialized `p` and `i` task with both ALOHA arms available; record whether the policy actually uses one or both.
+- **Objective:** Evaluate the same independently initialized uppercase `P` and `I` task with both ALOHA arms available; record whether the policy actually uses one or both.
 - **Inputs/prerequisites:** Shared contracts in [`00-overview.md`](00-overview.md); passing S0827.03 geometry/reset tests; Phase 04 buffered runner; selected policy profile and explicit scenario prompt.
 - **Implementation tasks:** Reuse S0827.03 descriptor, RNG, support/clearance checks, targets, camera, prompt, reward, and outcome rules unchanged; enable both six-joint command groups while projecting both grippers to the frozen pusher value; keep scene hash and sampled/settled poses byte-equivalent within each pair; record per-letter errors plus the overview's fixed travel/contact/participation/interference fields without making participation a success requirement.
 - **Files expected to change:** Only the shared scenario mapping and matrix tests; no fork of the letter scene, sampler, display, saver, or control loop.
