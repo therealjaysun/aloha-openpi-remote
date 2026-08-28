@@ -1,6 +1,6 @@
 # Project status
 
-Planning baseline: 2026-08-26. Plans are complete; phases 00–05 are implemented, published, and validated. Phase 06 hardening and documentation is next.
+Planning baseline: 2026-08-26. Phase 05 is reopened only for the requested joint-trajectory amendment; its existing architecture and PR remain authoritative. Phase 06 waits for the updated parent candidate.
 
 Final plan review: 2026-08-28. Independent code/test, security, plan-traceability, and repository/PR audits were reconciled after real PC testing.
 
@@ -11,8 +11,8 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 | 02 Remote GPU | Complete; ready for review | `codex/02-remote-gpu-server` | 3 | [PR 3](https://github.com/therealjaysun/pi-robotics/pull/3) | `codex/01-mac-simulation` | `codex/02-remote-gpu-server` | 118 Mac tests pass with one Linux-only skip; Ruff/format/shell/secret scan pass; both partial-BF16 conversions, finite-action smokes, second-session survival, and safe stops passed | None; JAX OOM remains a documented rejected path | Hardware candidate `38b5228`; final evidence at branch HEAD |
 | 03 Connectivity | Complete; ready for review | `codex/03-secure-connectivity` | 4 | [PR 4](https://github.com/therealjaysun/pi-robotics/pull/4) | `codex/02-remote-gpu-server` | `codex/03-secure-connectivity` | 171 Mac tests pass with one Linux-only skip; Ruff/format/shell/secret scan and hosted checks pass; both exact-candidate tunneled profile smokes and cleanup pass | None | Hardware implementation `0c64187`; final evidence at branch HEAD |
 | 04 End-to-end | Complete; open for review | `codex/04-end-to-end-control` | 5 | [PR 5](https://github.com/therealjaysun/pi-robotics/pull/5) | `codex/03-secure-connectivity` | `codex/04-end-to-end-control` | 205 local and isolated-lock tests plus lint/format/shell/secret scan pass; hosted `pure-checks`/`secret-scan` pass; Mac 900-step smoke and six exact-candidate policy episodes/videos pass with clean stops | None; sustained 50 Hz was not claimed (45.44–47.09 Hz measured) | Hardware implementation `0fca61f`; final evidence at branch HEAD |
-| 05 Observability | Complete; open for review | `codex/05-observability` | 6 | [PR 6](https://github.com/therealjaysun/pi-robotics/pull/6) | `codex/04-end-to-end-control` | `codex/05-observability` | 273 tests pass with one platform skip; lint/Bash/secret scan pass; both exact-candidate hardware profiles and cleanup pass | None; sustained 50 Hz is honestly not claimed | Hardware implementation `de63e19`; final evidence at branch HEAD |
-| 06 Hardening/docs | Planned | `codex/06-hardening-docs` | — | — | `codex/05-observability` | `codex/06-hardening-docs` | Not run | Depends on all evidence | — |
+| 05 Observability | Joint-trajectory amendment in progress in existing PR | `codex/05-observability` | 6 | [PR 6](https://github.com/therealjaysun/pi-robotics/pull/6) | `codex/04-end-to-end-control` | `codex/05-observability` | Prior 273-test/hardware baseline passed; amended local and hardware gates pending | Exact-candidate π₀/π₀.₅ trajectory plots and overhead must pass | Prior hardware `de63e19`; amended SHA pending |
+| 06 Hardening/docs | Paused for updated Phase 05 parent | `codex/06-hardening-docs` | 7 | [PR 7](https://github.com/therealjaysun/pi-robotics/pull/7) | `codex/05-observability` | `codex/06-hardening-docs` | Prior Phase 06 was green; descendant revalidation pending | Updated Phase 05 ancestry/evidence | Prior branch tip `e38910b` |
 
 ## Audited state
 
@@ -40,12 +40,12 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 
 ## Execution cursor
 
-- Active subphase: 06.01 test coverage.
-- Machine gate: none. Phase 05 stopped every owned component and verified zero Mac/Windows/WSL residue; Phase 06 has no planned PC-only gate.
-- Exact user action: none.
+- Active subphase: 05.01 local trajectory telemetry, then 05.04 plot/performance summary; this extends the existing Phase 5 candidate.
+- Machine gate: local plan/code/tests first; then the existing π₀ and π₀.₅ Phase 5 run sequence at one clean pushed SHA.
+- Exact user action: none until Codex reports `PC ACTION REQUIRED — POWER ON` if the SSH host is unavailable.
 - Recovery: rerun the E-PC-BF16 commands only if either converted artifact is removed or the pinned model/runtime changes.
 - Last verified Mac/WSL hardware candidate SHA: `de63e19c37d8fd76fbda5b5a07a8f5a0b19b42d6`; upstream SHA: `215abfb217dbac7d5f1273282331b9b1866c0479`.
-- PR state: PRs 1–6 are open; PR 6 hosted checks are pending final evidence push. PR 7 remains pending. No auto-merge is enabled.
+- PR state: PRs 1–7 exist; PR 6 will receive the amended candidate, then PR 7 will be repaired onto that parent and both revalidated. No auto-merge is enabled.
 
 Update this cursor immediately before pausing for GitHub login, `conversion host ready`, `PC ready`, PC console work, or power-off.
 
@@ -54,6 +54,6 @@ Update this cursor immediately before pausing for GitHub login, `conversion host
 - Phase 02 hardware coordination is complete. Both converted artifacts remain in the PC-local OpenPI cache.
 - Phase 03 hardware coordination is complete. Both converted artifacts remain in the PC-local cache, and no PC-side CI was run.
 - Phase 04 hardware coordination is complete. Six policy-controlled episodes and both stop lifecycles passed; no PC-side CI was run.
-- Phase 05 hardware coordination is complete. Correlated local/GPU telemetry passed for both profiles, and all owned processes/listeners were removed; no PC-side CI was run.
-- Codex will use the existing private alias and request `PC ready` only if the machine is no longer reachable.
+- Phase 05 hardware rerun is pending only after the amended candidate passes local gates; it reuses the existing two profile runs and adds no redundant GPU campaign.
+- Codex will use the existing private alias and request power-on only if the machine is no longer reachable.
 - Full procedure: [`EXECUTION_LOGISTICS.md`](EXECUTION_LOGISTICS.md).

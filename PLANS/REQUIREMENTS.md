@@ -128,6 +128,8 @@ Every failed doctor row names the failed check and one exact next command; it do
 | RO14 | Relevant raw OpenPI server logs copied to ignored run directory | 05 | ignored artifact/hash | Pass: E-PC-OBS |
 | RO15 | Project and upstream OpenPI commits | 02,04,05 | metadata/summary | Pass through Phase 05: E-PC-SETUP, E-PC-CONTROL, E-PC-OBS |
 | RO16 | Environment package versions | 01,02,05 | metadata/summary | Pass on Mac and WSL through Phase 05: E-MAC01, E-PC-SETUP, E-PC-OBS |
+| RO17 | Existing step JSONL records one finite actual and commanded 14-joint vector with exact one-based applied step and monotonic elapsed time | 05 | focused tests + ignored JSONL | Pending amended Phase 05 candidate |
+| RO18 | Every episode with valid trajectory rows atomically produces one fixed-limit normalized plot; summaries expose only counts, coverage, status, and safe local plot IDs | 05 | focused tests + ignored plots + summary audit | Pending amended Phase 5 candidate |
 
 Infrastructure passes when valid chunks drive complete simulator episodes without schema/network termination and artifacts/metrics persist. Cube-transfer success is always a separate result.
 
@@ -156,6 +158,7 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | R19 | Stale/reused PID detection before signaling | 02,03,05 | lifecycle tests | Pass through Phase 05 locally and on hardware: E-MAC02, E-PC-STOP, E-PC-OBS |
 | R20 | Partial run result preservation after failure | 04,05 | interrupt/write-failure tests | Pass through Phase 05: E-MAC05, E-PC-OBS |
 | R21 | Project conversion defaults to automatic selection: below 16 GiB Linux `MemAvailable` it uses bounded partial BF16, otherwise full FP32; explicit allowlisted overrides remain, the direct converter preserves its full-FP32 default, and no failed partial artifact is published. Runtime backend selection defaults to the validated PyTorch path, never falls back implicitly, and retains JAX only as an explicit diagnostic option | 02,04 | focused selector/converter/backend tests + checkpoint validation | Pass: E-PC-BF16, E-MAC05, E-PC-CONTROL |
+| R22 | Joint trajectories reuse line-buffered local step events, preserve valid partial data, use pinned simulator limits rather than run extrema, and add no per-step fsync/network/SSH | 05 | focused tests + overhead/hardware evidence | Pending amended Phase 05 candidate |
 
 ## Required pure tests
 
@@ -174,6 +177,7 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | T11 | PID/start-identity validation | 02,03,05 | pytest/shell test | Pass locally through Phase 03 and hosted Linux for Phase 02: E-MAC02 |
 | T12 | Public-output sanitization | 00,06 | pytest/scan | Pending |
 | T13 | Representative direct-BF16 versus FP32→BF16 value equivalence, incomplete/duplicate mapping failure, and explicit backend routing | 02 | focused converter/backend tests + real one-leaf proof | Pass: E-PC-BF16 |
+| T14 | Joint-vector validation, fixed-limit normalization, step coverage, interruption preservation, atomic plot generation, and all-series verification | 05 | focused synthetic tests + hardware plot inspection | Pending amended Phase 05 candidate |
 
 `pyproject.toml` must discover root `tests/`, and `make test` must invoke the Mac client/project environment explicitly; root OpenPI `uv sync` is never required on macOS. Simulator/network/GPU checks remain separate manual lanes.
 

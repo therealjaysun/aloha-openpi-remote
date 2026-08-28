@@ -1,24 +1,24 @@
 # Phase 05 — Observability and reliability
 
 - **Objective:** Preserve actionable, low-overhead evidence for every run and fail safely across expected network/process problems.
-- **Scope:** Local JSONL/summary, remote low-frequency GPU metrics, bounded reconnect/retry policy built on phase 03 finite I/O, partial-result reporting, performance/profile comparison.
-- **Non-goals:** Hosted telemetry, databases, dashboards, per-step SSH/`nvidia-smi`, silent exception swallowing, infinite retry.
+- **Scope:** Local JSONL/summary, post-step 14-joint actual/command trajectories and atomic episode plots, remote low-frequency GPU metrics, bounded reconnect/retry policy built on phase 03 finite I/O, partial-result reporting, performance/profile comparison.
+- **Non-goals:** A second logger, hosted telemetry, databases, dashboards, per-step persistence/network/SSH/`nvidia-smi`, silent exception swallowing, infinite retry.
 - **Dependencies:** Phase 04 local runtime interfaces for pure implementation; live phase 04 runtime and remote lifecycle only for hardware evidence; ignored output directories.
-- **Planned files:** `tools/remote_aloha/telemetry.py`, `tests/test_telemetry.py`, `scripts/collect_gpu_metrics.sh`, buffered-policy reconnect/run/lifecycle integration and focused tests, docs/plans.
-- **Planned commits:** `feat(telemetry): record local runtime events`; `feat(telemetry): sample remote GPU metrics`; `fix(runtime): bound retries and preserve failure evidence`; `docs(perf): summarize policy profile performance`.
+- **Planned files:** `tools/remote_aloha/telemetry.py`, a small trajectory plot helper and focused test, `tools/remote_aloha/run.py`, `tests/test_telemetry.py`, `scripts/collect_gpu_metrics.sh`, buffered-policy reconnect/run/lifecycle integration, docs/plans.
+- **Planned commits:** Existing Phase 5 commits plus `feat(telemetry): plot joint trajectories` and refreshed exact-candidate evidence.
 - **Branch:** `codex/05-observability`.
 - **PR base:** `codex/04-end-to-end-control`.
 - **PR title:** `feat(telemetry): record control and GPU metrics`.
-- **Acceptance criteria:** Timestamped per-run JSONL and Markdown/CSV summary; profile/commit/versions included; inference/sim/frequency/wait/retry/reward/GPU metrics captured; telemetry overhead measured and low; Ctrl+C/failures preserve valid lines/video; all spawned processes cleaned; π₀ and π₀.₅ summarized separately.
-- **Test commands:** `make test`; `make metrics`; per-profile `make run`; interrupt/failure scenarios; parse every JSONL line; inspect summaries; verify no output tracked.
-- **Risks:** Telemetry blocks loop, corrupt line on crash, clock mismatch Mac/PC, GPU sampler orphan, sensitive paths in logs, retry causes stale actions.
+- **Acceptance criteria:** Existing criteria plus one private atomic plot per episode from the existing step JSONL; one finite actual and commanded 14-vector per applied step with exact step/monotonic elapsed time; authoritative fixed-range normalization; partial plotting; safe plot IDs and coverage fields in publishable summaries; all 14 actual series visually verified for both profiles.
+- **Test commands:** `make test`; `make lint`; `make secret-scan`; focused synthetic/interrupt/plot/overhead tests; `make metrics`; the existing three-episode π₀ and π₀.₅ `make run` sequence; inspect six plots and confirm outputs remain untracked.
+- **Risks:** Larger step rows exceed the 1 ms telemetry budget, plots obscure 14 series, bad limits mislead, interrupted rows diverge from applied steps, plot metadata leaks a path; existing network/process risks remain.
 - **Rollback:** Disable subscribers/sampler while retaining core control loop; stop validated metrics PID; revert phase; keep partial ignored artifacts.
-- **Current status:** Complete; open for review.
-- **Actual results:** Exact candidate `de63e19c37d8fd76fbda5b5a07a8f5a0b19b42d6` passed 273 tests with one platform skip, lint, Bash syntax, fail-closed secret scanning, and three hardware episodes per profile. Both profiles had complete GPU coverage and zero request retries/failures. π₀ task success was 3/3; experimental π₀.₅ task success was 0/3 without an infrastructure failure. Active rates averaged 48.21 Hz and 47.56 Hz respectively, so sustained 50 Hz is not claimed. Exact server, tunnel, sampler, and listener cleanup passed on Mac, Windows, and WSL.
+- **Current status:** Joint-trajectory amendment in progress on the existing Phase 5 candidate; prior evidence remains a baseline, not acceptance for the amendment.
+- **Actual results:** Baseline candidate `de63e19c37d8fd76fbda5b5a07a8f5a0b19b42d6` passed the original Phase 5 gates. New local and exact-candidate hardware results remain pending and will replace this completion claim only after both profile runs, six plot checks, telemetry-overhead measurement, and cleanup pass.
 - **Deviations:** Automatic retry is deliberately limited to client construction/connect/metadata before reset or inference. Once an inference may have been sent, replay is unsafe; the episode aborts and preserves partial evidence. The first hardware run exposed an orphaned WSL sampler when the Mac SSH client was terminated; the final implementation added an explicit remote ownership record/stop and the exact-candidate rerun passed cleanup.
 - **PR:** [PR 6](https://github.com/therealjaysun/pi-robotics/pull/6).
-- **Final commit SHA:** Hardware implementation `de63e19c37d8fd76fbda5b5a07a8f5a0b19b42d6`; final evidence is at branch HEAD.
+- **Final commit SHA:** Pending amended exact-candidate hardware validation; prior hardware baseline `de63e19c37d8fd76fbda5b5a07a8f5a0b19b42d6`.
 
 ## Machine handoff
 
-Hardware collection and cleanup are complete. Phase 06 has no planned PC-only acceptance gate; the PC may be powered off unless an unexpected regression requires a hardware rerun.
+Keep the PC off during plan/code/local-test work. Request power-on only after the amended Phase 5 SHA is clean, pushed, secret-scanned, and ready for the existing two-profile hardware sequence.
