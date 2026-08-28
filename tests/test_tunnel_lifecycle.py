@@ -154,17 +154,28 @@ def test_stale_record_cleanup_and_stop_twice_signal_nothing(monkeypatch: pytest.
     monkeypatch.chdir(tmp_path)
     connection_check._runtime()  # noqa: SLF001
     connection_check._write_record(_record(tmp_path))  # noqa: SLF001
-    calls = []
-    monkeypatch.setattr(
-        connection_check, "_control", lambda *args: calls.append(args) or subprocess.CompletedProcess([], 1)
-    )
-    monkeypatch.setattr(connection_check, "_prove_stopped", lambda *args: True)
+    waits = []
+    monkeypatch.setattr(connection_check, "_wait_for_stopped", lambda *args: waits.append(args))
     monkeypatch.setattr(connection_check, "_local_port_is_free", lambda *args: True)
     config = RemoteConfig()
     connection_check.stop(config)
     connection_check.stop(config)
-    assert calls == []
+    assert waits == [(_record(tmp_path), 10)]
     assert not Path(".runtime/tunnel.json").exists()
+
+
+def test_wait_for_stopped_tolerates_control_socket_shutdown_race(monkeypatch: pytest.MonkeyPatch) -> None:
+    outcomes = iter((False, True))
+    checks = []
+    monkeypatch.setattr(
+        connection_check,
+        "_control",
+        lambda *args: checks.append(args) or subprocess.CompletedProcess([], 1, "", ""),
+    )
+    monkeypatch.setattr(connection_check, "_prove_stopped", lambda *args: next(outcomes))
+    monkeypatch.setattr(connection_check.time, "sleep", lambda _: None)
+    connection_check._wait_for_stopped(_record(Path.cwd()), 1)  # noqa: SLF001
+    assert len(checks) == 2
 
 
 def test_stale_record_is_retained_when_stopped_state_is_uncertain(
@@ -173,8 +184,12 @@ def test_stale_record_is_retained_when_stopped_state_is_uncertain(
     monkeypatch.chdir(tmp_path)
     connection_check._runtime()  # noqa: SLF001
     connection_check._write_record(_record(tmp_path))  # noqa: SLF001
-    monkeypatch.setattr(connection_check, "_prove_stopped", lambda *args: False)
-    with pytest.raises(RemoteError, match="may still be active"):
+    monkeypatch.setattr(
+        connection_check,
+        "_wait_for_stopped",
+        lambda *args: (_ for _ in ()).throw(RemoteError("did not stop")),
+    )
+    with pytest.raises(RemoteError, match="did not stop"):
         connection_check.stop(RemoteConfig())
     assert Path(".runtime/tunnel.json").exists()
 
@@ -203,8 +218,12 @@ def test_unresponsive_owned_state_is_retained_when_stop_cannot_be_proved(
     Path(".runtime/tunnel.sock").write_text("test stand-in", encoding="utf-8")
     monkeypatch.setattr(connection_check, "_validate_socket", lambda: None)
     monkeypatch.setattr(connection_check, "_control", lambda *args: subprocess.CompletedProcess([], 1, "", ""))
-    monkeypatch.setattr(connection_check, "_prove_stopped", lambda *args: False)
-    with pytest.raises(RemoteError, match="may still be active"):
+    monkeypatch.setattr(
+        connection_check,
+        "_wait_for_stopped",
+        lambda *args: (_ for _ in ()).throw(RemoteError("did not stop")),
+    )
+    with pytest.raises(RemoteError, match="did not stop"):
         connection_check.stop(RemoteConfig())
     assert Path(".runtime/tunnel.json").exists()
     assert Path(".runtime/tunnel.sock").exists()
