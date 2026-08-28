@@ -32,6 +32,7 @@ def test_policy_server_host_and_gpu_metadata_patch_is_localized() -> None:
     assert "require_jax_device" in source
     assert "require_torch_device" in source
     assert 'policy_backend: Literal["jax", "pytorch"]' in source
+    assert "pytorch_compile_mode=None" in source
     assert "compact_masked_images" in source
     assert '"action_dimension": 14' in source
 

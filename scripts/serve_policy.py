@@ -116,8 +116,13 @@ def create_policy(args: Args) -> _policy.Policy:
             _, config_name, _ = PROJECT_PROFILES[args.policy_profile]
         except KeyError as error:
             raise ValueError("Unsupported project policy profile") from error
+        train_config = _config.get_config(config_name)
+        train_config = dataclasses.replace(
+            train_config,
+            model=dataclasses.replace(train_config.model, pytorch_compile_mode=None),
+        )
         return _policy_config.create_trained_policy(
-            _config.get_config(config_name),
+            train_config,
             args.pytorch_checkpoint_dir,
             default_prompt=args.default_prompt,
             pytorch_device="cuda:0",

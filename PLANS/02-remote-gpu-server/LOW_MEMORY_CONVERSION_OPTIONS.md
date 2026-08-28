@@ -8,6 +8,7 @@ This decision plan exists because the stock JAX policy loads in BF16 but first i
 - Preserve the stock `full-float32` converter behavior as the default.
 - No custom checkpoint format, allocator flags, public listener, destructive cache cleanup, or PC-side CI.
 - A failed experiment may retain ignored logs but must publish no checkpoint directory.
+- The explicit PyTorch demo backend disables optional `torch.compile` autotuning; the pinned JAX/default behavior remains unchanged.
 - π₀ runs first. Do not convert π₀.₅ until π₀ converts, fresh-loads, and returns finite RTX actions through the explicit PyTorch backend.
 - Orbax partial restore operates on stored leaves. Stacked leaves contain 18–27 model layers, so the source floor is one stored leaf; target slices are copied one layer at a time.
 
@@ -37,7 +38,7 @@ This decision plan exists because the stock JAX policy loads in BF16 but first i
 
 - Converter success means only that an artifact was safely produced and strict-load validated; it does not satisfy inference acceptance.
 - π₀ conversion failure stops the experiment. Do not download or convert π₀.₅.
-- π₀ conversion success proceeds to `OPENPI_POLICY_BACKEND=pytorch` server smoke. Only a finite π₀ RTX action permits π₀.₅ to repeat the same conversion and smoke path.
+- π₀ conversion success proceeds to an uncompiled `OPENPI_POLICY_BACKEND=pytorch` server smoke, avoiding the measured first-call compiler process exit. Only a finite π₀ RTX action permits π₀.₅ to repeat the same conversion and smoke path.
 - Any OOM, timeout, mapping mismatch, missing norm stats, loader mismatch, or unowned path is a hard failure with no published artifact.
 - No PC-side CI is run. Mac pure tests/lint, secret scan, and hosted checks protect the candidate; the PC runs only the bounded hardware experiment.
 
