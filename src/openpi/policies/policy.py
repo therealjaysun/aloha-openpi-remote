@@ -118,6 +118,12 @@ class Policy(BasePolicy):
     def metadata(self) -> dict[str, Any]:
         return self._metadata
 
+    @property
+    def pytorch_model_device(self) -> str:
+        if not self._is_pytorch_model:
+            raise ValueError("JAX policies do not have a PyTorch model device")
+        return str(next(self._model.parameters()).device)
+
 
 class PolicyRecorder(_base_policy.BasePolicy):
     """Records the policy's behavior to disk."""

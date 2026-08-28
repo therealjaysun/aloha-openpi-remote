@@ -78,6 +78,7 @@ def test_pytorch_metadata_requires_converted_variant_and_cuda_3090() -> None:
         "compact_masked_images": True,
         "torch_platform": "cuda",
         "torch_device": "NVIDIA GeForce RTX 3090",
+        "torch_model_device": "cuda:0",
     }
     validate_server_metadata(metadata, profile, SHA, "pytorch")
 

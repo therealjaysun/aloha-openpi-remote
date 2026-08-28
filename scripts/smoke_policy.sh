@@ -29,13 +29,23 @@ record="$repo_root/.runtime/server.json"
 server_pid="$($repo_root/.venv/bin/python -m tools.remote_aloha.process_record verify "$record")"
 cd "$repo_root"
 metrics=".runtime/gpu-smoke-${expected_sha:0:12}-$profile.csv"
+host_metrics=".runtime/host-smoke-${expected_sha:0:12}-$profile.csv"
 timeout --signal=TERM --kill-after=5s "$((inference_timeout + 15))s" \
     "$smi" --query-gpu=timestamp,name,memory.used,utilization.gpu --format=csv,noheader,nounits --loop-ms=500 \
     >"$metrics" 2>&1 &
 sampler_pid=$!
+(
+    while [[ -r "/proc/$server_pid/status" ]]; do
+        awk '/VmRSS:/ {rss=$2} /VmSwap:/ {swap=$2} END {print rss + 0 "," swap + 0}' "/proc/$server_pid/status"
+        sleep 0.5
+    done
+) >"$host_metrics" &
+host_sampler_pid=$!
 cleanup() {
     kill -TERM "$sampler_pid" 2>/dev/null || true
     wait "$sampler_pid" 2>/dev/null || true
+    kill -TERM "$host_sampler_pid" 2>/dev/null || true
+    wait "$host_sampler_pid" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 timeout --signal=TERM --kill-after=10s "${inference_timeout}s" \
@@ -43,13 +53,24 @@ timeout --signal=TERM --kill-after=10s "${inference_timeout}s" \
     --profile "$profile" --backend "$backend" --host "$host" --port "$port" --source-sha "$expected_sha"
 cleanup
 trap - EXIT INT TERM
+host_peak_rss="$(awk -F, '$1+0>m {m=$1+0} END {print m+0}' "$host_metrics")"
+[[ "$host_peak_rss" =~ ^[0-9]+$ ]] && (( host_peak_rss > 0 )) || {
+    echo 'Host-memory sampling evidence is invalid.' >&2
+    exit 1
+}
+"$repo_root/.venv/bin/python" -m tools.remote_aloha.process_record verify "$record" >/dev/null || {
+    echo "Policy server exited during inference; peak RSS was ${host_peak_rss} KiB." >&2
+    exit 1
+}
 grep -Fq '3090' "$metrics" || { echo 'GPU sampler did not observe the RTX 3090.' >&2; exit 1; }
-compute_apps="$($smi --query-compute-apps=pid,used_gpu_memory --format=csv,noheader,nounits 2>/dev/null)" || {
-    echo 'nvidia-smi cannot provide required per-process GPU-memory evidence.' >&2
-    exit 1
-}
-awk -F, -v pid="$server_pid" '$1 + 0 == pid && $2 + 0 > 0 {found=1} END {exit !found}' <<<"$compute_apps" || {
-    echo 'nvidia-smi did not attribute GPU memory to the owned policy server.' >&2
-    exit 1
-}
-echo "GPU evidence captured: $metrics"
+if [[ "$backend" == jax ]]; then
+    compute_apps="$($smi --query-compute-apps=pid,used_gpu_memory --format=csv,noheader,nounits 2>/dev/null)" || {
+        echo 'nvidia-smi cannot provide required per-process GPU-memory evidence.' >&2
+        exit 1
+    }
+    awk -F, -v pid="$server_pid" '$1 + 0 == pid && $2 + 0 > 0 {found=1} END {exit !found}' <<<"$compute_apps" || {
+        echo 'nvidia-smi did not attribute GPU memory to the owned policy server.' >&2
+        exit 1
+    }
+fi
+echo "GPU and host evidence captured: $metrics $host_metrics peak_rss_kib=$host_peak_rss"

@@ -18,6 +18,7 @@ from tools.remote_aloha.remote import _write_launch_receipt
 from tools.remote_aloha.remote import build_wsl_command
 from tools.remote_aloha.remote import classify_route
 from tools.remote_aloha.remote import select_ubuntu_distro
+from tools.remote_aloha.remote import smoke
 from tools.remote_aloha.remote import ssh_argv
 from tools.remote_aloha.remote import stop
 
@@ -400,3 +401,25 @@ def test_stop_uses_the_original_receipt_target(monkeypatch: pytest.MonkeyPatch, 
     assert "/srv/original" not in str(captured["script"])
     assert base64.b64encode(b"/srv/original").decode() in str(captured["script"])
     assert not Path(".runtime/phase2-launch.json").exists()
+
+
+def test_smoke_requires_a_second_session_survival_check(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    candidate = "a" * 40
+    monkeypatch.setattr(remote_module, "_candidate_sha", lambda: candidate)
+    config = RemoteConfig(wsl_distro="Ubuntu-24.04", policy_backend="pytorch")
+    target = RemoteTarget("powershell", "Ubuntu-24.04")
+    _write_launch_receipt(config, candidate, target)
+    session = RemoteSession(config)
+    scripts = []
+
+    def fake_run_wsl(actual_target: RemoteTarget, script: str, **kwargs: object) -> str:
+        assert actual_target == target
+        scripts.append(script)
+        return "__ALOHA_SERVER__=ready" if len(scripts) == 2 else ""
+
+    monkeypatch.setattr(session, "run_wsl", fake_run_wsl)
+    smoke(session)
+    assert len(scripts) == 2
+    assert "smoke_policy.sh" in scripts[0]
+    assert "check_policy_server.sh" in scripts[1]

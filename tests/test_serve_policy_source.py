@@ -65,6 +65,9 @@ def test_wsl_start_wrapper_has_exact_two_profile_routes_and_loopback() -> None:
     assert "--query-gpu=timestamp,name,memory.used,utilization.gpu" in smoke
     assert "process_record verify" in smoke
     assert "--query-compute-apps=pid,used_gpu_memory" in smoke
+    assert "host_peak_rss" in smoke
+    assert '[[ "$backend" == jax ]]' in smoke
+    assert "torch_model_device" in Path("scripts/serve_policy.py").read_text(encoding="utf-8")
 
     client = Path("tools/remote_aloha/policy_smoke.py").read_text(encoding="utf-8")
     assert '"images": {"cam_high": image}' in client

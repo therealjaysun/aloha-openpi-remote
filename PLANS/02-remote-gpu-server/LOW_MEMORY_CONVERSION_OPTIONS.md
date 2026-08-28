@@ -39,6 +39,7 @@ This decision plan exists because the stock JAX policy loads in BF16 but first i
 - Converter success means only that an artifact was safely produced and strict-load validated; it does not satisfy inference acceptance.
 - π₀ conversion failure stops the experiment. Do not download or convert π₀.₅.
 - π₀ conversion success proceeds to an uncompiled `OPENPI_POLICY_BACKEND=pytorch` server smoke, avoiding the measured first-call compiler process exit. Only a finite π₀ RTX action permits π₀.₅ to repeat the same conversion and smoke path.
+- PyTorch smoke must prove the loaded model is on `cuda:0`, observe the 3090 during inference, sample WSL host RSS, and verify the owned server immediately and again through a second SSH session. Do not require the WSL `nvidia-smi` compute-process table when it omits the Torch Linux PID; retain that check for JAX.
 - Any OOM, timeout, mapping mismatch, missing norm stats, loader mismatch, or unowned path is a hard failure with no published artifact.
 - No PC-side CI is run. Mac pure tests/lint, secret scan, and hosted checks protect the candidate; the PC runs only the bounded hardware experiment.
 

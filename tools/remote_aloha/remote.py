@@ -745,6 +745,20 @@ def smoke(session: RemoteSession) -> None:
         timeout=config.policy_inference_timeout_seconds + 30,
         label="policy-smoke",
     )
+    facts = _markers(
+        session.run_wsl(
+            target,
+            _remote_script_command(
+                config,
+                "check_policy_server.sh",
+                [config.policy_profile.name, config.policy_host, str(config.policy_port), candidate],
+            ),
+            timeout=config.ssh_connect_timeout_seconds + 15,
+            label="policy-survival",
+        )
+    )
+    if facts.get("SERVER") != "ready":
+        raise RemoteError("policy server did not survive inference")
     print(f"WSL-local inference passed for {config.policy_profile.name} at {candidate}.")
 
 

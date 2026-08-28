@@ -33,6 +33,8 @@ def validate_server_metadata(metadata: object, profile: PolicyProfile, source_sh
     device = metadata.get(device_key)
     if not isinstance(device, str) or "3090" not in device:
         raise ValueError("server metadata must identify the RTX 3090 device")
+    if backend == "pytorch" and metadata.get("torch_model_device") != "cuda:0":
+        raise ValueError("server metadata must place the PyTorch model on cuda:0")
 
 
 def validate_policy_response(response: object, profile: PolicyProfile) -> np.ndarray:

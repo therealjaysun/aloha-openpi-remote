@@ -197,7 +197,12 @@ def main(args: Args) -> None:
         selected_device = torch.cuda.get_device_name(0)
         if args.require_torch_device not in selected_device:
             raise RuntimeError(f"Required PyTorch device containing {args.require_torch_device!r} was not found")
-        policy_metadata.update({"torch_platform": "cuda", "torch_device": selected_device})
+        model_device = policy.pytorch_model_device
+        if not model_device.startswith("cuda:"):
+            raise RuntimeError(f"PyTorch model is not on CUDA: {model_device}")
+        policy_metadata.update(
+            {"torch_platform": "cuda", "torch_device": selected_device, "torch_model_device": model_device}
+        )
 
     # Record the policy's behavior.
     if args.record:
