@@ -206,6 +206,76 @@ def test_publishable_summary_is_allowlisted_labels_profile_and_does_not_mutate_r
     assert "private" not in markdown
 
 
+def test_publishable_custom_scenario_keeps_safe_identity_counts_and_omits_private_fields() -> None:
+    raw = aggregate_events(
+        [
+            _event(
+                "metadata",
+                1,
+                profile="pi0_aloha_sim",
+                checkpoint_label="pi0_aloha_sim",
+                run_id="c" * 32,
+                task="pi_robotics/PushLettersSingleArm-v0",
+                scenario="push_letters_single",
+                scene_hash="d" * 64,
+                prompt="private run prompt",
+                absolute_path="/private/output",
+            ),
+            _event(
+                "terminal",
+                2,
+                status="complete",
+                steps_applied=300,
+                trajectory_sample_count=300,
+                push_success=1,
+                lifted_count=0,
+                both_arms_count=0,
+                private_machine="desktop-name",
+            ),
+        ]
+    )
+    public = publishable_summary(raw)
+    encoded = json.dumps(public, sort_keys=True)
+    assert public["metadata"]["scenario"] == "push_letters_single"
+    assert public["metadata"]["scene_hash"] == "d" * 64
+    assert public["result"]["push_success"] == 1
+    assert public["result"]["lifted_count"] == public["result"]["both_arms_count"] == 0
+    assert "private run prompt" not in encoded
+    assert "/private/output" not in encoded
+    assert "desktop-name" not in encoded
+
+
+@pytest.mark.parametrize(
+    ("task", "scenario", "scene_hash"),
+    [
+        (None, "push_pi_single", "d" * 64),
+        ("pi_robotics/PushPiSingleArm-v0", None, "d" * 64),
+        ("gym_aloha/AlohaTransferCube-v0", "push_pi_single", "d" * 64),
+        ("pi_robotics/PushPiSingleArm-v0", "push_pi_single", None),
+        ("pi_robotics/PushPiSingleArm-v0", "push_pi_single", "bad"),
+        ("gym_aloha/AlohaTransferCube-v0", "transfer_cube", "d" * 64),
+    ],
+)
+def test_publishable_scenario_identity_is_fail_closed(
+    task: str | None, scenario: str | None, scene_hash: str | None
+) -> None:
+    raw = aggregate_events(
+        [
+            _event(
+                "metadata",
+                1,
+                profile="pi0_aloha_sim",
+                task=task,
+                scenario=scenario,
+                scene_hash=scene_hash,
+            ),
+            _event("terminal", 2, status="failed", steps_applied=0),
+        ]
+    )
+    with pytest.raises(ValueError, match="scenario"):
+        publishable_summary(raw)
+
+
 @pytest.mark.parametrize(
     ("section", "key", "value"),
     [
@@ -263,6 +333,29 @@ def test_line_buffered_writer_p95_overhead_is_below_one_millisecond(tmp_path: Pa
                 elapsed_seconds=(step + 1) / 50,
                 actual_joint_positions=[float(step)] * 14,
                 commanded_joint_positions=[float(step + 1)] * 14,
+                scenario_info={
+                    "is_success": False,
+                    "scenario": "push_letters_dual",
+                    "scene_hash": "a" * 64,
+                    "layout_hash": "b" * 64,
+                    "body_count": 2,
+                    "held_steps": 0,
+                    "lifted_ever": False,
+                    "off_table": False,
+                    "fallen": False,
+                    "terminal_reason": "running",
+                    "left_contact_ever": True,
+                    "right_contact_ever": True,
+                    "both_arms_participated": True,
+                    "interference_ever": False,
+                    "left_joint_travel": 0.1,
+                    "right_joint_travel": 0.1,
+                    **{
+                        f"body_{body}_{metric}": 0.1
+                        for body in range(2)
+                        for metric in ("xy_error", "yaw_error", "roll", "pitch", "height_error")
+                    },
+                },
                 metrics={"sim_step_ms": 0.5},
             )
             durations.append((time.perf_counter_ns() - started) / 1_000_000)

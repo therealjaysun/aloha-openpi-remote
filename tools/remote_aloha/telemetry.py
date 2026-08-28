@@ -15,6 +15,9 @@ from typing import TextIO
 
 import numpy as np
 
+from tools.remote_aloha.scenarios import SCENARIOS
+from tools.remote_aloha.scenarios import TASK_TO_SCENARIO
+
 _EVENT_NAME = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 _SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 _SAFE_VERSION = re.compile(r"[0-9][A-Za-z0-9.+_-]{0,127}\Z")
@@ -39,6 +42,8 @@ _PUBLISHABLE_METADATA = {
     "prefetch_steps",
     "profile",
     "run_id",
+    "scenario",
+    "scene_hash",
     "seeds",
     "source_sha",
     "task",
@@ -69,6 +74,14 @@ _PUBLISHABLE_RESULTS = {
     "video_ids",
     "clock_max_uncertainty_ms",
     "clock_offset_change_ms",
+    "both_arms_count",
+    "fallen_count",
+    "interference_count",
+    "left_contact_count",
+    "lifted_count",
+    "off_table_count",
+    "push_success",
+    "right_contact_count",
 }
 _PUBLISHABLE_EVENTS = {
     "episode",
@@ -98,6 +111,16 @@ _PUBLISHABLE_METRICS = {
     "telemetry_write_ms",
     "wall_episode_hz",
     "warm_inference_ms",
+    "body_0_height_error",
+    "body_0_pitch",
+    "body_0_roll",
+    "body_0_xy_error",
+    "body_0_yaw_error",
+    "body_1_height_error",
+    "body_1_pitch",
+    "body_1_roll",
+    "body_1_xy_error",
+    "body_1_yaw_error",
 }
 
 
@@ -346,8 +369,22 @@ def _valid_publishable_metadata(metadata: Mapping[str, object]) -> dict[str, obj
     expected_checkpoint = "pi0_aloha_sim" if profile == "pi0_aloha_sim" else "pi05_base"
     if "checkpoint_label" in result and result["checkpoint_label"] != expected_checkpoint:
         raise ValueError("publishable telemetry checkpoint label is invalid")
-    if "task" in result and result["task"] != "gym_aloha/AlohaTransferCube-v0":
+    task = result.get("task")
+    scenario = result.get("scenario")
+    if (task is None) != (scenario is None):
+        raise ValueError("publishable telemetry task and scenario must be provided together")
+    if task is not None and task not in TASK_TO_SCENARIO:
         raise ValueError("publishable telemetry task is invalid")
+    if scenario is not None and scenario not in SCENARIOS:
+        raise ValueError("publishable telemetry scenario is invalid")
+    if task is not None and scenario is not None and TASK_TO_SCENARIO[task] != scenario:
+        raise ValueError("publishable telemetry scenario/task pair is invalid")
+    scene_id = result.get("scene_hash")
+    custom = scenario is not None and SCENARIOS[str(scenario)].is_custom
+    if custom and (not isinstance(scene_id, str) or not re.fullmatch(r"[0-9a-f]{64}", scene_id)):
+        raise ValueError("publishable telemetry custom scenario hash is invalid")
+    if not custom and scene_id is not None:
+        raise ValueError("publishable telemetry stock scenario must not have a scene hash")
     for key in ("action_horizon", "model_action_horizon", "prefetch_steps"):
         value = result.get(key)
         if value is not None and (isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 50):
@@ -384,6 +421,14 @@ def _valid_publishable_result(result: Mapping[str, object]) -> dict[str, object]
         "trajectory_joint_count",
         "trajectory_plots_passed",
         "trajectory_sample_count",
+        "both_arms_count",
+        "fallen_count",
+        "interference_count",
+        "left_contact_count",
+        "lifted_count",
+        "off_table_count",
+        "push_success",
+        "right_contact_count",
     ):
         value = safe.get(key)
         if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):

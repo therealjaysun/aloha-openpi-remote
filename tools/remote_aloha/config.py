@@ -9,6 +9,10 @@ from pathlib import PurePosixPath
 import re
 import subprocess
 
+from tools.remote_aloha.scenarios import SCENARIOS
+from tools.remote_aloha.scenarios import ScenarioSpec
+from tools.remote_aloha.scenarios import get_scenario
+
 DEFAULT_TASK = "gym_aloha/AlohaTransferCube-v0"
 DEFAULT_POLICY_PROFILE = "pi0_aloha_sim"
 DEFAULT_POLICY_BACKEND = "pytorch"
@@ -22,6 +26,8 @@ _JAX_MEM_FRACTIONS = ("0.75", "0.80", "0.85", "0.90", "0.95")
 @dataclass(frozen=True)
 class MacSimConfig:
     task: str = DEFAULT_TASK
+    scenario: ScenarioSpec = SCENARIOS["transfer_cube"]
+    display: bool = False
     seed: int = 0
     episodes: int = 3
     action_horizon: int = 30
@@ -182,6 +188,8 @@ def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str
     source = os.environ if environ is None else environ
     for key in (
         "ALOHA_TASK",
+        "ALOHA_SCENARIO",
+        "ALOHA_DISPLAY",
         "ALOHA_SEED",
         "ALOHA_EPISODES",
         "ALOHA_ACTION_HORIZON",
@@ -194,6 +202,10 @@ def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str
     task = values.get("ALOHA_TASK", DEFAULT_TASK)
     if task != DEFAULT_TASK:
         raise ValueError(f"ALOHA_TASK must be the pinned task {DEFAULT_TASK!r}")
+    scenario = get_scenario(values.get("ALOHA_SCENARIO", "transfer_cube"))
+    display_value = values.get("ALOHA_DISPLAY", "0")
+    if display_value not in {"0", "1"}:
+        raise ValueError("ALOHA_DISPLAY must be exactly 0 or 1")
     seed = _uint("ALOHA_SEED", values.get("ALOHA_SEED", "0"), maximum=2**32 - 1)
     episodes = _uint("ALOHA_EPISODES", values.get("ALOHA_EPISODES", "3"))
     if episodes < 1:
@@ -208,7 +220,9 @@ def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str
     if not output or "\x00" in output:
         raise ValueError("RUN_OUTPUT_DIR must be a nonempty path")
     return MacSimConfig(
-        task=task,
+        task=scenario.gym_id,
+        scenario=scenario,
+        display=display_value == "1",
         seed=seed,
         episodes=episodes,
         action_horizon=action_horizon,

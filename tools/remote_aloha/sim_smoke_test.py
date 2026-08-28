@@ -17,6 +17,7 @@ import numpy as np
 from tools.remote_aloha.config import MacSimConfig
 from tools.remote_aloha.config import load_mac_sim_config
 from tools.remote_aloha.config import validate_output_root
+from tools.remote_aloha.scenarios import project_action
 
 EXPECTED_RAW_IMAGE_SHAPE = (480, 640, 3)
 EXPECTED_POLICY_IMAGE_SHAPE = (3, 224, 224)
@@ -109,11 +110,23 @@ def _run_episode(config: MacSimConfig, seed: int, run_dir: Path, *, record: bool
     import gymnasium
     import imageio.v2 as imageio
 
+    if config.scenario.is_custom:
+        import examples.aloha_sim.push_pi_env  # noqa: F401
+
     env = gymnasium.make(config.task, obs_type="pixels_agent_pos", render_mode="rgb_array")
     saver = None
+    from examples.aloha_sim.saver import LiveDisplay
+
+    display = LiveDisplay(enabled=config.display)
     video_dir = run_dir / f"seed-{seed}"
     latencies_ms: list[float] = []
-    result: dict[str, Any] = {"seed": seed, "steps": 0, "max_reward": 0.0}
+    result: dict[str, Any] = {
+        "seed": seed,
+        "steps": 0,
+        "max_reward": 0.0,
+        "left_peak_joint_error": 0.0,
+        "right_peak_joint_error": 0.0,
+    }
     try:
         if (
             env.metadata.get("render_fps") != EXPECTED_FPS
@@ -123,6 +136,10 @@ def _run_episode(config: MacSimConfig, seed: int, run_dir: Path, *, record: bool
             raise ValueError("pinned simulator must expose a 50 fps, 300-step contract")
         observation, info = env.reset(seed=seed)
         image, state = validate_observation(observation)
+        home = state.copy()
+        if config.scenario.is_custom:
+            result["reset_info"] = info
+        display.on_episode_start()
         if tuple(env.action_space.shape) != EXPECTED_STATE_SHAPE:
             raise ValueError(f"action space must have shape {EXPECTED_STATE_SHAPE}")
         if record:
@@ -137,15 +154,22 @@ def _run_episode(config: MacSimConfig, seed: int, run_dir: Path, *, record: bool
         success_seen = bool(info.get("is_success", False)) if source_success else None
         terminated = truncated = False
         for step in range(1, EPISODE_STEPS + 1):
-            action = np.asarray(state, dtype=np.float64).copy()
+            action = project_action(home if config.scenario.is_custom else state, config.scenario, home)
             validate_action(action)
             started = time.perf_counter_ns()
             observation, reward, terminated, truncated, info = env.step(action)
             image, state = validate_observation(observation)
             policy_image = _policy_image(image)
+            result["left_peak_joint_error"] = max(
+                float(result["left_peak_joint_error"]), float(np.max(np.abs(state[:6] - home[:6])))
+            )
+            result["right_peak_joint_error"] = max(
+                float(result["right_peak_joint_error"]), float(np.max(np.abs(state[7:13] - home[7:13])))
+            )
             latencies_ms.append((time.perf_counter_ns() - started) / 1_000_000)
             if saver is not None:
                 saver.on_step({"images": {"cam_high": policy_image}}, {"actions": action})
+            display.on_step({"images": {"cam_high": policy_image}}, {"actions": action})
             result["steps"] = step
             result["max_reward"] = max(float(result["max_reward"]), float(reward))
             if "is_success" in info:
@@ -174,19 +198,28 @@ def _run_episode(config: MacSimConfig, seed: int, run_dir: Path, *, record: bool
                 },
             }
         )
+        if config.scenario.is_custom:
+            result["final_info"] = info
         return result, latencies_ms
     finally:
+        display.on_episode_end()
         env.close()
 
 
 def run(config: MacSimConfig, *, enforce_budget: bool = True) -> Path:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")  # noqa: UP017 (Python 3.10)
-    run_dir = validate_output_root(config.output_dir) / "phase01" / timestamp
+    output = validate_output_root(config.output_dir)
+    run_dir = (
+        output / "scenarios_0827" / "smoke" / timestamp / config.scenario.key
+        if config.scenario.is_custom
+        else output / "phase01" / timestamp
+    )
     run_dir.mkdir(parents=True, exist_ok=False)
     manifest_path = run_dir / "manifest.json"
     manifest: dict[str, Any] = {
         "status": "running",
         "task": config.task,
+        "scenario": config.scenario.key,
         "seeds": list(range(config.seed, config.seed + config.episodes)),
         "project_sha": _git_sha(),
         "machine": {"system": platform.system(), "release": platform.release(), "architecture": platform.machine()},
@@ -204,9 +237,22 @@ def run(config: MacSimConfig, *, enforce_budget: bool = True) -> Path:
         aggregate = {"p50": percentile_ms(all_latencies, 50), "p95": percentile_ms(all_latencies, 95)}
         manifest["step_render_convert_latency_ms"] = aggregate
         manifest["p95_budget_ms"] = P95_BUDGET_MS
-        manifest["full_300_step_episode"] = any(episode["steps"] == EPISODE_STEPS for episode in manifest["episodes"])
-        if not manifest["full_300_step_episode"]:
-            raise RuntimeError("no full 300-step episode completed")
+        if config.scenario.is_custom:
+            manifest["full_300_step_episode"] = all(
+                episode["steps"] == EPISODE_STEPS
+                and episode["terminated"] is False
+                and episode["truncated"] is True
+                and episode["final_info"]["terminal_reason"] == "time_limit"
+                for episode in manifest["episodes"]
+            )
+            if not manifest["full_300_step_episode"]:
+                raise RuntimeError("every custom hold episode must truncate cleanly at exactly 300 steps")
+        else:
+            manifest["full_300_step_episode"] = any(
+                episode["steps"] == EPISODE_STEPS for episode in manifest["episodes"]
+            )
+            if not manifest["full_300_step_episode"]:
+                raise RuntimeError("no full 300-step episode completed")
         if enforce_budget and aggregate["p95"] > P95_BUDGET_MS:
             raise RuntimeError(f"p95 latency {aggregate['p95']:.3f} ms exceeds {P95_BUDGET_MS:.1f} ms")
         manifest["status"] = "passed"

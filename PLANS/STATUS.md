@@ -16,7 +16,7 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 
 ## Deferred extension cursor
 
-- S0827 Push-π: implementation active on `codex/push-pi-scenarios`; shared pure/simulator slice passes local Mac tests, while runtime, matrix, calibration, and hardware remain.
+- S0827 Push-π: implementation active on `codex/push-pi-scenarios`; shared pure/simulator and runtime integration slices pass focused local Mac tests, while matrix, calibration, exact-candidate gates, and hardware remain.
 - Identity: custom 3-D ALOHA Push-π experiment inspired by PushT, not the standard PushT benchmark.
 - Preferred branch gate: merge PRs 1–7, then branch `codex/push-pi-scenarios` from updated `main`. If explicitly scheduled sooner, stack it on `codex/06-hardening-docs` and retarget after merge.
 - Machine gate: Mac-only implementation, calibration, tests, exact candidate, push, and hosted checks first. Request `PC ready` only before the two-profile 24-episode matrix; no general CI runs on the PC.

@@ -15,9 +15,11 @@ from tools.remote_aloha.config import validate_output_root
 from tools.remote_aloha.run import _connect_with_retry
 from tools.remote_aloha.run import _gpu_events
 from tools.remote_aloha.run import _run_seed
+from tools.remote_aloha.run import _scenario_step_info
 from tools.remote_aloha.run import _write_performance_summary
 from tools.remote_aloha.run import control_episode
 from tools.remote_aloha.run import run
+from tools.remote_aloha.scenarios import SCENARIOS
 from tools.remote_aloha.telemetry import JsonlWriter
 
 
@@ -25,6 +27,33 @@ def _raw_observation() -> dict:
     return {
         "pixels": {"top": np.zeros((480, 640, 3), dtype=np.uint8)},
         "agent_pos": np.zeros(14, dtype=np.float64),
+    }
+
+
+def _custom_info(scenario: str = "push_letters_single") -> dict[str, object]:
+    body_count = 1 if SCENARIOS[scenario].object_kind == "pi" else 2
+    return {
+        "is_success": False,
+        "scenario": scenario,
+        "scene_hash": "a" * 64,
+        "layout_hash": "b" * 64,
+        "body_count": body_count,
+        "held_steps": 0,
+        "lifted_ever": False,
+        "off_table": False,
+        "fallen": False,
+        "terminal_reason": "running",
+        "left_contact_ever": True,
+        "right_contact_ever": False,
+        "both_arms_participated": False,
+        "interference_ever": False,
+        "left_joint_travel": 0.1,
+        "right_joint_travel": 0.0,
+        **{
+            f"body_{index}_{suffix}": 0.1
+            for index in range(body_count)
+            for suffix in ("xy_error", "yaw_error", "roll", "pitch", "height_error")
+        },
     }
 
 
@@ -337,6 +366,209 @@ def test_control_episode_uses_exact_seed_steps_and_non_catchup_cadence() -> None
     assert all(event["commanded_joint_positions"] == [0.0] * 14 for event in steps)
 
 
+def test_custom_episode_projects_one_command_into_sim_video_and_telemetry() -> None:
+    scenario = SCENARIOS["push_letters_single"]
+    home = np.arange(14, dtype=np.float64) + 100
+    raw_action = np.arange(14, dtype=np.float64)
+
+    class Environment:
+        action = None
+
+        def reset(self, *, seed: int):
+            observation = _raw_observation()
+            observation["agent_pos"] = home.copy()
+            return observation, _custom_info()
+
+        def step(self, action: np.ndarray):
+            self.action = action.copy()
+            observation = _raw_observation()
+            observation["agent_pos"] = home + 1
+            return observation, 0.0, True, False, _custom_info()
+
+    class Policy:
+        def infer(self, observation: dict, step: int) -> np.ndarray:
+            assert observation["prompt"] == scenario.prompt
+            return raw_action
+
+    class Subscriber:
+        def __init__(self) -> None:
+            self.actions = []
+
+        def on_episode_start(self) -> None:
+            return None
+
+        def on_step(self, observation: dict, action: dict) -> None:
+            self.actions.append(action["actions"].copy())
+
+    environment = Environment()
+    video = Subscriber()
+    display = Subscriber()
+    events = []
+    result = control_episode(
+        environment,
+        Policy(),
+        video,
+        seed=0,
+        prompt=scenario.prompt,
+        profile=POLICY_PROFILES["pi0_aloha_sim"],
+        scenario=scenario,
+        display=display,
+        emit=lambda event, **fields: events.append({"event": event, **fields}),
+    )
+    expected = raw_action.copy()
+    expected[6] = expected[13] = 0.5
+    expected[7:13] = home[7:13]
+    step = next(event for event in events if event["event"] == "step")
+    assert result["steps_applied"] == 1
+    assert np.array_equal(environment.action, expected)
+    assert np.array_equal(video.actions[0], expected)
+    assert np.array_equal(display.actions[0], expected)
+    assert step["commanded_joint_positions"] == expected.tolist()
+    assert step["actual_joint_positions"] == (home + 1).tolist()
+    assert step["scenario_info"] == _custom_info()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("scene_hash", "bad"),
+        ("body_count", 2.0),
+        ("held_steps", -1),
+        ("both_arms_participated", True),
+        ("terminal_reason", "success"),
+        ("body_0_xy_error", float("nan")),
+    ],
+)
+def test_custom_step_info_rejects_invalid_identity_counts_and_metrics(field: str, value: object) -> None:
+    info = _custom_info()
+    info[field] = value
+    with pytest.raises(ValueError, match="custom scenario|non-finite"):
+        _scenario_step_info(info, SCENARIOS["push_letters_single"])
+
+
+def test_custom_episode_preserves_core_artifacts_before_rejecting_hash_drift() -> None:
+    scenario = SCENARIOS["push_pi_dual"]
+
+    class Environment:
+        def reset(self, *, seed: int):
+            return _raw_observation(), _custom_info(scenario.key)
+
+        def step(self, action: np.ndarray):
+            info = _custom_info(scenario.key)
+            info["layout_hash"] = "c" * 64
+            return _raw_observation(), 0.0, False, False, info
+
+    class Policy:
+        def infer(self, observation: dict, step: int) -> np.ndarray:
+            return np.zeros(14, dtype=np.float64)
+
+    class Video:
+        frames = 0
+
+        def on_episode_start(self) -> None:
+            return None
+
+        def on_step(self, observation: dict, action: dict) -> None:
+            self.frames += 1
+
+    video = Video()
+    events = []
+    with pytest.raises(ValueError, match="identity changed"):
+        control_episode(
+            Environment(),
+            Policy(),
+            video,
+            seed=0,
+            prompt=scenario.prompt,
+            profile=POLICY_PROFILES["pi0_aloha_sim"],
+            scenario=scenario,
+            emit=lambda event, **fields: events.append({"event": event, **fields}),
+        )
+    step = next(event for event in events if event["event"] == "step")
+    assert video.frames == 1
+    assert "scenario_info" not in step
+    assert len(step["actual_joint_positions"]) == len(step["commanded_joint_positions"]) == 14
+
+
+def test_post_step_telemetry_failure_still_captures_video_frame() -> None:
+    class Environment:
+        def reset(self, *, seed: int):
+            return _raw_observation(), {}
+
+        def step(self, action: np.ndarray):
+            return _raw_observation(), 0.0, True, False, {}
+
+    class Policy:
+        def infer(self, observation: dict, step: int) -> np.ndarray:
+            return np.zeros(14, dtype=np.float64)
+
+    class Video:
+        frames = 0
+
+        def on_episode_start(self) -> None:
+            return None
+
+        def on_step(self, observation: dict, action: dict) -> None:
+            self.frames += 1
+
+    video = Video()
+
+    def emit(event: str, **fields: object) -> None:
+        if event == "step":
+            raise OSError("telemetry disk full")
+
+    with pytest.raises(OSError, match="disk full"):
+        control_episode(
+            Environment(),
+            Policy(),
+            video,
+            seed=0,
+            prompt=None,
+            profile=POLICY_PROFILES["pi0_aloha_sim"],
+            emit=emit,
+        )
+    assert video.frames == 1
+
+
+def test_display_failure_is_reported_without_changing_episode_result() -> None:
+    class Environment:
+        def reset(self, *, seed: int):
+            return _raw_observation(), {}
+
+        def step(self, action: np.ndarray):
+            return _raw_observation(), 0.0, True, False, {}
+
+    class Policy:
+        def infer(self, observation: dict, step: int) -> np.ndarray:
+            return np.zeros(14, dtype=np.float64)
+
+    class Subscriber:
+        def on_episode_start(self) -> None:
+            return None
+
+        def on_step(self, observation: dict, action: dict) -> None:
+            return None
+
+    class Display(Subscriber):
+        def on_step(self, observation: dict, action: dict) -> None:
+            raise RuntimeError("viewer closed")
+
+        def on_episode_end(self) -> None:
+            return None
+
+    result = control_episode(
+        Environment(),
+        Policy(),
+        Subscriber(),
+        seed=0,
+        prompt=None,
+        profile=POLICY_PROFILES["pi0_aloha_sim"],
+        display=Display(),
+    )
+    assert result["steps_applied"] == 1
+    assert result["display_error"] == {"type": "RuntimeError", "message": "viewer closed"}
+
+
 def test_video_saver_publishes_atomically_and_finalizes_once(tmp_path: Path, monkeypatch) -> None:
     writes = []
 
@@ -414,19 +646,22 @@ def test_post_step_validation_failure_preserves_applied_count(reward: float, inf
             return np.zeros(14, dtype=np.float64)
 
     class Video:
+        frames = 0
+
         def on_episode_start(self) -> None:
             return None
 
         def on_step(self, observation: dict, action: dict) -> None:
-            return None
+            self.frames += 1
 
     progress = {}
     events = []
+    video = Video()
     with pytest.raises(ValueError, match=message):
         control_episode(
             Environment(),
             Policy(),
-            Video(),
+            video,
             seed=0,
             prompt=None,
             profile=POLICY_PROFILES["pi0_aloha_sim"],
@@ -435,6 +670,7 @@ def test_post_step_validation_failure_preserves_applied_count(reward: float, inf
         )
     assert progress["steps_applied"] == 1
     assert [event["applied_step"] for event in events if event["event"] == "step"] == [1]
+    assert video.frames == 1
 
 
 def test_success_latches_and_finite_actions_are_not_clipped() -> None:
@@ -454,7 +690,7 @@ def test_success_latches_and_finite_actions_are_not_clipped() -> None:
 
     class Policy:
         def infer(self, observation: dict, step: int) -> np.ndarray:
-            return np.full(14, 1_000.0)
+            return np.full(14, 1_000.0, dtype=np.float32)
 
     class Video:
         def on_episode_start(self) -> None:
@@ -475,6 +711,7 @@ def test_success_latches_and_finite_actions_are_not_clipped() -> None:
     )
     assert result["task_success"] is True
     assert all(np.all(action == 1_000.0) for action in environment.actions)
+    assert all(action.dtype == np.float32 for action in environment.actions)
 
 
 def test_invalid_action_never_reaches_environment() -> None:
@@ -655,6 +892,9 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
     else:
         assert trajectory["plot_status"] == "passed"
         assert Path(trajectory["path"]).is_file()
+    assert manifest["video"]["frames"] == manifest["episode"]["steps_applied"]
+    expected_video_status = "partial" if outcome == "interrupted" else "complete"
+    assert manifest["video"]["status"] == expected_video_status
 
 
 def test_run_seed_finalizes_manifest_when_telemetry_cannot_start(tmp_path: Path, monkeypatch) -> None:
@@ -669,6 +909,78 @@ def test_run_seed_finalizes_manifest_when_telemetry_cannot_start(tmp_path: Path,
     assert manifest["status"] == "failed"
     assert manifest["cleanup_pending"] is False
     assert manifest["telemetry"]["writer_closed"] is False
+
+
+def test_run_seed_publishes_custom_scenario_identity_and_integer_counts(tmp_path: Path, monkeypatch) -> None:
+    scenario = SCENARIOS["push_pi_single"]
+
+    class Transport:
+        def infer(self, observation: dict) -> dict:
+            return {"actions": np.zeros((50, 14), dtype=np.float64)}
+
+        def close(self) -> None:
+            return None
+
+    class Environment:
+        def __init__(self) -> None:
+            self.spec = SimpleNamespace(max_episode_steps=300)
+            self.metadata = {"render_fps": 50}
+            self.action_space = SimpleNamespace(shape=(14,))
+            self.scene_hash = "a" * 64
+
+        @property
+        def unwrapped(self):
+            return self
+
+        def reset(self, *, seed: int):
+            return _raw_observation(), _custom_info(scenario.key)
+
+        def step(self, action: np.ndarray):
+            info = _custom_info(scenario.key)
+            info.update({"is_success": True, "held_steps": 5, "terminal_reason": "success"})
+            return _raw_observation(), 1.0, True, False, info
+
+        def close(self) -> None:
+            return None
+
+    class Video:
+        def __init__(self, output_dir: Path, filename: str) -> None:
+            self.output_path = output_dir / filename
+            self.frame_count = 0
+
+        def on_episode_start(self) -> None:
+            return None
+
+        def on_step(self, observation: dict, action: dict) -> None:
+            self.frame_count += 1
+
+        def on_episode_end(self) -> None:
+            self.output_path.write_bytes(b"video")
+
+    monkeypatch.setattr("tools.remote_aloha.run._connect", lambda *args: (Transport(), {"ready": True}))
+    monkeypatch.setattr("tools.remote_aloha.run._make_environment", lambda config: Environment())
+    monkeypatch.setattr("tools.remote_aloha.run.VideoSaver", Video)
+    monkeypatch.setattr(
+        "tools.remote_aloha.run.verify_video",
+        lambda path, frames: {"bytes": path.stat().st_size, "fps": 50.0, "frames": frames},
+    )
+    monkeypatch.setattr("tools.remote_aloha.run.package_versions", lambda: {"numpy": "1.26.4"})
+    output_dir = tmp_path / "seed-0"
+    manifest = _run_seed(
+        MacSimConfig(task=scenario.gym_id, scenario=scenario, episodes=1),
+        RemoteConfig(),
+        "a" * 40,
+        "b" * 40,
+        0,
+        output_dir,
+        "c" * 32,
+    )
+    public = json.loads((output_dir / "telemetry-summary.json").read_text(encoding="utf-8"))
+    assert manifest["infrastructure_pass"] is True
+    assert public["metadata"]["scenario"] == scenario.key
+    assert public["metadata"]["scene_hash"] == "a" * 64
+    assert public["result"]["push_success"] == 1
+    assert isinstance(public["result"]["push_success"], int)
 
 
 def test_run_writes_failed_root_summary(tmp_path: Path, monkeypatch) -> None:
