@@ -8,7 +8,7 @@
 - **Acceptance:** Remote side of SSH can reach policy server without LAN/public binding; route and security boundary documented.
 - **Planned commit:** `feat(ssh): validate Windows to WSL policy routing`.
 - **Actual findings:** The real Windows cmd→explicit Ubuntu-24.04 WSL command route is proven. A Phase 3 candidate passed both WSL-native and Windows-native loopback health, and Windows exposed no non-loopback listener. The implementation revalidates the owned WSL listener and rejects every visible Windows listener address except `127.0.0.1` and `::1` without changing networking.
-- **Remaining blockers:** Recheck the final holder-integrated candidate during both profile smokes.
-- **Completion status:** Real route accepted once; final-candidate recheck pending.
+- **Remaining blockers:** None.
+- **Completion status:** Complete on final implementation candidate `0c64187` for both profiles; see E-PC-TUNNEL.
 
 No `netsh portproxy`, firewall, mirrored-network, or SSH-service change is authorized by this plan.

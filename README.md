@@ -34,7 +34,7 @@ Both profiles use the same `(50, 14)` ALOHA action-chunk contract. Results are r
 - Phase 0: repository, plans, security gates, and CI complete.
 - Phase 1: native Mac simulation and video validated.
 - Phase 2: WSL, CUDA, locked setup, bounded checkpoint conversion, both RTX inference profiles, loopback lifecycle, and clean shutdown validated.
-- Phase 3: secure tunnel and bounded client implemented locally; real two-profile tunnel validation pending.
+- Phase 3: secure tunnel, WSL lifetime ownership, bounded client, and real two-profile tunneled inference validated.
 - Phases 4–6: end-to-end control, reliability, and final hardening planned.
 
 See [`PLANS/STATUS.md`](PLANS/STATUS.md) for the live execution cursor and [`PLANS/README.md`](PLANS/README.md) for the AI-readable implementation plans.

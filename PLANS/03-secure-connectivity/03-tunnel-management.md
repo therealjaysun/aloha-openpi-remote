@@ -8,5 +8,5 @@
 - **Acceptance:** Tunnel persists after command returns, is uniquely identified, local health passes, and stop never kills an unrelated process.
 - **Planned commit:** `feat(ssh): add validated policy tunnel management`.
 - **Actual findings:** The ControlMaster lifecycle and fail-closed state validation pass local focused tests. The first real tunnel bound only Mac `127.0.0.1` and returned four finite π₀ chunks, but the server later exited when Windows automatically stopped idle WSL. A separately created synchronous WSL client conclusively preserved the server and allowed the same smoke to pass. The integrated fix reuses the owned ControlMaster for that lifetime and adds no detached process, service, task, WSL configuration, firewall, or portproxy state. Hardware also exposed a normal short gap between control-socket removal and macOS process reaping; cleanup now waits up to the existing bounded stop deadline and still retains ownership state on uncertainty.
-- **Remaining blockers:** Final-candidate π₀ and π₀.₅ idle-survival, listener, stop-twice, and exact post-stop absence checks.
-- **Completion status:** Locally implemented; hardware/network acceptance pending.
+- **Remaining blockers:** None.
+- **Completion status:** Complete. Both final-candidate profiles survived the idle window with only Mac `127.0.0.1:8000` listening, then stopped server-first within the bounded reaping deadline; their random holder IDs had zero matching Windows processes and stop twice passed. See E-PC-TUNNEL.

@@ -10,15 +10,15 @@
 - **PR base:** `codex/02-remote-gpu-server`.
 - **PR title:** `feat(ssh): add secure policy tunnel`.
 - **Acceptance criteria:** Real shell route detected; Windows host can reach WSL loopback or exact blocker recorded; validated loopback hosts/ports drive a local forward that starts once, is health-checked, persists, and stops safely; client connect/metadata/inference waits are finite and `close()` unblocks shutdown; policy smoke verifies identity and finite `(50,14)` for both profiles; port is not publicly exposed.
-- **Test commands:** `make tunnel`; `make smoke-policy` per profile; `make stop`; `lsof -nP -iTCP:8000 -sTCP:LISTEN`; remote listener/routing checks; unit tests.
+- **Test commands:** Select profile/backend, then `make server`; optionally recheck with `make tunnel`; run `make smoke-policy`; inspect with `lsof -nP -iTCP:8000 -sTCP:LISTEN`; finish with `make stop`; repeat for the other profile; run unit tests.
 - **Risks:** Wrong shell quoting, stale PID, local port collision, Windows-to-WSL localhost forwarding differences, mirrored networking exposure, leaking identifiers in logs.
-- **Rollback:** Stop only validated tunnel PID; revert scripts; do not remove SSH keys/config or alter firewall/networking.
-- **Current status:** Locally implemented and validated; exact-candidate two-profile idle-survival/tunnel acceptance remains.
-- **Actual results:** The first real Phase 03 run proved Windows-loopback routing, an exact Mac IPv4-loopback listener, and a four-call tunneled π₀ smoke. It also found that this Windows host stops the WSL VM and its background policy process after the final Windows-side `wsl.exe` exits. A bounded diagnostic proved that one synchronous Windows WSL client prevents teardown. The project now makes the existing SSH ControlMaster run that fixed holder command, tied to the original verified server record and a random run ID. Local tests cover holder quoting/identity, record removal/replacement, launch cleanup, rollback order, client deadlines, Origin/frame/error handling, and safe repeated stop. Final π₀ and π₀.₅ hardware acceptance remains.
+- **Rollback:** Run server-first `make stop`, which releases a live tunnel only through its authenticated ControlMaster socket; revert scripts; do not signal by PID directly or alter SSH keys, firewall, or networking.
+- **Current status:** Complete; locally, hardware, and cleanup validated for both profiles.
+- **Actual results:** The first real Phase 03 run proved Windows-loopback routing, an exact Mac IPv4-loopback listener, and a four-call tunneled π₀ smoke. It also found that this Windows host stops the WSL VM and its background policy process after the final Windows-side `wsl.exe` exits. A bounded diagnostic proved that one synchronous Windows WSL client prevents teardown. The project now makes the existing SSH ControlMaster run that fixed holder command, tied to the original verified server record and a random run ID. Final code candidate `0c641878451b33d419de6670f4fe422832275fdc` passed both profiles after the idle-teardown window: fresh Windows/WSL route, Windows non-wildcard listener check, exact Mac IPv4-loopback listener, four finite `(50,14)` calls, bounded server-first cleanup, zero exact holder processes, and stop twice. π₀ cold/warmed client latency was 2,555.95/360.17 ms; experimental π₀.₅ was 1,871.78/371.08 ms. See E-PC-TUNNEL.
 - **Deviations:** A single Python ControlMaster manager replaces separate start/stop shell scripts. The ControlMaster is both the exact loopback tunnel and the WSL lifetime holder, avoiding detached Windows processes or system configuration. Shutdown remains authenticated through its private control socket; WSL server signaling remains PIDfd-gated.
-- **PR:** Draft [PR 4](https://github.com/therealjaysun/pi-robotics/pull/4).
-- **Final commit SHA:** Pending.
+- **PR:** [PR 4](https://github.com/therealjaysun/pi-robotics/pull/4).
+- **Final implementation SHA:** `0c641878451b33d419de6670f4fe422832275fdc`.
 
 ## Machine handoff
 
-After the exact Phase 03 candidate is pushed and secret-scanned, both machines stay on while Codex runs the route, tunnel, and profile smokes remotely from the Mac. No Windows networking or firewall mutation is authorized.
+Hardware acceptance is complete and every owned process/listener is stopped. No Windows networking or firewall mutation was needed.

@@ -8,5 +8,5 @@
 - **Acceptance:** Both profiles return valid chunks through the tunnel; first/warm latency recorded; profile/config/checkpoint identity recorded; no MuJoCo dependency in test logic.
 - **Planned commits:** `fix(client): bound WebSocket waits and shutdown`; `test(ssh): validate remote OpenPI policy contract`.
 - **Actual findings:** The project smoke now supplies finite stage deadlines, deterministic input, exact identity/action validation, four timed calls, `finally` close, and a mode-600 sanitized summary without MuJoCo. Client/server security hardening rejects browser Origin, restores default frame bounds, and removes traceback disclosure.
-- **Remaining blockers:** π₀ passed through the real tunnel while a diagnostic WSL holder was active. Repeat π₀ and run π₀.₅ through the final integrated holder; π₀.₅ remains an infrastructure contract check rather than simulator task-quality evidence.
-- **Completion status:** Locally implemented; two-profile tunneled acceptance pending.
+- **Remaining blockers:** None for Phase 03. π₀.₅ remains an infrastructure contract check rather than simulator task-quality evidence.
+- **Completion status:** Complete. Final candidate `0c64187` returned four finite `(50,14)` chunks per profile through the integrated tunnel; π₀ cold/warmed latency was 2,555.95/360.17 ms and π₀.₅ was 1,871.78/371.08 ms. See E-PC-TUNNEL.
