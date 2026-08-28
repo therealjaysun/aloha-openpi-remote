@@ -44,7 +44,7 @@ Sent after final validation or a durable external blocker, but only when `make s
 
 ## One-time handoff checklist
 
-At gate P1, Codex validates in this order and stops at the first real blocker:
+At gate P1, Codex validates steps 1–8 for Phase 02 and stops at the first real blocker. Those steps are complete; step 9 resumes in Phase 03:
 
 1. `robot-gpu` alias exists without printing its private values; if first-use trust is absent, complete the fingerprint gate above.
 2. Bounded batch SSH connects with host-key checking intact.
@@ -54,7 +54,7 @@ At gate P1, Codex validates in this order and stops at the first real blocker:
 6. An absolute WSL POSIX project path is resolved inside WSL. A fixed `~/` default may be expanded against WSL `$HOME`; all other relative paths are rejected, with no `eval`.
 7. The project branch is fetched from public `origin`, or from a secret-scanned Git bundle if GitHub remains blocked; its exact SHA equals the Mac remote-test candidate and contains the audited upstream pin.
 8. A WSL-local request proves the selected policy binds loopback, passes `/healthz`, and performs GPU inference.
-9. The Mac reaches it only through the local SSH tunnel.
+9. In Phase 03, the Mac reaches it only through the local SSH tunnel.
 
 ## Source and process ownership contract
 

@@ -18,7 +18,7 @@ This decision plan exists because the stock JAX policy loads in BF16 but first i
 | --- | --- | --- | --- | --- |
 | A. Retry whole-tree FP32 conversion | No | None | Already kernel-OOM-killed | Rejected |
 | B. Retry whole-tree BF16 restore | No | One dtype change | Already kernel-OOM-killed; existing NumPy→Torch bridge cannot carry BF16 | Rejected |
-| C. Partial BF16 restore → DLPack → GPU-resident PyTorch model → 1 GB SafeTensors shards | Unknown until measured | Bounded project-local mode plus sharded loader | Largest stored BF16 leaf is about 2.25 GiB; preserves stock mappings; conversion still may fail | Selected experiment |
+| C. Partial BF16 restore → DLPack → GPU-resident PyTorch model → 1 GB SafeTensors shards | Passed for both profiles | Bounded project-local mode plus sharded loader | Largest stored BF16 leaf is about 2.25 GiB; stock mappings, strict load, and finite-action inference passed | Selected and passed |
 | D. Stock converter on ≥32 GiB available RAM | No; requires another/upgraded host | No converter change | Evidence-based practical capacity target, not a validated guarantee; extra hardware required | Supported fallback |
 | E. Download an official matching PyTorch checkpoint | Not currently available | None | No drop-in artifacts were found for the pinned profiles | Reconsider only if upstream publishes one |
 
@@ -43,10 +43,14 @@ This decision plan exists because the stock JAX policy loads in BF16 but first i
 - Any OOM, timeout, mapping mismatch, missing norm stats, loader mismatch, or unowned path is a hard failure with no published artifact.
 - No PC-side CI is run. Mac pure tests/lint, secret scan, and hosted checks protect the candidate; the PC runs only the bounded hardware experiment.
 
+## Outcome
+
+Option C passed on the current PC for both profiles. π₀ and π₀.₅ each passed the one-leaf proof, full BF16 conversion, fresh sharded load, explicit PyTorch launch, four finite RTX actions, second-session survival, and safe stop. The ≥32 GiB stock-converter fallback was not needed. Exact memory, latency, artifact-hash, and raw-evidence hashes are recorded in E-PC-BF16.
+
 ## AI continuation capsule
 
-- Active phase/subphase: `02.04`.
-- Selected command: `OPENPI_POLICY_PROFILE=pi0_aloha_sim make convert-pc` after `make ci`, `make secret-scan`, push, `make doctor-pc`, and `make setup-pc`.
-- Success next step: record `E-PC-BF16`, then run both `make server` and `make smoke-policy` with `OPENPI_POLICY_PROFILE=pi0_aloha_sim OPENPI_POLICY_BACKEND=pytorch`; only a finite action permits conversion/smoke for `pi05_aloha_base`.
+- Active phase/subphase: `02.04` complete; continue at `03.01`.
+- Recovery command after an artifact is removed or the pin changes: `OPENPI_POLICY_PROFILE=pi0_aloha_sim make convert-pc` after `make ci`, `make secret-scan`, push, `make doctor-pc`, and `make setup-pc`.
+- Success next step: completed for both profiles; retain the converted PC-local artifacts and continue with Phase 03 secure connectivity.
 - Every outcome records `E-PC-BF16`: machine, UTC, exact command/exit, project and upstream SHAs, profile, sanitized proof/conversion/load/inference result, RSS/GPU peaks, ignored artifact paths and hashes, produced checkpoint hash when applicable, and exact recovery. On failure, request an Ubuntu 22.04 conversion process with ≥32 GiB available RAM and ≥60 GiB disk.
 - Never infer Phase 02 completion from conversion, checkpoint loading, or server health alone; require finite `(50,14)` actions for both profiles.

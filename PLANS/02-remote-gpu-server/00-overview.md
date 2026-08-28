@@ -13,11 +13,11 @@
 - **Test commands:** `make doctor-pc`; `make setup-pc`; `OPENPI_POLICY_PROFILE=pi0_aloha_sim make convert-pc`; `OPENPI_POLICY_PROFILE=pi0_aloha_sim OPENPI_POLICY_BACKEND=pytorch make server`; `OPENPI_POLICY_PROFILE=pi0_aloha_sim OPENPI_POLICY_BACKEND=pytorch make smoke-policy`; `make stop`; repeat conversion/inference with `pi05_aloha_base` only after π₀ returns finite actions; retain `OPENPI_POLICY_BACKEND=jax` for the original path; remote `nvidia-smi`; `/healthz`; unit tests.
 - **Risks:** No remote access; stale/partial checkpoint; WSL `nvidia-smi` limitations; 3090 CUDA/driver mismatch; GPU/system-memory pressure; unsafe Windows→WSL quoting; server binds wider than intended. The selected recovery experiment and fallback are compared in [`LOW_MEMORY_CONVERSION_OPTIONS.md`](LOW_MEMORY_CONVERSION_OPTIONS.md).
 - **Rollback:** Stop only validated PID; remove project venv/cache only with explicit user request; revert scripts/host patch; never alter drivers, WSL, or firewall.
-- **Current status:** Blocked at 02.04 in draft PR 3. Remote discovery, exact locked setup, JAX RTX validation, π₀ checkpoint loading, loopback health, cross-session survival, and verified cleanup passed; no inference request returned actions.
-- **Actual results:** The exact Mac/WSL candidate `3c3f849b1033c581d6e649980446362cc99e35f9` ran through the validated Windows cmd→Ubuntu-24.04 WSL route. π₀ first inference OOMed with 75%, 90%, and 95% JAX preallocation, on-demand allocation, the documented minimum-footprint allocator, and compacted masked cameras at 90% and 95%. The pinned official PyTorch converter and a BF16 restore probe were then kernel-OOM-killed by the PC's roughly 16 GB system-RAM limit. π₀.₅ was not run.
-- **Deviations:** Added the user-requested π₀.₅ option as an experimental `pi05_aloha` + `pi05_base` profile because upstream has no `pi05_aloha_sim` checkpoint. Masked-camera compaction is an opt-in project optimization retained for either backend, but it did not change the JAX acceptance result. A bounded partial-BF16 converter is the next unvalidated current-PC recovery experiment; the ≥32 GiB conversion host remains the fallback.
-- **PR:** [Draft PR 3](https://github.com/therealjaysun/pi-robotics/pull/3); keep draft until real RTX acceptance passes.
-- **Final implementation commit SHA:** Hardware candidate `3c3f849b1033c581d6e649980446362cc99e35f9`; blocker/evidence documentation continues at branch HEAD.
+- **Current status:** Complete at 02.04. Both converted profiles passed bounded RTX 3090 inference, second-session survival, and identity-verified cleanup; Phase 03 connectivity is next.
+- **Actual results:** The pinned JAX π₀ path still OOMs on first inference, and the stock converter still exceeds current WSL RAM. The opt-in partial-BF16 path succeeded for `pi0_aloha_sim` and `pi05_aloha_base`: one-leaf proofs, complete mapping, standard sharded SafeTensors, fresh-model loads, explicit uncompiled PyTorch selection, four finite `(50,14)` actions per profile, CUDA/3090 model placement, WSL host/GPU sampling, cross-session survival, and safe stops passed. Final candidate `38b5228418c729d39d1c4fe551ef5ddcbef9e49e`; detailed metrics and hashes are E-PC-BF16.
+- **Deviations:** Added the user-requested π₀.₅ option as experimental `pi05_aloha` + `pi05_base` because upstream has no `pi05_aloha_sim`. Masked-camera compaction did not make JAX fit. The selected recovery uses direct BF16 leaf restore, disables the unused expert LM head, constructs/loads the target on CUDA, and disables optional PyTorch compilation because the measured autotune first call exited under the constrained host.
+- **PR:** [PR 3](https://github.com/therealjaysun/pi-robotics/pull/3); hardware acceptance passed and the PR is ready for human review.
+- **Final implementation commit SHA:** Hardware candidate `38b5228418c729d39d1c4fe551ef5ddcbef9e49e`; final evidence documentation continues at branch HEAD.
 
 ## Policy profiles
 
@@ -30,7 +30,7 @@ Both return the same ALOHA wire action contract `(50,14)`. Record the profile in
 
 ## Machine handoff
 
-The original PC/SSH handoff is complete and the owned server is stopped. After a secret-scanned partial-BF16 candidate is ready, turn on the existing RTX PC and reply `PC ready`; Codex runs the bounded experiment remotely. If it fails, upgrade the RTX PC or provide the E-PC-CONVERT host and reply `conversion host ready`. See `PLANS/STATUS.md` for the live gate.
+The PC/SSH handoff and Phase 02 hardware acceptance are complete; both converted checkpoints remain in the PC's ignored OpenPI cache and the owned server is stopped. The PC can be powered off until Phase 03 connectivity work resumes. See `PLANS/STATUS.md` for the live gate.
 
 ## Authoritative references
 

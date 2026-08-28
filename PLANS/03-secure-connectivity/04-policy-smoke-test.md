@@ -8,5 +8,5 @@
 - **Acceptance:** Both profiles return valid chunks through the tunnel; first/warm latency recorded; profile/config/checkpoint identity recorded; no MuJoCo dependency in test logic.
 - **Planned commits:** `fix(client): bound WebSocket waits and shutdown`; `test(ssh): validate remote OpenPI policy contract`.
 - **Actual findings:** Upstream simple client already supplies correct ALOHA random observations and timing, but adds unnecessary Polars/Rich dependencies and lacks strict shape/finite assertions. Plan reuses its contract, not its reporting stack.
-- **Remaining blockers:** π₀ currently OOMs before returning an action and π₀.₅ is untested; tunnel implementation and hardware acceptance follow E-PC-CONVERT. WebSockets 14.1 already exposes the required timeout/close API.
+- **Remaining blockers:** None from Phase 02; both profiles return finite RTX actions in E-PC-BF16. Tunnel implementation remains pending. WebSockets 14.1 already exposes the required timeout/close API.
 - **Completion status:** Planned.

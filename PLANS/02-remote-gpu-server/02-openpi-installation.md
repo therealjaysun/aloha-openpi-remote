@@ -8,7 +8,7 @@
 - **Acceptance:** Exact secret-scanned project SHA runs in an isolated WSL env and contains the audited upstream base; no CPU-only fallback; sufficient disk and no unexplained partial download; no driver/system security changes; rerun is safe.
 - **Planned commit:** `feat(remote): install pinned OpenPI in WSL`.
 - **Actual findings:** Setup accepted the exact secret-scanned candidate, created its marked managed checkout, verified both submodules, installed pinned CPython 3.11.16, resolved all 279 locked packages, and preserved the checkpoint cache. The initial `evdev==1.9.2` header failure was repaired with Ubuntu's userspace Linux headers; the rerun completed and JAX identified the RTX 3090 rather than falling back to CPU. The lock includes JAX CUDA 12 and torch 2.7.1.
-- **Remaining blockers:** None for the locked JAX installation. PyTorch checkpoint conversion is separately blocked in 02.04 by system RAM.
+- **Remaining blockers:** None. The locked JAX installation and both bounded PyTorch conversions passed; see E-PC-BF16.
 - **Completion status:** Complete; exact-candidate setup and JAX GPU validation passed.
 
 The environment step follows the official [uv locked sync behavior](https://docs.astral.sh/uv/concepts/projects/sync/); project and cache paths stay in the WSL filesystem per [Microsoft's WSL filesystem guidance](https://learn.microsoft.com/en-us/windows/wsl/filesystems).

@@ -24,8 +24,8 @@ PC: Windows OpenSSH -> Ubuntu WSL2 -> RTX 3090 -> OpenPI
 
 | Profile | Purpose | Status |
 | --- | --- | --- |
-| `pi0_aloha_sim` | π₀ checkpoint fine-tuned for the ALOHA Transfer Cube simulator | Loads on RTX 3090; first JAX inference currently OOMs |
-| `pi05_aloha_base` | π₀.₅ base checkpoint using ALOHA transforms | Selectable but not yet hardware-tested; not simulator-fine-tuned |
+| `pi0_aloha_sim` | π₀ checkpoint fine-tuned for the ALOHA Transfer Cube simulator | Converted BF16 PyTorch path returns finite RTX actions; JAX path OOMs |
+| `pi05_aloha_base` | π₀.₅ base checkpoint using ALOHA transforms | Converted BF16 PyTorch path returns finite RTX actions; not simulator-fine-tuned |
 
 Both profiles use the same `(50, 14)` ALOHA action-chunk contract. Results are recorded separately because the checkpoints are not equivalent.
 
@@ -33,7 +33,7 @@ Both profiles use the same `(50, 14)` ALOHA action-chunk contract. Results are r
 
 - Phase 0: repository, plans, security gates, and CI complete.
 - Phase 1: native Mac simulation and video validated.
-- Phase 2: WSL, CUDA, locked OpenPI setup, loopback lifecycle, and clean shutdown validated; inference blocked by memory.
+- Phase 2: WSL, CUDA, locked setup, bounded checkpoint conversion, both RTX inference profiles, loopback lifecycle, and clean shutdown validated.
 - Phases 3–6: secure connectivity, end-to-end control, reliability, and final hardening planned.
 
 See [`PLANS/STATUS.md`](PLANS/STATUS.md) for the live execution cursor and [`PLANS/README.md`](PLANS/README.md) for the AI-readable implementation plans.
@@ -64,11 +64,11 @@ OPENPI_POLICY_PROFILE=pi0_aloha_sim OPENPI_POLICY_BACKEND=pytorch make smoke-pol
 make stop
 ```
 
-Only after π₀ returns finite RTX actions, repeat the conversion and PyTorch smoke with profile `pi05_aloha_base`. Ubuntu 22.04 is the upstream-supported target; this project also permits an explicitly selected Ubuntu 24.04 environment only after it passes the same locked dependency and GPU checks.
+On a fresh cache, require π₀ to return finite RTX actions before repeating conversion and PyTorch smoke with profile `pi05_aloha_base`. Ubuntu 22.04 is the upstream-supported target; this project also permits an explicitly selected Ubuntu 24.04 environment only after it passes the same locked dependency and GPU checks.
 
-### Current hardware limit
+### Memory-bounded recovery
 
-The prepared PC has an RTX 3090 with 24 GB VRAM and 16 GB system RAM. The π₀ JAX server loads and becomes healthy, but every measured first request on this exact pinned WSL setup failed with CUDA OOM, including JAX's documented minimum-footprint allocator and the project-local masked-camera optimization. OpenPI's documented PyTorch path requires a one-time checkpoint conversion. This project adds an opt-in, bounded partial-BF16 conversion experiment that restores one stored checkpoint leaf at a time and writes standard sharded SafeTensors; it is not the default and has not yet passed hardware validation. `OPENPI_POLICY_BACKEND` defaults to `jax`; `pytorch` explicitly selects only the matching converted local checkpoint and must never fall back silently. If conversion fails, at least 32 GiB available RAM is an evidence-based practical target for the stock converter, not a guarantee; 64 GB total host RAM is preferred for Windows/WSL headroom. Conversion or checkpoint loading alone does not prove inference.
+The prepared PC has an RTX 3090 with 24 GB VRAM and 16 GB system RAM. The π₀ JAX server loads but every measured first request on this pinned WSL setup failed with CUDA OOM. The stock JAX→PyTorch converter also exceeds available WSL RAM. The opt-in partial-BF16 converter solves that constraint by restoring one stored leaf at a time, copying mapped tensors into a GPU-resident model, and writing standard 1 GB SafeTensors shards. It passed on this PC for both profiles, including fresh loads and finite-action inference. `OPENPI_POLICY_BACKEND` still defaults to `jax`; `pytorch` explicitly selects only the matching converted local checkpoint and never falls back silently. The server disables optional PyTorch compile autotuning to avoid a first-call memory spike on this demo hardware.
 
 Never expose policy port 8000 publicly or install a Linux NVIDIA display driver inside WSL. WSL uses the Windows NVIDIA driver.
 

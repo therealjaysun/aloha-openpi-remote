@@ -1,6 +1,6 @@
 # Project status
 
-Planning baseline: 2026-08-26. Plans are complete; phases 00–01 are implemented, published, and validated. Phase 02 setup and lifecycle work is complete on the PC, but real inference is blocked by the current GPU/system-memory combination.
+Planning baseline: 2026-08-26. Plans are complete; phases 00–02 are implemented, published, and validated. Both selected policy profiles now return finite RTX 3090 actions through the bounded PyTorch recovery path.
 
 Final plan review: 2026-08-27. Independent code/test, pinned-source memory, plan-traceability, and repository/PR audits were reconciled after real PC testing.
 
@@ -8,8 +8,8 @@ Final plan review: 2026-08-27. Independent code/test, pinned-source memory, plan
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 00 Bootstrap | Complete; open for review | `codex/00-bootstrap` | 1 | [PR 1](https://github.com/therealjaysun/pi-robotics/pull/1) | `main` | `codex/00-bootstrap` | Local fail-closed scan + hosted `secret-scan` passed; private upstream jobs skipped explicitly | None | `62083a5` |
 | 01 Mac simulation | Complete; open for review | `codex/01-mac-simulation` | 2 | [PR 2](https://github.com/therealjaysun/pi-robotics/pull/2) | `codex/00-bootstrap` | `codex/01-mac-simulation` | 18 tests + Ruff/format/shell + doctor + two 900-step runs; hosted `pure-checks` + `secret-scan` passed | None | `44e1d5f` validated implementation; final evidence at branch HEAD |
-| 02 Remote GPU | Blocked at real inference; partial-BF16 recovery experiment staged | `codex/02-remote-gpu-server` | 3 | [PR 3](https://github.com/therealjaysun/pi-robotics/pull/3) | `codex/01-mac-simulation` | `codex/02-remote-gpu-server` | 114 Mac tests pass with one Linux-only skip; Ruff/format/shell pass; explicit backend routing is locally validated; prior WSL lifecycle passed; no inference action returned | π₀ JAX requests CUDA-OOM; partial-BF16 conversion is unvalidated; ≥32 GiB available conversion RAM remains fallback | New candidate pending secret scan/push/hardware run |
-| 03 Connectivity | Planned | `codex/03-secure-connectivity` | — | — | `codex/02-remote-gpu-server` | `codex/03-secure-connectivity` | Not run | Requires a policy that returns valid actions; SSH/cmd→WSL route is known | — |
+| 02 Remote GPU | Complete; ready for review | `codex/02-remote-gpu-server` | 3 | [PR 3](https://github.com/therealjaysun/pi-robotics/pull/3) | `codex/01-mac-simulation` | `codex/02-remote-gpu-server` | 115 Mac tests pass with one Linux-only skip; Ruff/format/shell/secret scan pass; both partial-BF16 conversions, finite-action smokes, second-session survival, and safe stops passed | None; JAX OOM remains a documented rejected path | Hardware candidate `38b5228`; final evidence at branch HEAD |
+| 03 Connectivity | Planned | `codex/03-secure-connectivity` | — | — | `codex/02-remote-gpu-server` | `codex/03-secure-connectivity` | Not run | None from Phase 02; requires the PC when implementation begins | — |
 | 04 End-to-end | Planned | `codex/04-end-to-end-control` | — | — | `codex/03-secure-connectivity` | `codex/04-end-to-end-control` | Not run | Depends on phases 01–03 | — |
 | 05 Observability | Planned | `codex/05-observability` | — | — | `codex/04-end-to-end-control` | `codex/05-observability` | Not run | Depends on live inference | — |
 | 06 Hardening/docs | Planned | `codex/06-hardening-docs` | — | — | `codex/05-observability` | `codex/06-hardening-docs` | Not run | Depends on all evidence | — |
@@ -24,7 +24,7 @@ Final plan review: 2026-08-27. Independent code/test, pinned-source memory, plan
 - Remotes: official OpenPI is fetch-only `upstream` with push disabled; public project `origin` is `https://github.com/therealjaysun/pi-robotics`.
 - Submodules: ALOHA `d1dc83afd89ded4379851257fe5d85632d31d5ec`; LIBERO `f78abd68ee283de9f9be3c8f7e2a9ad60246e95c`.
 - GitHub: authenticated access works. The public repository exists; Actions allows selected immutable-SHA actions, requires SHA pinning, uses read-only default workflow permissions, and cannot approve pull-request reviews. See [`00-bootstrap/04-github-blocker.md`](00-bootstrap/04-github-blocker.md).
-- Remote: strict `robot-gpu` key/host trust passes through Windows cmd to explicitly selected Ubuntu 24.04 WSL2. The exact candidate `3c3f849b1033c581d6e649980446362cc99e35f9` passed locked setup with JAX on the RTX 3090; machine identifiers remain untracked.
+- Remote: strict `robot-gpu` key/host trust passes through Windows cmd to explicitly selected Ubuntu 24.04 WSL2. Hardware candidate `38b5228418c729d39d1c4fe551ef5ddcbef9e49e` passed locked setup plus both converted-profile smokes on the RTX 3090; machine identifiers remain untracked.
 - Public repository URL: https://github.com/therealjaysun/pi-robotics.
 
 ## Final plan review evidence
@@ -35,22 +35,22 @@ Final plan review: 2026-08-27. Independent code/test, pinned-source memory, plan
 - Relative-link and branch/base-stack validators exited 0; all 42 plan Markdown files resolve their local links.
 - Traceability validator exited 0 at the original planning review, when the configuration table enumerated 29 keys; E-MAC02 preserves its earlier historical 28-key claim from before `OPENPI_JAX_MEM_FRACTION` was added.
 - Obsolete-rule, trailing-whitespace, and tracked README diff checks exited 0. No implementation, GitHub, simulator, SSH, WSL, GPU, or inference result is implied by these planning checks.
-- The partial-BF16/backend amendment revalidated 43 plan files, 29 subphases, 30 configuration keys, 153 unique requirement IDs, all 30 definition-of-done IDs, and every local Markdown link. Hardware claims still require the bounded PC run.
+- The partial-BF16/backend amendment revalidated 43 plan files, 29 subphases, 30 configuration keys, 153 unique requirement IDs, all 30 definition-of-done IDs, and every local Markdown link. E-PC-BF16 now supplies the completed hardware proof.
 
 ## Execution cursor
 
-- Active subphase: 02.04 remains blocked at real inference. The bounded partial-BF16 converter and explicit JAX/PyTorch server selection pass local validation and await the hardware candidate.
-- Machine gate: prepare and secret-scan the exact Mac candidate, then use the already configured PC SSH route; no PC-side CI.
-- Exact user action: keep the RTX PC on and awake while Codex runs the bounded π₀ experiment. No console work is expected unless SSH/Windows reports a new blocker.
-- External recovery: if partial BF16 fails at proof, restore, mapping, serialization, load, or inference, provide the ≥32 GiB available-RAM Ubuntu 22.04 conversion host described by E-PC-CONVERT and reply `conversion host ready`.
-- Last verified Mac/WSL hardware candidate SHA: `3c3f849b1033c581d6e649980446362cc99e35f9`; upstream SHA: `215abfb217dbac7d5f1273282331b9b1866c0479`.
-- PR state: PRs 1–2 are open, non-draft, and green for human review; PR 3 is draft pending hardware acceptance; PRs 4–7 remain pending. No auto-merge is enabled.
+- Active subphase: Phase 02 is complete; continue at 03.01 SSH discovery/connectivity implementation when requested.
+- Machine gate: none now. The owned server is stopped and the PC can be powered off until Phase 03 resumes.
+- Exact user action: none.
+- Recovery: rerun the E-PC-BF16 commands only if either converted artifact is removed or the pinned model/runtime changes.
+- Last verified Mac/WSL hardware candidate SHA: `38b5228418c729d39d1c4fe551ef5ddcbef9e49e`; upstream SHA: `215abfb217dbac7d5f1273282331b9b1866c0479`.
+- PR state: PRs 1–3 are open for human review and green after final checks; PRs 4–7 remain pending. No auto-merge is enabled.
 
 Update this cursor immediately before pausing for GitHub login, `conversion host ready`, `PC ready`, PC console work, or power-off.
 
 ## Hardware coordination
 
-- Current gate: Phase 02 partial-BF16 experiment. SSH trust, Windows→WSL routing, RTX detection, locked setup, loopback lifecycle, and verified cleanup are complete.
-- Keep the existing RTX PC on for the bounded experiment. If it fails and conversion moves to another/upgraded host, reply `conversion host ready` when that host meets E-PC-CONVERT.
-- Current-PC success proceeds directly to explicit local PyTorch selection and the bounded π₀ smoke. External-host fallback success requires `PC ready`, artifact transfer/hash verification, and the same π₀ smoke. Only a finite π₀ action permits π₀.₅ conversion and smoke before Phase 03.
+- Phase 02 hardware coordination is complete. SSH trust, Windows→WSL routing, RTX detection, locked setup, both conversions, both inference smokes, cross-session survival, and verified cleanup passed.
+- Both converted artifacts remain in the PC-local OpenPI cache. The PC can be powered off until Phase 03 secure-connectivity implementation begins.
+- Phase 03 will explicitly request `PC ready` before it needs the machine again.
 - Full procedure: [`EXECUTION_LOGISTICS.md`](EXECUTION_LOGISTICS.md).
