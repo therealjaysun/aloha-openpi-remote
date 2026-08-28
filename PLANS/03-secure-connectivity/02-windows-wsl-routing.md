@@ -7,8 +7,8 @@
 - **Validation:** `/healthz` from WSL and from the SSH host namespace; listener inspection; negative closed-port case.
 - **Acceptance:** Remote side of SSH can reach policy server without LAN/public binding; route and security boundary documented.
 - **Planned commit:** `feat(ssh): validate Windows to WSL policy routing`.
-- **Actual findings:** The real Windows cmd→explicit Ubuntu-24.04 WSL command route is proven, and the policy server passed health checks on WSL loopback. Windows-host loopback and Mac local-forward tests remain Phase 03 work.
-- **Remaining blockers:** A policy must return valid actions before tunneled acceptance can run; see E-PC-JAX.
-- **Completion status:** Route discovery complete; tunnel path planned.
+- **Actual findings:** The real Windows cmd→explicit Ubuntu-24.04 WSL command route is proven, and the policy server passed health checks on WSL loopback. The implementation now revalidates the owned WSL listener, performs a bounded Windows-native `127.0.0.1` health request, and rejects every visible Windows listener address except `127.0.0.1` and `::1` without changing networking.
+- **Remaining blockers:** Run the exact Phase 03 candidate against the live policy server. Phase 02 inference is complete in E-PC-BF16.
+- **Completion status:** Locally implemented; real Windows-loopback acceptance pending.
 
 No `netsh portproxy`, firewall, mirrored-network, or SSH-service change is authorized by this plan.

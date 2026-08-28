@@ -17,7 +17,7 @@ from tools.remote_aloha.config import RemoteConfig
 from tools.remote_aloha.config import load_remote_config
 
 PUBLIC_REPO = "https://github.com/therealjaysun/pi-robotics.git"
-PHASE_BRANCH = "codex/02-remote-gpu-server"
+PHASE_BRANCH = "codex/03-secure-connectivity"
 UPSTREAM_SHA = "215abfb217dbac7d5f1273282331b9b1866c0479"
 _ROUTES = {"bash", "powershell", "cmd"}
 _SCAN_RECEIPT = Path(".runtime/secret-scan.sha")
@@ -115,6 +115,12 @@ def select_ubuntu_distro(discovered: dict[str, str], configured: str) -> str:
     return ubuntu[0]
 
 
+def windows_listener_addresses_are_private(addresses: object) -> bool:
+    return isinstance(addresses, list) and all(
+        isinstance(address, str) and address in {"127.0.0.1", "::1"} for address in addresses
+    )
+
+
 def _encoded_assignment(name: str, value: str) -> str:
     encoded = base64.b64encode(value.encode()).decode("ascii")
     return f'{name}="$(printf %s {encoded} | base64 -d)"'
@@ -133,7 +139,7 @@ class RemoteSession:
     def __init__(self, config: RemoteConfig) -> None:
         self.config = config
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")  # noqa: UP017 (Python 3.10)
-        self.evidence_dir = Path("outputs") / "phase02" / timestamp
+        self.evidence_dir = Path("outputs") / "phase03" / timestamp
         self._counter = 0
 
     def _save_raw(self, label: str, result: subprocess.CompletedProcess[str]) -> None:
@@ -193,6 +199,22 @@ class RemoteSession:
         return result.returncode, output
 
     def detect_route(self) -> str:
+        try:
+            result = subprocess.run(
+                ["ssh", "-G", self.config.ssh_alias],
+                capture_output=True,
+                text=True,
+                timeout=self.config.ssh_connect_timeout_seconds,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise RemoteError("the private SSH alias could not be validated") from error
+        hostname = next(
+            (line.split(maxsplit=1)[1] for line in result.stdout.splitlines() if line.startswith("hostname ")),
+            "",
+        )
+        if result.returncode or not hostname or hostname == self.config.ssh_alias:
+            raise RemoteError("configure the private robot-gpu SSH alias before remote work")
         timeout = self.config.ssh_connect_timeout_seconds + 10
         probes = {
             "bash": "printf '%s\\n' __ALOHA_ROUTE_BASH__",
@@ -377,7 +399,7 @@ def _git(*arguments: str) -> str:
     try:
         result = subprocess.run(["git", *arguments], capture_output=True, text=True, check=True, timeout=10)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
-        raise RemoteError("could not validate the local Phase 2 candidate") from error
+        raise RemoteError("could not validate the local remote-test candidate") from error
     return result.stdout.strip()
 
 
@@ -390,7 +412,7 @@ def _candidate_sha() -> str:
     if _git("status", "--porcelain", "--untracked-files=all"):
         raise RemoteError("remote work requires a clean candidate checkout")
     if _git("rev-parse", f"origin/{PHASE_BRANCH}") != sha:
-        raise RemoteError("push the exact Phase 2 candidate before remote work")
+        raise RemoteError("push the exact Phase 3 candidate before remote work")
     try:
         runtime_metadata = _SCAN_RECEIPT.parent.lstat()
         metadata = _SCAN_RECEIPT.lstat()
@@ -430,7 +452,7 @@ def _write_launch_receipt(config: RemoteConfig, candidate: str, target: RemoteTa
     try:
         descriptor = os.open(_LAUNCH_RECEIPT, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError as error:
-        raise RemoteError("a Phase 2 launch receipt already exists; run make stop first") from error
+        raise RemoteError("a policy launch receipt already exists; run make stop first") from error
     with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
         json.dump(payload, stream, sort_keys=True)
         stream.write("\n")
@@ -444,10 +466,10 @@ def _read_launch_receipt() -> dict[str, object] | None:
         metadata = _LAUNCH_RECEIPT.lstat()
         payload = json.loads(_LAUNCH_RECEIPT.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
-        raise RemoteError("the Phase 2 launch receipt is unreadable; refusing lifecycle changes") from error
+        raise RemoteError("the policy launch receipt is unreadable; refusing lifecycle changes") from error
     expected = {"backend", "profile", "port", "remote_dir", "route", "source_sha", "ssh_alias", "wsl_distro"}
     if not isinstance(payload, dict):
-        raise RemoteError("the Phase 2 launch receipt is invalid; refusing lifecycle changes")
+        raise RemoteError("the policy launch receipt is invalid; refusing lifecycle changes")
     valid_path = isinstance(payload.get("remote_dir"), str) and payload["remote_dir"].startswith(("/", "~/"))
     if (
         stat.S_ISLNK(runtime_metadata.st_mode)
@@ -470,7 +492,7 @@ def _read_launch_receipt() -> dict[str, object] | None:
         or not isinstance(payload.get("source_sha"), str)
         or not re.fullmatch(r"[0-9a-f]{40}", payload["source_sha"])
     ):
-        raise RemoteError("the Phase 2 launch receipt is invalid; refusing lifecycle changes")
+        raise RemoteError("the policy launch receipt is invalid; refusing lifecycle changes")
     return payload
 
 
@@ -670,7 +692,7 @@ def _remote_script_command(config: RemoteConfig, script_name: str, arguments: li
 
 def server(session: RemoteSession) -> None:
     if _read_launch_receipt() is not None:
-        raise RemoteError("a Phase 2 launch receipt already exists; run make stop first")
+        raise RemoteError("a policy launch receipt already exists; run make stop first")
     config = session.config
     candidate = _candidate_sha()
     target = session.discover_target()
@@ -790,9 +812,76 @@ def smoke(session: RemoteSession) -> None:
     print(f"WSL-local inference passed for {config.policy_profile.name} at {candidate}.")
 
 
+def route(session: RemoteSession) -> None:
+    config = session.config
+    candidate = _candidate_sha()
+    receipt = _read_launch_receipt()
+    if receipt is None or (
+        receipt["profile"],
+        receipt["backend"],
+        receipt["port"],
+        receipt["source_sha"],
+        receipt["ssh_alias"],
+    ) != (
+        config.policy_profile.name,
+        config.policy_backend,
+        config.policy_port,
+        candidate,
+        config.ssh_alias,
+    ):
+        raise RemoteError("the running-server receipt does not match the route-check configuration")
+    target = RemoteTarget(str(receipt["route"]), str(receipt["wsl_distro"]))
+    facts = _markers(
+        session.run_wsl(
+            target,
+            _remote_script_command(
+                config,
+                "check_policy_server.sh",
+                [config.policy_profile.name, config.policy_host, str(config.policy_port), candidate],
+            ),
+            timeout=config.ssh_connect_timeout_seconds + 15,
+            label="wsl-route-check",
+        )
+    )
+    if facts.get("SERVER") != "ready":
+        raise RemoteError("the owned WSL loopback server is not ready")
+    if target.route == "bash":
+        print("SSH lands directly in WSL; loopback policy routing passed.")
+        return
+
+    script = f"""
+$ErrorActionPreference = 'Stop'
+$response = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:{config.policy_port}/healthz' -TimeoutSec {config.ssh_connect_timeout_seconds}
+if ($response.StatusCode -ne 200 -or $response.Content.Trim() -ne 'OK') {{ exit 1 }}
+$listeners = @(Get-NetTCPConnection -State Listen -LocalPort {config.policy_port} -ErrorAction SilentlyContinue |
+    Select-Object -ExpandProperty LocalAddress -Unique)
+$listenerJson = ConvertTo-Json -Compress -InputObject $listeners
+$listenerBytes = [Text.Encoding]::UTF8.GetBytes($listenerJson)
+$listenerEncoded = [Convert]::ToBase64String($listenerBytes)
+Write-Output '__ALOHA_WINDOWS_WSL_ROUTE__=ready'
+Write-Output "__ALOHA_WINDOWS_LISTENERS__=$listenerEncoded"
+""".strip()
+    _, output = session.ssh(
+        powershell_command(script),
+        timeout=config.ssh_connect_timeout_seconds + 15,
+        label="windows-wsl-route",
+    )
+    markers = _markers(output)
+    encoded_listeners = markers.get("WINDOWS_LISTENERS", "")
+    try:
+        listeners = json.loads(base64.b64decode(encoded_listeners, validate=True).decode())
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise RemoteError("Windows listener evidence is unreadable") from error
+    if markers.get("WINDOWS_WSL_ROUTE") != "ready" or not windows_listener_addresses_are_private(listeners):
+        raise RemoteError("Windows loopback cannot safely reach the WSL policy server")
+    print("Windows loopback reaches the owned WSL policy server without a wildcard listener.")
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run bounded Phase 2 operations through the private robot-gpu alias.")
-    parser.add_argument("command", choices=("doctor", "setup", "convert", "server", "stop", "smoke"))
+    parser = argparse.ArgumentParser(
+        description="Run bounded remote policy operations through the private robot-gpu alias."
+    )
+    parser.add_argument("command", choices=("doctor", "setup", "convert", "server", "stop", "smoke", "route"))
     args = parser.parse_args()
     session = RemoteSession(load_remote_config())
     try:
@@ -806,6 +895,8 @@ def main() -> None:
             server(session)
         elif args.command == "stop":
             stop(session)
+        elif args.command == "route":
+            route(session)
         else:
             smoke(session)
     except RemoteError as error:

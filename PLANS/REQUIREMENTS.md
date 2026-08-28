@@ -135,25 +135,25 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 
 | ID | Requirement | Owner | Evidence | Status |
 | --- | --- | --- | --- | --- |
-| R01 | Finite connect, metadata, and inference timeouts | 03 | focused client tests | Pending |
+| R01 | Finite connect, metadata, and inference timeouts | 03 | focused client tests | Pass locally; hardware pending |
 | R02 | Bounded initial server startup retries | 02 | lifecycle tests | Pass for both profiles: E-MAC02, E-PC-BF16 |
 | R03 | Graceful Ctrl+C shutdown | 04,05 | interrupt test | Pending |
-| R04 | Tunnel cleanup | 03,05 | owned-process test | Pending |
+| R04 | Tunnel cleanup | 03,05 | owned-process test | Pass locally for Phase 03; hardware pending |
 | R05 | Remote server/sampler cleanup | 02,05 | owned-process test | Pending: Phase 05 sampler; policy-server cleanup passed E-PC-STOP |
 | R06 | Duplicate server protection | 02 | lifecycle test | Pass locally: E-MAC02 |
-| R07 | Duplicate tunnel protection | 03 | lifecycle test | Pending |
+| R07 | Duplicate tunnel protection | 03 | lifecycle test | Pass locally; hardware pending |
 | R08 | Timestamped ignored run directories | 04,05 | artifact check | Pending |
 | R09 | Shape validation | 03,04 | contract tests | Pass for Phase 02 boundary: E-MAC02, E-PC-BF16 |
 | R10 | Dtype validation | 03,04 | contract tests | Pass for Phase 02 boundary: E-MAC02, E-PC-BF16 |
 | R11 | NaN/infinity validation | 03,04 | contract tests | Pass for Phase 02 boundary: E-MAC02, E-PC-BF16 |
-| R12 | Configuration validation | 01–04 | config tests | Pass through Phase 02: E-MAC02 |
+| R12 | Configuration validation | 01–04 | config tests | Pass locally through Phase 03; hardware pending |
 | R13 | Checkpoint download status and non-destructive partial-cache handling | 02,05 | lifecycle/failure evidence | Pass through Phase 02 for both profiles: E-PC-SETUP, E-PC-BF16 |
-| R14 | Port conflict diagnostics | 02,03 | lifecycle tests | Pass locally: E-MAC02; real WSL port gate passed E-PC-SETUP |
+| R14 | Port conflict diagnostics | 02,03 | lifecycle tests | Pass locally through Phase 03; real WSL port gate passed E-PC-SETUP |
 | R15 | Native macOS rendering diagnostics | 01 | smoke/failure evidence | Pass: E-MAC01 |
 | R16 | WSL GPU diagnostics and CPU-fallback rejection | 02 | E-PC-SETUP | Pass: E-PC-SETUP |
 | R17 | Remote shell detection | 02,03 | three-route tests | Pass locally and on real cmd route: E-MAC02, E-PC-SETUP |
 | R18 | Safe Windows→WSL quoting | 02,03 | PowerShell/cmd tests | Pass locally and on real cmd route: E-MAC02, E-PC-SETUP |
-| R19 | Stale/reused PID detection before signaling | 02,03,05 | lifecycle tests | Pass locally and for Phase 02 stop: E-MAC02, E-PC-STOP |
+| R19 | Stale/reused PID detection before signaling | 02,03,05 | lifecycle tests | Pass locally through Phase 03 and for Phase 02 stop: E-MAC02, E-PC-STOP |
 | R20 | Partial run result preservation after failure | 04,05 | interrupt/write-failure tests | Pending |
 | R21 | Project conversion defaults to automatic selection: below 16 GiB Linux `MemAvailable` it uses bounded partial BF16, otherwise full FP32; explicit allowlisted overrides remain, the direct converter preserves its full-FP32 default, and no failed partial artifact is published. Runtime backend selection defaults to JAX, never falls back implicitly, and permits PyTorch only with a matching validated checkpoint | 02 | focused selector/converter/backend tests + checkpoint validation | Pass: E-PC-BF16 plus final Phase 02 amendment checks |
 
@@ -165,13 +165,13 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | T02 | Missing configuration | 01,06 | pytest | Pass: E-MAC01 |
 | T03 | SSH command construction | 02,03 | pytest | Pass: E-MAC02 |
 | T04 | Windows→WSL PowerShell/cmd construction | 02,03 | pytest | Pass: E-MAC02 |
-| T05 | Port validation | 03 | pytest | Pending |
+| T05 | Port validation | 03 | pytest | Pass locally; hardware listener pending |
 | T06 | Observation schema validation | 04 | pytest | Pending |
 | T07 | Action shape validation | 04 | pytest | Pending |
 | T08 | Action buffer/generation behavior | 04 | pytest | Pending |
 | T09 | Telemetry serialization | 05 | pytest | Pending |
 | T10 | Metrics aggregation | 05 | pytest | Pending |
-| T11 | PID/start-identity validation | 02,03,05 | pytest/shell test | Pass locally and hosted Linux: E-MAC02 |
+| T11 | PID/start-identity validation | 02,03,05 | pytest/shell test | Pass locally through Phase 03 and hosted Linux for Phase 02: E-MAC02 |
 | T12 | Public-output sanitization | 00,06 | pytest/scan | Pending |
 | T13 | Representative direct-BF16 versus FP32→BF16 value equivalence, incomplete/duplicate mapping failure, and explicit backend routing | 02 | focused converter/backend tests + real one-leaf proof | Pass: E-PC-BF16 |
 

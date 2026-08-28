@@ -67,14 +67,19 @@ class RemoteConfig:
     wsl_distro: str = ""
     data_home: str = ""
     jax_mem_fraction: str = "0.90"
+    local_policy_host: str = "127.0.0.1"
+    local_policy_port: int = 8000
     policy_host: str = "127.0.0.1"
     policy_port: int = 8000
     policy_profile: PolicyProfile = POLICY_PROFILES[DEFAULT_POLICY_PROFILE]
     policy_backend: str = DEFAULT_POLICY_BACKEND
     conversion_restore_mode: str = DEFAULT_CONVERSION_RESTORE_MODE
     ssh_connect_timeout_seconds: int = 10
+    policy_connect_timeout_seconds: int = 60
+    policy_metadata_timeout_seconds: int = 30
     server_startup_timeout_seconds: int = 1800
     policy_inference_timeout_seconds: int = 300
+    policy_close_timeout_seconds: int = 10
     min_free_gib: int = 40
 
 
@@ -171,14 +176,19 @@ def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str]
         "OPENPI_WSL_DISTRO",
         "OPENPI_DATA_HOME",
         "OPENPI_JAX_MEM_FRACTION",
+        "LOCAL_POLICY_HOST",
+        "LOCAL_POLICY_PORT",
         "REMOTE_POLICY_HOST",
         "REMOTE_POLICY_PORT",
         "OPENPI_POLICY_PROFILE",
         "OPENPI_POLICY_BACKEND",
         "OPENPI_CONVERSION_RESTORE_MODE",
         "SSH_CONNECT_TIMEOUT_SECONDS",
+        "OPENPI_POLICY_CONNECT_TIMEOUT_SECONDS",
+        "OPENPI_POLICY_METADATA_TIMEOUT_SECONDS",
         "OPENPI_SERVER_STARTUP_TIMEOUT_SECONDS",
         "OPENPI_POLICY_INFERENCE_TIMEOUT_SECONDS",
+        "OPENPI_POLICY_CLOSE_TIMEOUT_SECONDS",
         "OPENPI_MIN_FREE_GIB",
     )
     for key in keys:
@@ -195,13 +205,27 @@ def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str]
     if jax_mem_fraction not in _JAX_MEM_FRACTIONS:
         choices = ", ".join(_JAX_MEM_FRACTIONS)
         raise ValueError(f"OPENPI_JAX_MEM_FRACTION must be one of: {choices}")
+    local_host = values.get("LOCAL_POLICY_HOST", "127.0.0.1")
     host = values.get("REMOTE_POLICY_HOST", "127.0.0.1")
-    if host != "127.0.0.1":
+    if local_host != "127.0.0.1" or host != "127.0.0.1":
+        if local_host != "127.0.0.1":
+            raise ValueError("LOCAL_POLICY_HOST must be literal loopback 127.0.0.1")
         raise ValueError("REMOTE_POLICY_HOST must be literal loopback 127.0.0.1")
+    local_port = _uint("LOCAL_POLICY_PORT", values.get("LOCAL_POLICY_PORT", "8000"), maximum=65535)
     port = _uint("REMOTE_POLICY_PORT", values.get("REMOTE_POLICY_PORT", "8000"), maximum=65535)
-    if port < 1:
-        raise ValueError("REMOTE_POLICY_PORT must be between 1 and 65535")
+    if min(local_port, port) < 1:
+        raise ValueError("policy ports must be between 1 and 65535")
     connect_timeout = _uint("SSH_CONNECT_TIMEOUT_SECONDS", values.get("SSH_CONNECT_TIMEOUT_SECONDS", "10"), maximum=300)
+    policy_connect_timeout = _uint(
+        "OPENPI_POLICY_CONNECT_TIMEOUT_SECONDS",
+        values.get("OPENPI_POLICY_CONNECT_TIMEOUT_SECONDS", "60"),
+        maximum=1800,
+    )
+    metadata_timeout = _uint(
+        "OPENPI_POLICY_METADATA_TIMEOUT_SECONDS",
+        values.get("OPENPI_POLICY_METADATA_TIMEOUT_SECONDS", "30"),
+        maximum=300,
+    )
     startup_timeout = _uint(
         "OPENPI_SERVER_STARTUP_TIMEOUT_SECONDS",
         values.get("OPENPI_SERVER_STARTUP_TIMEOUT_SECONDS", "1800"),
@@ -212,8 +236,24 @@ def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str]
         values.get("OPENPI_POLICY_INFERENCE_TIMEOUT_SECONDS", "300"),
         maximum=1800,
     )
+    close_timeout = _uint(
+        "OPENPI_POLICY_CLOSE_TIMEOUT_SECONDS",
+        values.get("OPENPI_POLICY_CLOSE_TIMEOUT_SECONDS", "10"),
+        maximum=300,
+    )
     min_free_gib = _uint("OPENPI_MIN_FREE_GIB", values.get("OPENPI_MIN_FREE_GIB", "40"), maximum=1024)
-    if min(connect_timeout, startup_timeout, inference_timeout, min_free_gib) < 1:
+    if (
+        min(
+            connect_timeout,
+            policy_connect_timeout,
+            metadata_timeout,
+            startup_timeout,
+            inference_timeout,
+            close_timeout,
+            min_free_gib,
+        )
+        < 1
+    ):
         raise ValueError("remote timeouts and OPENPI_MIN_FREE_GIB must be positive")
 
     policy_backend = values.get("OPENPI_POLICY_BACKEND", DEFAULT_POLICY_BACKEND)
@@ -230,13 +270,18 @@ def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str]
         wsl_distro=distro,
         data_home=_remote_path("OPENPI_DATA_HOME", values.get("OPENPI_DATA_HOME", ""), allow_empty=True),
         jax_mem_fraction=jax_mem_fraction,
+        local_policy_host=local_host,
+        local_policy_port=local_port,
         policy_host=host,
         policy_port=port,
         policy_profile=get_policy_profile(values.get("OPENPI_POLICY_PROFILE", DEFAULT_POLICY_PROFILE)),
         policy_backend=policy_backend,
         conversion_restore_mode=conversion_restore_mode,
         ssh_connect_timeout_seconds=connect_timeout,
+        policy_connect_timeout_seconds=policy_connect_timeout,
+        policy_metadata_timeout_seconds=metadata_timeout,
         server_startup_timeout_seconds=startup_timeout,
         policy_inference_timeout_seconds=inference_timeout,
+        policy_close_timeout_seconds=close_timeout,
         min_free_gib=min_free_gib,
     )

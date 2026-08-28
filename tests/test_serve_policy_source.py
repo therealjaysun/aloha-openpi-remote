@@ -71,7 +71,8 @@ def test_wsl_start_wrapper_has_exact_two_profile_routes_and_loopback() -> None:
 
     client = Path("tools/remote_aloha/policy_smoke.py").read_text(encoding="utf-8")
     assert '"images": {"cam_high": image}' in client
-    assert '"prompt"' not in client
+    assert 'observation["prompt"] = profile.default_prompt' in client
+    assert "policy.close()" in client
 
     policy = Path("src/openpi/policies/policy.py").read_text(encoding="utf-8")
     assert "if self._compact_masked_images:" in policy

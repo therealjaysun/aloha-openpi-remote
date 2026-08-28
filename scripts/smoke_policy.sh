@@ -50,7 +50,8 @@ cleanup() {
 trap cleanup EXIT INT TERM
 timeout --signal=TERM --kill-after=10s "${inference_timeout}s" \
     .venv/bin/python -m tools.remote_aloha.policy_smoke \
-    --profile "$profile" --backend "$backend" --host "$host" --port "$port" --source-sha "$expected_sha"
+    --profile "$profile" --backend "$backend" --host "$host" --port "$port" --source-sha "$expected_sha" \
+    --connect-timeout 60 --metadata-timeout 30 --inference-timeout "$inference_timeout" --close-timeout 10
 cleanup
 trap - EXIT INT TERM
 host_peak_rss="$(awk -F, '$1+0>m {m=$1+0} END {print m+0}' "$host_metrics")"

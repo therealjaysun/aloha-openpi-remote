@@ -55,11 +55,17 @@ def test_remote_defaults_and_profile_contract(tmp_path: Path) -> None:
         config.wsl_distro,
         config.data_home,
         config.jax_mem_fraction,
+        config.local_policy_host,
+        config.local_policy_port,
         config.policy_host,
         config.policy_port,
         config.policy_profile.name,
         config.policy_backend,
         config.conversion_restore_mode,
+        config.policy_connect_timeout_seconds,
+        config.policy_metadata_timeout_seconds,
+        config.policy_inference_timeout_seconds,
+        config.policy_close_timeout_seconds,
         config.min_free_gib,
     ) == (
         "robot-gpu",
@@ -69,9 +75,15 @@ def test_remote_defaults_and_profile_contract(tmp_path: Path) -> None:
         "0.90",
         "127.0.0.1",
         8000,
+        "127.0.0.1",
+        8000,
         "pi0_aloha_sim",
         "jax",
         "auto",
+        60,
+        30,
+        300,
+        10,
         40,
     )
     assert set(POLICY_PROFILES) == {"pi0_aloha_sim", "pi05_aloha_base"}
@@ -97,7 +109,9 @@ def test_remote_file_values_and_environment_override(tmp_path: Path) -> None:
     env_file.write_text(
         "OPENPI_POLICY_PROFILE=pi05_aloha_base\nREMOTE_POLICY_PORT=9000\n"
         "OPENPI_WSL_DISTRO='Ubuntu Dev'\nOPENPI_JAX_MEM_FRACTION=0.85\nOPENPI_POLICY_BACKEND=pytorch\n"
-        "OPENPI_CONVERSION_RESTORE_MODE=partial-bfloat16\n",
+        "OPENPI_CONVERSION_RESTORE_MODE=partial-bfloat16\nLOCAL_POLICY_PORT=9001\n"
+        "OPENPI_POLICY_CONNECT_TIMEOUT_SECONDS=61\nOPENPI_POLICY_METADATA_TIMEOUT_SECONDS=31\n"
+        "OPENPI_POLICY_CLOSE_TIMEOUT_SECONDS=11\n",
         encoding="utf-8",
     )
     config = load_remote_config(env_file, {"REMOTE_POLICY_PORT": "8123", "OPENPI_DATA_HOME": "/srv/open pi's"})
@@ -108,6 +122,12 @@ def test_remote_file_values_and_environment_override(tmp_path: Path) -> None:
     assert config.jax_mem_fraction == "0.85"
     assert config.policy_backend == "pytorch"
     assert config.conversion_restore_mode == "partial-bfloat16"
+    assert config.local_policy_port == 9001
+    assert (
+        config.policy_connect_timeout_seconds,
+        config.policy_metadata_timeout_seconds,
+        config.policy_close_timeout_seconds,
+    ) == (61, 31, 11)
 
 
 @pytest.mark.parametrize(
@@ -129,6 +149,9 @@ def test_remote_file_values_and_environment_override(tmp_path: Path) -> None:
         ("OPENPI_DATA_HOME", "/proc/cache", "must not target"),
         ("OPENPI_DATA_HOME", "/sys", "must not target"),
         ("REMOTE_POLICY_HOST", "0.0.0.0", "literal loopback"),
+        ("LOCAL_POLICY_HOST", "localhost", "literal loopback"),
+        ("LOCAL_POLICY_PORT", "0", "between"),
+        ("LOCAL_POLICY_PORT", "65536", "at most"),
         ("REMOTE_POLICY_PORT", "0", "between"),
         ("REMOTE_POLICY_PORT", "65536", "at most"),
         ("REMOTE_POLICY_PORT", "8000 trailing", "unsigned"),
@@ -141,7 +164,10 @@ def test_remote_file_values_and_environment_override(tmp_path: Path) -> None:
         ("SSH_CONNECT_TIMEOUT_SECONDS", "0", "positive"),
         ("SSH_CONNECT_TIMEOUT_SECONDS", "1.5", "unsigned"),
         ("OPENPI_SERVER_STARTUP_TIMEOUT_SECONDS", "7201", "at most"),
+        ("OPENPI_POLICY_CONNECT_TIMEOUT_SECONDS", "0", "positive"),
+        ("OPENPI_POLICY_METADATA_TIMEOUT_SECONDS", "301", "at most"),
         ("OPENPI_POLICY_INFERENCE_TIMEOUT_SECONDS", "0", "positive"),
+        ("OPENPI_POLICY_CLOSE_TIMEOUT_SECONDS", "0", "positive"),
         ("OPENPI_MIN_FREE_GIB", "0", "positive"),
         ("OPENPI_MIN_FREE_GIB", "1025", "at most"),
     ],

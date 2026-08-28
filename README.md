@@ -34,7 +34,8 @@ Both profiles use the same `(50, 14)` ALOHA action-chunk contract. Results are r
 - Phase 0: repository, plans, security gates, and CI complete.
 - Phase 1: native Mac simulation and video validated.
 - Phase 2: WSL, CUDA, locked setup, bounded checkpoint conversion, both RTX inference profiles, loopback lifecycle, and clean shutdown validated.
-- Phases 3–6: secure connectivity, end-to-end control, reliability, and final hardening planned.
+- Phase 3: secure tunnel and bounded client implemented locally; real two-profile tunnel validation pending.
+- Phases 4–6: end-to-end control, reliability, and final hardening planned.
 
 See [`PLANS/STATUS.md`](PLANS/STATUS.md) for the live execution cursor and [`PLANS/README.md`](PLANS/README.md) for the AI-readable implementation plans.
 
@@ -56,10 +57,11 @@ Create an ignored `.env` from [`.env.example`](.env.example), configure the priv
 make doctor-pc
 make setup-pc
 
-# Opt-in bounded conversion experiment; the stock converter remains the default.
+# Auto-selects partial BF16 below 16 GiB available RAM.
 OPENPI_POLICY_PROFILE=pi0_aloha_sim make convert-pc
 
 OPENPI_POLICY_PROFILE=pi0_aloha_sim OPENPI_POLICY_BACKEND=pytorch make server
+OPENPI_POLICY_PROFILE=pi0_aloha_sim OPENPI_POLICY_BACKEND=pytorch make tunnel
 OPENPI_POLICY_PROFILE=pi0_aloha_sim OPENPI_POLICY_BACKEND=pytorch make smoke-policy
 make stop
 ```
@@ -81,6 +83,7 @@ make secret-scan
 ```
 
 Runtime evidence, videos, machine identifiers, private addresses, credentials, model weights, and `.env` remain untracked.
+See [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) for fail-closed recovery guidance.
 
 ## OpenPI source and license
 
