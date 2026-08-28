@@ -66,6 +66,7 @@ git diff --name-only -z --diff-filter=ACMR "$upstream_base" -- >"$audit_tmp/curr
 git ls-files --others --exclude-standard -z >"$audit_tmp/untracked.paths"
 git -c core.quotePath=false log -m --format= -z --numstat "$upstream_base..HEAD" >"$audit_tmp/history.numstat"
 git diff --numstat -z "$upstream_base" -- >"$audit_tmp/current.numstat"
+git log -m --format=%B "$upstream_base..HEAD" >"$audit_tmp/history.messages"
 
 python3 - "$repo_root" "$audit_tmp" <<'PY'
 from __future__ import annotations
@@ -134,6 +135,7 @@ def scan_path(raw_path: str, scope: str) -> None:
         report("control character in filename", scope)
         return
     normalized = path.replace("\\", "/")
+    scan_content(normalized, f"{scope}:filename:{path}")
     parts = Path(normalized).parts
     basename = parts[-1].casefold() if parts else ""
     suffix = Path(basename).suffix
@@ -186,6 +188,8 @@ for patch, scope in ((audit / "history.patch", "history"), (audit / "current.pat
     for added, location in patch_additions(patch, scope):
         scan_content(added, location)
 
+scan_content((audit / "history.messages").read_text(encoding="utf-8", errors="replace"), "history:messages")
+
 for numstat, scope in ((audit / "history.numstat", "history"), (audit / "current.numstat", "current")):
     for record in numstat.read_bytes().split(b"\0"):
         fields = record.decode("utf-8", errors="replace").split("\t", 2)
@@ -213,7 +217,7 @@ if findings:
 PY
 
 {
-    cat "$audit_tmp/history.patch" "$audit_tmp/current.patch"
+    cat "$audit_tmp/history.messages" "$audit_tmp/history.patch" "$audit_tmp/current.patch"
     while IFS= read -r -d '' path; do
         if [[ -L "$path" ]]; then
             readlink -- "$path"

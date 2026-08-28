@@ -18,6 +18,7 @@ def test_public_audit_is_read_only_fail_closed_and_scoped_to_project_history() -
     assert '"$upstream_base..HEAD"' in source
     assert "log -m --format= -z --name-only" in source
     assert "log -m --format= -z --numstat" in source
+    assert "log -m --format=%B" in source
     assert "git ls-files --others --exclude-standard -z" in source
     assert "--no-ext-diff --no-textconv" in source
     assert "--redact" in source
@@ -29,6 +30,8 @@ def test_public_audit_is_read_only_fail_closed_and_scoped_to_project_history() -
     assert "git checkout" not in source
     assert "git clean" not in source
     assert ".runtime/" not in source
+    assert 'scan_content(normalized, f"{scope}:filename:{path}")' in source
+    assert '"history:messages"' in source
 
 
 def test_public_audit_rejects_forbidden_current_project_content() -> None:

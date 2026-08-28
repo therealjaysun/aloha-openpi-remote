@@ -27,6 +27,8 @@ The complete workflow was validated on the exact Phase 5 candidate `de63e19` wit
 
 GPU coverage passed for both runs (20 and 24 samples respectively), with no request retries or failures. The π₀.₅ base checkpoint is not simulator-fine-tuned, so its zero task successes do not negate the separately reported infrastructure result. Neither profile met the complete cadence/underrun gate, so this project does **not** claim uninterrupted 50 Hz. The current execution cursor and complete evidence ledger are in [Project status](PLANS/STATUS.md).
 
+The final hardening candidate `90b0fed` also passed exact-SHA WSL setup and a fresh four-call tunneled smoke for each profile, then verified cleanup and a free policy port. Phase 5 remains the source of the full-episode performance figures above.
+
 Both profiles return the same finite floating `(50, 14)` wire chunk. The default runner executes at most 30 actions from a chunk and starts one background prefetch with 25 actions remaining. It never clips the absolute joint commands, appends a late chunk, or repeats the last action on underrun.
 
 ## Prerequisites
