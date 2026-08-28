@@ -120,6 +120,7 @@ content_patterns = {
 historical_test_fixtures = {
     ("history:tests/test_telemetry.py", "DESKTOP-" + "EXAMPLE"),
     ("history:tests/test_telemetry.py", "192" + ".168.1.2"),
+    ("history:tests/test_telemetry.py", "/" + "Users/private/plot.png"),
 }
 
 

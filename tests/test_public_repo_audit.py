@@ -55,6 +55,7 @@ def test_public_audit_limits_historical_fixture_exception_to_original_test_path(
     assert "historical_test_fixtures = {" in source
     assert '("history:tests/test_telemetry.py", "DESKTOP-" + "EXAMPLE")' in source
     assert '("history:tests/test_telemetry.py", "192" + ".168.1.2")' in source
+    assert '("history:tests/test_telemetry.py", "/" + "Users/private/plot.png")' in source
     assert 'text = text.replace(fixture, "")' in source
 
 

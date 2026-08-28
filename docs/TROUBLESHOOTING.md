@@ -156,7 +156,7 @@ Before simulator reset, connection, timeout, EOF, and WebSocket-close errors dur
 
 ## Buffer underruns or control rate below 50 Hz
 
-This does not imply that simulation or policy inference failed. Inspect the per-seed buffer waits, warmed request p95, active step rate, and `uninterrupted_50hz_claimed` field. The validated Phase 5 runs averaged 48.21 Hz for π₀ and 47.56 Hz for π₀.₅; neither passed the complete cadence/underrun gate, so they make no uninterrupted claim.
+This does not imply that simulation or policy inference failed. Inspect the per-seed buffer waits, warmed request p95, active step rate, and `uninterrupted_50hz_claimed` field. The validated Phase 5 runs averaged 46.91 Hz for π₀ and 48.13 Hz for π₀.₅; neither passed the complete cadence/underrun gate, so they make no uninterrupted claim.
 
 Tune only from Mac-through-tunnel measurements and preserve:
 
@@ -193,6 +193,12 @@ git status --short
 ```
 
 NumPy scalars are normalized, but arrays, unsupported deep structures, NaN, and infinity are rejected. Fix the producer instead of weakening JSON. Raw evidence may include private fields; publish only the separately generated allowlisted summary, never a hand-edited raw log.
+
+## Joint trajectory is missing or invalid
+
+Each seed with at least one valid step row should have an ignored `joint-trajectory.png`. Its manifest must report 14 joints, sample count equal to successfully applied steps, exact 1.0 coverage, and `plot_status=passed`. Interrupted runs still plot valid partial rows; a zero-step run honestly reports no samples.
+
+If plotting fails, retain the JSONL and manifest, then run the focused trajectory tests and fix the exact malformed row or local Matplotlib error. Do not normalize from observed extrema, hand-edit telemetry, publish raw paths, or rerun GPU inference merely to redraw a plot; plotting is local and post-episode.
 
 ## Video encoding or validation fails
 

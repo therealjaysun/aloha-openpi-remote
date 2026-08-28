@@ -24,7 +24,7 @@ gym-aloha ──observation──▶ contract ──▶ WebSocket client
     │
     └──── one validated action ◀── bounded buffer ◀── `(50, 14)` chunk
 
-Mac output: video + manifest + JSONL + atomic summaries
+Mac output: video + manifest + JSONL + atomic summaries + joint plot
 PC output: private server log + private GPU JSONL, copied once per run
 ```
 
@@ -52,7 +52,7 @@ The control loop targets one action every 20 ms using a monotonic clock; it neve
 3. While it runs, the loop consumes the old FIFO.
 4. On completion, the buffer drops the response prefix for simulation steps already elapsed and replaces—not appends to—the old remainder with at most one execution horizon.
 5. An empty or fully elapsed result triggers fresh inference. An underrun waits without advancing Gym; the last action is never repeated.
-6. Termination, truncation, error, or interrupt closes the client/worker and environment and finalizes an exact complete or partial manifest/video.
+6. Termination, truncation, error, or interrupt closes the client/worker and environment and finalizes an exact complete or partial manifest, video, and trajectory plot.
 
 This design avoids the stock synchronous chunk broker, which pauses between chunks, and the stock generic Runtime's unrelated reset/finalization behavior. It is intentionally one worker and one in-flight request, not an asynchronous scheduling framework.
 
@@ -78,11 +78,11 @@ Initial retry exhaustion stops before the episode starts. Any later inference ti
 
 ## Evidence model
 
-Raw evidence lives under ignored `outputs/` and `.runtime/`. Each local JSONL record has a schema version, UTC timestamp, monotonic timestamp, event name, and bounded JSON-safe fields. NumPy scalars are normalized; arrays and non-finite values are rejected. The writer is line-buffered with no per-event network call or `fsync`, so complete lines survive interruption and only a malformed final fragment is discarded.
+Raw evidence lives under ignored `outputs/` and `.runtime/`. Each local JSONL record has a schema version, UTC timestamp, monotonic timestamp, event name, and bounded JSON-safe fields. After every successfully applied step, that same event records the exact zero-based simulation step, one-based applied step, monotonic elapsed time, and finite actual/commanded vectors of exactly 14 joints. NumPy scalars are normalized; arrays and non-finite values are rejected. The writer is line-buffered with no per-event network call or `fsync`, so complete lines survive interruption and only a malformed final fragment is discarded.
 
-The local aggregator reports count, mean, p50, p95, and max for allowed metrics, event counts, terminal/partial status, and coverage. `server_timing.prev_total_ms` describes request N-1 and is associated with that request or excluded from current-request aggregates. Summaries keep cold/warm inference, sim cadence, buffer waits, retries/failures, rewards/success, and GPU memory/utilization separate by profile. The 50 Hz claim additionally requires warmed p95 plus the explicit margin to fit the prefetch budget, zero underruns, and measured active rate at the gate.
+The local aggregator reports count, mean, p50, p95, and max for allowed metrics, event counts, terminal/partial status, and coverage. After a complete or partial episode, one PNG overlays all 14 actual trajectories and dashed commands against the pinned gym-aloha 0.1.1 ranges; it never normalizes from observed run extrema. The plot uses monotonic elapsed time, arm color groups, and atomic replacement. `server_timing.prev_total_ms` describes request N-1 and is associated with that request or excluded from current-request aggregates. Summaries keep cold/warm inference, sim cadence, buffer waits, retries/failures, rewards/success, and GPU memory/utilization separate by profile. The 50 Hz claim additionally requires warmed p95 plus the explicit margin to fit the prefetch budget, zero underruns, and measured active rate at the gate.
 
-Raw logs are never rewritten to look public. A publishable JSON/Markdown summary is constructed from a fixed field/metric allowlist, names the model profile and source SHAs, and omits machine identities and absolute paths. It identifies private local videos only with safe `run_id-seed-N` labels, never filesystem paths.
+Raw logs are never rewritten to look public. A publishable JSON/Markdown summary is constructed from a fixed field/metric allowlist, names the model profile and source SHAs, and omits machine identities and absolute paths. It identifies private videos and trajectory plots only with safe local IDs, never filesystem paths; raw joint rows and PNGs remain ignored.
 
 ## Substantial differences from upstream
 
@@ -95,7 +95,7 @@ The repository retains upstream history and licenses but adds a bounded demo int
 - loopback server host/health/identity metadata and PyTorch checkpoint serving;
 - finite WebSocket receive/close deadlines with bounded observations and idempotent close;
 - Windows-shell/WSL discovery, exact-SHA setup, process records, server lifetime holder, and private SSH tunnel ownership;
-- a fresh-per-seed monotonic simulator loop, step-aware one-request buffer, atomic video/result finalization, bounded retry, local JSONL aggregation, and owned GPU sampling;
+- a fresh-per-seed monotonic simulator loop, step-aware one-request buffer, atomic video/result/trajectory finalization, bounded retry, local JSONL aggregation, and owned GPU sampling;
 - public-repository secret gates, pinned CI actions, structured phase plans, and a seven-PR review stack.
 
 OpenPI model behavior, transforms, and research limitations remain upstream concerns. This project does not train, publish, or redistribute checkpoint weights.

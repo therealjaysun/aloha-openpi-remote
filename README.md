@@ -10,7 +10,7 @@ Apple Silicon Mac                         RTX 3090 PC
 │ MuJoCo / gym-aloha       │             │ Windows OpenSSH                │
 │ observation + 50 Hz loop │──SSH -L────▶│   └─ Ubuntu WSL2               │
 │ action buffer + video    │  loopback   │      └─ OpenPI + CUDA :8000    │
-│ JSONL + summaries        │◀────────────│         + GPU sampler          │
+│ JSONL + summaries/plots  │◀────────────│         + GPU sampler          │
 └──────────────────────────┘             └────────────────────────────────┘
 ```
 
@@ -18,16 +18,16 @@ The policy port is loopback-only at every boundary. Model weights, CUDA, and the
 
 ## Validated results
 
-The complete workflow was validated on the exact Phase 5 candidate `de63e19` with upstream pinned at `215abfb`. Both runs used the converted PyTorch backend and seeds 0–2:
+The complete workflow was validated on the exact Phase 5 candidate `2065dd9` with upstream pinned at `215abfb`. Both runs used the converted PyTorch backend and seeds 0–2:
 
 | Profile | Intended use | Infrastructure | Task result | Total steps | Active rate (mean / p95) | Warm request p95 | Peak GPU memory |
 | --- | --- | ---: | ---: | ---: | --- | ---: | ---: |
-| `pi0_aloha_sim` (default) | π₀ fine-tuned for this simulator | 3/3 | 3/3 success | 731 | 48.21 / 48.24 Hz | 392.83 ms | 15,403 MiB |
-| `pi05_aloha_base` | Experimental π₀.₅ base model with ALOHA transforms | 3/3 | 0/3 success | 900 | 47.56 / 48.13 Hz | 515.54 ms | 15,859 MiB |
+| `pi0_aloha_sim` (default) | π₀ fine-tuned for this simulator | 3/3 | 2/3 success | 761 | 46.91 / 47.02 Hz | 359.21 ms | 15,401 MiB |
+| `pi05_aloha_base` | Experimental π₀.₅ base model with ALOHA transforms | 3/3 | 0/3 success | 900 | 48.13 / 48.38 Hz | 502.35 ms | 15,857 MiB |
 
-GPU coverage passed for both runs (20 and 24 samples respectively), with no request retries or failures. The π₀.₅ base checkpoint is not simulator-fine-tuned, so its zero task successes do not negate the separately reported infrastructure result. Neither profile met the complete cadence/underrun gate, so this project does **not** claim uninterrupted 50 Hz. The current execution cursor and complete evidence ledger are in [Project status](PLANS/STATUS.md).
+GPU coverage passed for both runs (31 and 24 samples respectively), with no request retries or failures. The 1,661 successful simulator steps produced exactly 1,661 trajectory samples and six plots; each plot contains all 14 actual joints plus thinner dashed commands, normalized against pinned simulator limits. The π₀.₅ base checkpoint is not simulator-fine-tuned, so its zero task successes do not negate the separately reported infrastructure result. Neither profile met the complete cadence/underrun gate, so this project does **not** claim uninterrupted 50 Hz. The current execution cursor and complete evidence ledger are in [Project status](PLANS/STATUS.md).
 
-The final hardening candidate `90b0fed` also passed exact-SHA WSL setup and a fresh four-call tunneled smoke for each profile, then verified cleanup and a free policy port. Phase 5 remains the source of the full-episode performance figures above.
+The pre-trajectory hardening candidate `90b0fed` also passed exact-SHA WSL setup and a fresh four-call tunneled smoke for each profile, then verified cleanup and a free policy port. Phase 5 candidate `2065dd9` remains the newer hardware proof and the source of the full-episode figures above.
 
 Both profiles return the same finite floating `(50, 14)` wire chunk. The default runner executes at most 30 actions from a chunk and starts one background prefetch with 25 actions remaining. It never clips the absolute joint commands, appends a late chunk, or repeats the last action on underrun.
 
@@ -171,10 +171,10 @@ Connect, metadata receive, inference receive, and close have explicit deadlines.
 - `outputs/phase01/<UTC>/`: simulator smoke manifest and the recorded seed's video/reset frame.
 - `outputs/phase02/` and `outputs/phase03/`: ignored setup, conversion, server, route, and policy-smoke evidence.
 - `outputs/phase04/<UTC>/<profile>/`: validated Phase 4 summary, per-seed manifest, and video.
-- `outputs/phase05/<UTC>/<profile>/`: `summary.json`, `performance-summary.json`, `performance-summary.md`, `gpu-metrics.jsonl`, `clock-correlation.json`, and capped `server-tail.log`; each `seed-N/` contains `manifest.json`, `telemetry.jsonl`, `telemetry-summary.json`, `telemetry-summary.md`, and `episode.mp4`.
+- `outputs/phase05/<UTC>/<profile>/`: `summary.json`, `performance-summary.json`, `performance-summary.md`, `gpu-metrics.jsonl`, `clock-correlation.json`, and capped `server-tail.log`; each `seed-N/` contains `manifest.json`, `telemetry.jsonl`, `telemetry-summary.json`, `telemetry-summary.md`, `joint-trajectory.png`, and `episode.mp4`.
 - `.runtime/`: private ownership records, locks, control socket, scan receipt, and remote sampler/server state.
 
-JSONL is line-buffered without per-step `fsync`; a damaged final partial line can be discarded while earlier complete events remain readable. Atomic summaries distinguish complete, failed, interrupted, infrastructure, and task outcomes. Only a newly built field allowlist is eligible for publication; raw logs and telemetry are never sanitized in place.
+JSONL is line-buffered without per-step `fsync`; every successful step records its exact step number, monotonic elapsed time, and finite 14-value actual/commanded vectors. A damaged final fragment can be discarded while earlier complete events remain readable. After each complete or partial episode, the runner atomically plots all 14 joints against fixed gym-aloha 0.1.1 ranges. Raw rows, plot paths, and images stay private; publishable summaries expose only counts, coverage, status, and safe local IDs.
 
 ```bash
 make test
@@ -195,6 +195,6 @@ Development is a seven-PR stack. Review and merge it in numerical order, using m
 
 This project is derived from [Physical Intelligence's OpenPI repository](https://github.com/Physical-Intelligence/openpi) at pinned commit [`215abfb`](https://github.com/Physical-Intelligence/openpi/tree/215abfb217dbac7d5f1273282331b9b1866c0479). Read the [original OpenPI README](https://github.com/Physical-Intelligence/openpi/blob/215abfb217dbac7d5f1273282331b9b1866c0479/README.md) for model documentation, upstream setup, research context, and limitations.
 
-The original Git history, [`LICENSE`](LICENSE), and other upstream attribution are retained. Project additions include Mac/WSL setup, strict profile/config and data contracts, memory-bounded BF16 conversion, loopback server metadata and health checks, finite receive/close deadlines, SSH/WSL process ownership, buffered seeded control, atomic evidence/video validation, bounded retries, and local/GPU telemetry. The project does not train or redistribute weights and does not imply upstream endorsement.
+The original Git history, [`LICENSE`](LICENSE), and other upstream attribution are retained. Project additions include Mac/WSL setup, strict profile/config and data contracts, memory-bounded BF16 conversion, loopback server metadata and health checks, finite receive/close deadlines, SSH/WSL process ownership, buffered seeded control, atomic evidence/video/trajectory validation, bounded retries, and local/GPU telemetry. The project does not train or redistribute weights and does not imply upstream endorsement.
 
 Security summary: secrets and machine identities stay in the Mac SSH config, ignored `.env`, or ignored raw evidence; weights/caches/videos/logs/telemetry are ignored; `origin` is the user repository and official `upstream` has push disabled; CI dependencies are pinned and permissions restricted; secret scanning fails closed before a remote candidate is accepted.
