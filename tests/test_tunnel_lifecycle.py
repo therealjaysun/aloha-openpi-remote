@@ -230,7 +230,12 @@ def test_failed_start_cleans_only_the_recorded_tunnel(monkeypatch: pytest.Monkey
     monkeypatch.setattr(connection_check, "_candidate_sha", lambda: "a" * 40)
     monkeypatch.setattr(connection_check, "_validate_alias", lambda *args: None)
     monkeypatch.setattr(connection_check, "_local_port_is_free", lambda *args: True)
-    monkeypatch.setattr(connection_check, "_run", lambda *args, **kwargs: subprocess.CompletedProcess([], 0))
+    launches = []
+    monkeypatch.setattr(
+        connection_check,
+        "_run",
+        lambda *args, **kwargs: launches.append(kwargs) or subprocess.CompletedProcess([], 0),
+    )
     monkeypatch.setattr(connection_check, "_validate_socket", lambda: None)
     monkeypatch.setattr(connection_check, "_control_pid", lambda *args: 4242)
     command = f"ssh: {(tmp_path / '.runtime' / 'tunnel.sock').resolve()} [mux]"
@@ -250,6 +255,7 @@ def test_failed_start_cleans_only_the_recorded_tunnel(monkeypatch: pytest.Monkey
     monkeypatch.setattr(connection_check, "_shutdown_verified", cleanup)
     with pytest.raises(RemoteError, match="health failed"):
         connection_check.start(RemoteConfig(), RemoteTarget("powershell", "Ubuntu-24.04"))
+    assert launches == [{"timeout": 20, "capture_output": False}]
     assert len(cleaned) == 1
     assert not Path(".runtime/tunnel.json").exists()
 

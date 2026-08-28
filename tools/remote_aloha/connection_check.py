@@ -56,9 +56,22 @@ class TunnelRecord:
     holder_run_id: str
 
 
-def _run(arguments: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
+def _run(
+    arguments: list[str],
+    *,
+    timeout: int,
+    capture_output: bool = True,
+) -> subprocess.CompletedProcess[str]:
     try:
-        return subprocess.run(arguments, capture_output=True, text=True, timeout=timeout, check=False)
+        return subprocess.run(
+            arguments,
+            capture_output=capture_output,
+            stdout=None if capture_output else subprocess.DEVNULL,
+            stderr=None if capture_output else subprocess.DEVNULL,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise RemoteError("the local SSH tunnel command could not complete") from error
 
@@ -491,7 +504,7 @@ def _start_locked(config: RemoteConfig, target: RemoteTarget) -> None:
     arguments = build_tunnel_argv(config, build_holder_command(config, target, candidate, run_id))
     record = None
     try:
-        result = _run(arguments, timeout=config.ssh_connect_timeout_seconds + 10)
+        result = _run(arguments, timeout=config.ssh_connect_timeout_seconds + 10, capture_output=False)
         if result.returncode:
             raise RemoteError("the SSH local forward could not start")
         record = _capture_record(config, target, candidate, run_id)
