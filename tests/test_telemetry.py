@@ -173,6 +173,11 @@ def test_publishable_summary_is_allowlisted_labels_profile_and_does_not_mutate_r
                 2,
                 status="complete",
                 infrastructure_pass=True,
+                trajectory_sample_count=300,
+                trajectory_joint_count=14,
+                trajectory_step_coverage=1.0,
+                trajectory_plot_status="passed",
+                trajectory_plot_id="run-seed-0-joint-trajectory",
                 private_username="secret-user",
                 metrics={"warm_inference_ms": 350.0, "private_metric": 1.0},
             ),
@@ -182,6 +187,9 @@ def test_publishable_summary_is_allowlisted_labels_profile_and_does_not_mutate_r
     encoded = json.dumps(public, sort_keys=True)
     assert public["metadata"]["profile"] == "pi05_aloha_base"
     assert public["metrics"].keys() == {"warm_inference_ms"}
+    assert public["result"]["trajectory_sample_count"] == 300
+    assert public["result"]["trajectory_joint_count"] == 14
+    assert public["result"]["trajectory_plot_id"] == "run-seed-0-joint-trajectory"
     assert "private.example" not in encoded
     assert private_path not in encoded
     assert "secret-user" not in encoded
@@ -197,6 +205,9 @@ def test_publishable_summary_is_allowlisted_labels_profile_and_does_not_mutate_r
         ("metadata", "package_versions", {"numpy": "/" + "Users/name"}),
         ("metadata", "package_versions", {"numpy": "DESKTOP-EXAMPLE"}),
         ("result", "request_count", "192.168.1.2"),
+        ("result", "trajectory_plot_id", "/Users/private/plot.png"),
+        ("result", "trajectory_joint_count", 13),
+        ("result", "trajectory_step_coverage", 1.01),
         ("metrics", "warm_inference_ms", {"count": 1, "mean": "raw error", "p50": 1, "p95": 1, "max": 1}),
     ],
 )
@@ -237,6 +248,15 @@ def test_line_buffered_writer_p95_overhead_is_below_one_millisecond(tmp_path: Pa
     with JsonlWriter(path) as writer:
         for step in range(300):
             started = time.perf_counter_ns()
-            writer.write("step", episode=0, step=step, metrics={"sim_step_ms": 0.5})
+            writer.write(
+                "step",
+                episode=0,
+                step=step,
+                applied_step=step + 1,
+                elapsed_seconds=(step + 1) / 50,
+                actual_joint_positions=[float(step)] * 14,
+                commanded_joint_positions=[float(step + 1)] * 14,
+                metrics={"sim_step_ms": 0.5},
+            )
             durations.append((time.perf_counter_ns() - started) / 1_000_000)
     assert summarize_values(durations)["p95"] < 1.0

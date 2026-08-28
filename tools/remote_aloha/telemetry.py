@@ -20,7 +20,16 @@ _SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 _SAFE_VERSION = re.compile(r"[0-9][A-Za-z0-9.+_-]{0,127}\Z")
 _SHA = re.compile(r"[0-9a-f]{40}\Z")
 _TERMINAL_STATUSES = {"complete", "failed", "interrupted", "passed"}
-_PACKAGE_NAMES = {"dm-control", "gym-aloha", "gymnasium", "imageio", "imageio-ffmpeg", "mujoco", "numpy"}
+_PACKAGE_NAMES = {
+    "dm-control",
+    "gym-aloha",
+    "gymnasium",
+    "imageio",
+    "imageio-ffmpeg",
+    "matplotlib",
+    "mujoco",
+    "numpy",
+}
 
 _PUBLISHABLE_METADATA = {
     "action_horizon",
@@ -50,6 +59,13 @@ _PUBLISHABLE_RESULTS = {
     "reward_sum",
     "steps_applied",
     "task_success",
+    "trajectory_joint_count",
+    "trajectory_plot_id",
+    "trajectory_plot_ids",
+    "trajectory_plot_status",
+    "trajectory_plots_passed",
+    "trajectory_sample_count",
+    "trajectory_step_coverage",
     "video_ids",
     "clock_max_uncertainty_ms",
     "clock_offset_change_ms",
@@ -357,10 +373,30 @@ def _valid_publishable_metadata(metadata: Mapping[str, object]) -> dict[str, obj
 
 def _valid_publishable_result(result: Mapping[str, object]) -> dict[str, object]:
     safe = {key: result[key] for key in _PUBLISHABLE_RESULTS if key in result}
-    for key in ("episodes", "failures", "gpu_sample_count", "request_count", "retries", "steps_applied"):
+    for key in (
+        "episodes",
+        "failures",
+        "gpu_sample_count",
+        "request_count",
+        "retries",
+        "steps_applied",
+        "trajectory_joint_count",
+        "trajectory_plots_passed",
+        "trajectory_sample_count",
+    ):
         value = safe.get(key)
         if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
             raise ValueError(f"publishable result {key} is invalid")
+    if safe.get("trajectory_joint_count") not in {None, 14}:
+        raise ValueError("publishable trajectory joint count must be 14")
+    sample_count = safe.get("trajectory_sample_count")
+    steps_applied = safe.get("steps_applied")
+    if sample_count is not None and steps_applied is not None and sample_count != steps_applied:
+        raise ValueError("publishable trajectory samples must match applied steps")
+    plots_passed = safe.get("trajectory_plots_passed")
+    episodes = safe.get("episodes")
+    if plots_passed is not None and episodes is not None and plots_passed > episodes:
+        raise ValueError("publishable trajectory plot count exceeds episodes")
     if "infrastructure_pass" in safe and not isinstance(safe["infrastructure_pass"], bool):
         raise ValueError("publishable infrastructure result is invalid")
     if "gpu_coverage_pass" in safe and not isinstance(safe["gpu_coverage_pass"], bool):
@@ -390,6 +426,30 @@ def _valid_publishable_result(result: Mapping[str, object]) -> dict[str, object]
         or not all(isinstance(value, str) and _SAFE_ID.fullmatch(value) for value in video_ids)
     ):
         raise ValueError("publishable video IDs must be safe local identifiers")
+    plot_id = safe.get("trajectory_plot_id")
+    if plot_id is not None and (not isinstance(plot_id, str) or not _SAFE_ID.fullmatch(plot_id)):
+        raise ValueError("publishable trajectory plot ID is invalid")
+    plot_ids = safe.get("trajectory_plot_ids")
+    if plot_ids is not None and (
+        not isinstance(plot_ids, list)
+        or not all(isinstance(value, str) and _SAFE_ID.fullmatch(value) for value in plot_ids)
+    ):
+        raise ValueError("publishable trajectory plot IDs are invalid")
+    plot_status = safe.get("trajectory_plot_status")
+    if plot_status is not None and plot_status not in {"passed", "partial", "no_samples", "failed"}:
+        raise ValueError("publishable trajectory plot status is invalid")
+    trajectory_coverage = safe.get("trajectory_step_coverage")
+    if trajectory_coverage is not None and (
+        isinstance(trajectory_coverage, bool)
+        or not isinstance(trajectory_coverage, int | float)
+        or not math.isfinite(trajectory_coverage)
+        or not 0 <= trajectory_coverage <= 1
+    ):
+        raise ValueError("publishable trajectory coverage is invalid")
+    if sample_count is not None and steps_applied is not None:
+        expected_coverage = 1.0 if steps_applied == 0 else sample_count / steps_applied
+        if trajectory_coverage is not None and trajectory_coverage != expected_coverage:
+            raise ValueError("publishable trajectory coverage does not match applied steps")
     return safe
 
 
@@ -511,8 +571,25 @@ def render_markdown(summary: Mapping[str, object]) -> str:
         lines.append(
             f"| {name} | {stats['count']} | {stats['mean']} | {stats['p50']} | {stats['p95']} | {stats['max']} |"
         )
-    if public["result"].get("video_ids"):
-        lines.extend(["", "Video IDs: " + ", ".join(f"`{value}`" for value in public["result"]["video_ids"])])
+    result = public["result"]
+    if "trajectory_sample_count" in result:
+        lines.extend(
+            [
+                "",
+                "Trajectory: "
+                f"{result['trajectory_sample_count']} samples, "
+                f"{result.get('trajectory_joint_count', 14)} joints, "
+                f"{result.get('trajectory_step_coverage')} step coverage, "
+                f"plot `{result.get('trajectory_plot_status')}`.",
+            ]
+        )
+    plot_ids = result.get("trajectory_plot_ids") or (
+        [result["trajectory_plot_id"]] if result.get("trajectory_plot_id") else []
+    )
+    if plot_ids:
+        lines.append("Plot IDs: " + ", ".join(f"`{value}`" for value in plot_ids))
+    if result.get("video_ids"):
+        lines.extend(["", "Video IDs: " + ", ".join(f"`{value}`" for value in result["video_ids"])])
     return "\n".join(lines) + "\n"
 
 

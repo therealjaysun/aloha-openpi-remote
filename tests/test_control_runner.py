@@ -123,6 +123,17 @@ def test_performance_summary_rejects_gpu_samples_that_do_not_span_the_mac_run(tm
         },
         {
             "schema": 1,
+            "event": "step",
+            "timestamp_utc": "2026-08-28T08:00:01.000Z",
+            "monotonic_ns": 1_000_000_001,
+            "step": 0,
+            "applied_step": 1,
+            "elapsed_seconds": 1.0,
+            "actual_joint_positions": [0.0] * 14,
+            "commanded_joint_positions": [0.0] * 14,
+        },
+        {
+            "schema": 1,
             "event": "terminal",
             "timestamp_utc": "2026-08-28T08:00:10.000Z",
             "monotonic_ns": 10_000_000_001,
@@ -152,6 +163,11 @@ def test_performance_summary_rejects_gpu_samples_that_do_not_span_the_mac_run(tm
                 "infrastructure_pass": True,
                 "telemetry": {"path": str(telemetry_path)},
                 "episode": {"steps_applied": 1, "reward_sum": 0.0, "reward_max": 0.0},
+                "trajectory": {
+                    "sample_count": 1,
+                    "plot_status": "passed",
+                    "plot_id": "run-seed-0-joint-trajectory",
+                },
                 "buffer": {},
                 "connection": {},
             }
@@ -161,6 +177,19 @@ def test_performance_summary_rejects_gpu_samples_that_do_not_span_the_mac_run(tm
     _write_performance_summary(local_root, summary)
     local_performance = json.loads((local_root / "performance-summary.json").read_text(encoding="utf-8"))
     assert local_performance["metrics"]["telemetry_write_ms"]["p95"] == 0.2
+    expected_trajectory = {
+        "trajectory_sample_count": 1,
+        "trajectory_joint_count": 14,
+        "trajectory_step_coverage": 1.0,
+        "trajectory_plots_passed": 1,
+        "trajectory_plot_status": "passed",
+        "trajectory_plot_ids": ["run-seed-0-joint-trajectory"],
+    }
+    for key, value in expected_trajectory.items():
+        assert local_performance["result"][key] == value
+    encoded = json.dumps(local_performance)
+    assert str(tmp_path) not in encoded
+    assert "trajectory.path" not in encoded
     with pytest.raises(ValueError, match="does not span"):
         _write_performance_summary(tmp_path, summary, gpu_path)
 
@@ -259,7 +288,9 @@ def test_control_episode_uses_exact_seed_steps_and_non_catchup_cadence() -> None
         def step(self, action: np.ndarray):
             self.steps += 1
             self.clock.now += 0.01
-            return _raw_observation(), float(self.steps), self.steps == 3, False, {"is_success": self.steps == 3}
+            observation = _raw_observation()
+            observation["agent_pos"] = np.full(14, self.steps, dtype=np.float64)
+            return observation, float(self.steps), self.steps == 3, False, {"is_success": self.steps == 3}
 
     class Policy:
         def infer(self, observation: dict, step: int) -> np.ndarray:
@@ -278,6 +309,7 @@ def test_control_episode_uses_exact_seed_steps_and_non_catchup_cadence() -> None
     clock = Clock()
     environment = Environment(clock)
     video = Video()
+    events = []
     result = control_episode(
         environment,
         Policy(),
@@ -288,6 +320,7 @@ def test_control_episode_uses_exact_seed_steps_and_non_catchup_cadence() -> None
         max_steps=10,
         monotonic=clock.monotonic,
         sleep=clock.sleep,
+        emit=lambda event, **fields: events.append({"event": event, **fields}),
     )
     assert environment.seed == 2
     assert environment.steps == result["steps_applied"] == video.frames == 3
@@ -296,6 +329,12 @@ def test_control_episode_uses_exact_seed_steps_and_non_catchup_cadence() -> None
     assert clock.sleeps == pytest.approx([0.01, 0.01])
     assert result["active_step_hz"] == pytest.approx(50.0)
     assert result["faster_than_20ms_count"] == 0
+    steps = [event for event in events if event["event"] == "step"]
+    assert [event["step"] for event in steps] == [0, 1, 2]
+    assert [event["applied_step"] for event in steps] == [1, 2, 3]
+    assert [event["elapsed_seconds"] for event in steps] == pytest.approx([0.01, 0.03, 0.05])
+    assert [event["actual_joint_positions"] for event in steps] == [[float(value)] * 14 for value in (1, 2, 3)]
+    assert all(event["commanded_joint_positions"] == [0.0] * 14 for event in steps)
 
 
 def test_video_saver_publishes_atomically_and_finalizes_once(tmp_path: Path, monkeypatch) -> None:
@@ -339,6 +378,7 @@ def test_control_error_preserves_exact_partial_step_count() -> None:
             return None
 
     progress = {}
+    events = []
     with pytest.raises(RuntimeError, match="connection lost"):
         control_episode(
             Environment(),
@@ -348,8 +388,13 @@ def test_control_error_preserves_exact_partial_step_count() -> None:
             prompt=None,
             profile=POLICY_PROFILES["pi0_aloha_sim"],
             progress=progress,
+            emit=lambda event, **fields: events.append({"event": event, **fields}),
         )
     assert progress["steps_applied"] == 1
+    steps = [event for event in events if event["event"] == "step"]
+    assert len(steps) == 1
+    assert steps[0]["applied_step"] == progress["steps_applied"]
+    assert len(steps[0]["actual_joint_positions"]) == len(steps[0]["commanded_joint_positions"]) == 14
 
 
 @pytest.mark.parametrize(
@@ -376,6 +421,7 @@ def test_post_step_validation_failure_preserves_applied_count(reward: float, inf
             return None
 
     progress = {}
+    events = []
     with pytest.raises(ValueError, match=message):
         control_episode(
             Environment(),
@@ -385,8 +431,10 @@ def test_post_step_validation_failure_preserves_applied_count(reward: float, inf
             prompt=None,
             profile=POLICY_PROFILES["pi0_aloha_sim"],
             progress=progress,
+            emit=lambda event, **fields: events.append({"event": event, **fields}),
         )
     assert progress["steps_applied"] == 1
+    assert [event["applied_step"] for event in events if event["event"] == "step"] == [1]
 
 
 def test_success_latches_and_finite_actions_are_not_clipped() -> None:
@@ -470,7 +518,10 @@ def test_output_root_inside_repository_must_be_ignored(monkeypatch) -> None:
         _validated_output_root(Path("unignored-phase-output"))
 
 
-@pytest.mark.parametrize("outcome", ["complete", "interrupted", "telemetry-close-failure"])
+@pytest.mark.parametrize(
+    "outcome",
+    ["complete", "interrupted", "telemetry-close-failure", "plot-failure", "plot-interrupted"],
+)
 def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, outcome: str) -> None:
     class Transport:
         def __init__(self) -> None:
@@ -485,6 +536,7 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
     class Environment:
         def __init__(self) -> None:
             self.closed = False
+            self.steps = 0
             self.spec = SimpleNamespace(max_episode_steps=300)
             self.metadata = {"render_fps": 50}
             self.action_space = SimpleNamespace(shape=(14,))
@@ -493,9 +545,10 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
             return _raw_observation(), {}
 
         def step(self, action: np.ndarray):
-            if outcome == "interrupted":
+            self.steps += 1
+            if outcome == "interrupted" and self.steps == 2:
                 raise KeyboardInterrupt
-            return _raw_observation(), 0.0, True, False, {}
+            return _raw_observation(), 0.0, outcome != "interrupted", False, {}
 
         def close(self) -> None:
             self.closed = True
@@ -524,6 +577,12 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
         lambda path, frames: {"bytes": path.stat().st_size, "fps": 50.0, "frames": frames},
     )
     monkeypatch.setattr("tools.remote_aloha.run.package_versions", lambda: {"numpy": "1.26.4"})
+    if outcome in {"plot-failure", "plot-interrupted"}:
+        error = OSError("plot failed") if outcome == "plot-failure" else KeyboardInterrupt()
+        monkeypatch.setattr(
+            "tools.remote_aloha.run.write_trajectory_plot",
+            lambda *args: (_ for _ in ()).throw(error),
+        )
     if outcome == "telemetry-close-failure":
 
         class FailingCloseWriter(JsonlWriter):
@@ -542,18 +601,24 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
         output_dir,
         "c" * 32,
     )
-    if outcome == "interrupted":
+    if outcome in {"interrupted", "plot-interrupted"}:
         with pytest.raises(KeyboardInterrupt):
             _run_seed(*arguments)
-    elif outcome == "telemetry-close-failure":
-        with pytest.raises(OSError, match="telemetry close failed"):
+    elif outcome in {"telemetry-close-failure", "plot-failure"}:
+        message = "telemetry close failed" if outcome == "telemetry-close-failure" else "plot failed"
+        with pytest.raises(OSError, match=message):
             _run_seed(*arguments)
     else:
         result = _run_seed(*arguments)
         assert result["infrastructure_pass"] is True
     manifest = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["cleanup_pending"] is False
-    assert manifest["status"] == ("failed" if outcome == "telemetry-close-failure" else outcome)
+    expected_status = {
+        "telemetry-close-failure": "failed",
+        "plot-failure": "failed",
+        "plot-interrupted": "interrupted",
+    }.get(outcome, outcome)
+    assert manifest["status"] == expected_status
     assert transport.closed
     assert environment.closed
     telemetry = (output_dir / "telemetry.jsonl").read_text(encoding="utf-8").splitlines()
@@ -561,6 +626,16 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
     assert json.loads(telemetry[-1])["event"] == "terminal"
     assert (output_dir / "telemetry-summary.json").exists()
     assert (output_dir / "telemetry-summary.md").exists()
+    trajectory = manifest["trajectory"]
+    assert trajectory["sample_count"] == manifest["episode"]["steps_applied"] == 1
+    assert trajectory["step_coverage"] == 1.0
+    assert trajectory["actual_series_count"] == trajectory["commanded_series_count"] == 14
+    if outcome in {"plot-failure", "plot-interrupted"}:
+        assert trajectory["plot_status"] == "failed"
+        assert trajectory["path"] is None
+    else:
+        assert trajectory["plot_status"] == "passed"
+        assert Path(trajectory["path"]).is_file()
 
 
 def test_run_seed_finalizes_manifest_when_telemetry_cannot_start(tmp_path: Path, monkeypatch) -> None:

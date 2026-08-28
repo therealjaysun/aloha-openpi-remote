@@ -39,6 +39,9 @@ from tools.remote_aloha.telemetry import aggregate_jsonl
 from tools.remote_aloha.telemetry import read_jsonl
 from tools.remote_aloha.telemetry import write_markdown_summary
 from tools.remote_aloha.telemetry import write_summary
+from tools.remote_aloha.trajectory import summarize_trajectory
+from tools.remote_aloha.trajectory import validate_joint_vector
+from tools.remote_aloha.trajectory import write_trajectory_plot
 
 _MAX_EPISODE_STEPS = 300
 _STEP_SECONDS = 0.02
@@ -194,9 +197,33 @@ def control_episode(
                 "rate_limit_sleep_ms": rate_limit_sleep_ms,
             }
         )
-        reward = float(reward)
-        if not math.isfinite(reward):
+        next_observation = convert_gym_observation(raw_observation, prompt)
+        try:
+            reward_value = float(reward)
+        except (TypeError, ValueError):
+            reward_value = None
+        if emit is not None:
+            metrics = {"sim_step_ms": (applied - step_started) * 1000}
+            if reward_value is not None and math.isfinite(reward_value):
+                metrics["reward"] = reward_value
+            if interval_ms is not None:
+                metrics["active_step_interval_ms"] = interval_ms
+            emit(
+                "step",
+                seed=seed,
+                step=step,
+                applied_step=applied_steps,
+                elapsed_seconds=applied - started,
+                actual_joint_positions=validate_joint_vector(
+                    next_observation["state"].tolist(), "actual_joint_positions"
+                ),
+                commanded_joint_positions=validate_joint_vector(action.tolist(), "commanded_joint_positions"),
+                metrics=metrics,
+            )
+        observation = next_observation
+        if reward_value is None or not math.isfinite(reward_value):
             raise ValueError("environment reward must be finite")
+        reward = reward_value
         rewards.append(reward)
         info = _json_safe(last_info)
         current_success = info.get("is_success") if isinstance(info, dict) else None
@@ -215,12 +242,6 @@ def control_episode(
                 "reward_final": rewards[-1],
             }
         )
-        if emit is not None:
-            metrics = {"sim_step_ms": (applied - step_started) * 1000, "reward": reward}
-            if interval_ms is not None:
-                metrics["active_step_interval_ms"] = interval_ms
-            emit("step", seed=seed, step=step, metrics=metrics)
-        observation = convert_gym_observation(raw_observation, prompt)
         video.on_step(observation, {"actions": action})
         if terminated or truncated:
             break
@@ -311,6 +332,15 @@ def _run_seed(
     connection = {"failures": 0, "retries": 0}
     telemetry_overheads_ms: list[float] = []
     telemetry_writer: JsonlWriter | None = None
+    trajectory: dict[str, object] = {
+        "sample_count": 0,
+        "joint_count": 14,
+        "step_coverage": 1.0,
+        "plot_status": "no_samples",
+        "plot_id": None,
+        "actual_series_count": 0,
+        "commanded_series_count": 0,
+    }
     versions: dict[str, str] = {}
     primary: BaseException | None = None
     status = "running"
@@ -453,6 +483,42 @@ def _run_seed(
             and result.get("faster_than_20ms_count") == 0
         )
         infrastructure_pass = status == "complete" and video_validation is not None and not errors
+        trajectory_path = output_dir / "joint-trajectory.png"
+        trajectory_plot_id = f"{run_id}-seed-{seed}-joint-trajectory"
+        if telemetry_writer is not None:
+            try:
+                trajectory_events = read_jsonl(telemetry_path).events
+                trajectory = summarize_trajectory(
+                    trajectory_events,
+                    int(result.get("steps_applied", 0)),
+                )
+                trajectory = write_trajectory_plot(
+                    trajectory_events,
+                    int(result.get("steps_applied", 0)),
+                    trajectory_path,
+                    trajectory_plot_id,
+                )
+            except BaseException as error:
+                trajectory = {**trajectory, "plot_status": "failed", "plot_id": None}
+                errors.append({"stage": "trajectory", "type": type(error).__name__, "message": str(error)[:500]})
+                infrastructure_pass = False
+                if isinstance(error, KeyboardInterrupt):
+                    status = "interrupted"
+                elif status == "complete":
+                    status = "failed"
+                if primary is None:
+                    primary = error
+        if status == "complete" and (
+            trajectory.get("plot_status") != "passed"
+            or trajectory.get("sample_count") != result.get("steps_applied")
+            or trajectory.get("step_coverage") != 1.0
+        ):
+            error = ValueError("complete episode trajectory coverage or plot status is invalid")
+            errors.append({"stage": "trajectory", "type": type(error).__name__, "message": str(error)})
+            infrastructure_pass = False
+            status = "failed"
+            if primary is None:
+                primary = error
         telemetry_summary = None
         try:
             wait_metrics = {
@@ -479,6 +545,11 @@ def _run_seed(
                 reward_sum=result.get("reward_sum", 0.0),
                 reward_max=result.get("reward_max"),
                 reward_final=result.get("reward_final"),
+                trajectory_sample_count=trajectory["sample_count"],
+                trajectory_joint_count=trajectory["joint_count"],
+                trajectory_step_coverage=trajectory["step_coverage"],
+                trajectory_plot_status=trajectory["plot_status"],
+                trajectory_plot_id=trajectory["plot_id"],
                 video_ids=[f"{run_id}-seed-{seed}"],
                 metrics=terminal_metrics,
             )
@@ -542,6 +613,10 @@ def _run_seed(
                 "path": str(telemetry_path),
                 "summary": telemetry_summary,
                 "write_p95_ms": _percentile(telemetry_overheads_ms, 95),
+            },
+            "trajectory": {
+                **trajectory,
+                "path": str(trajectory_path) if trajectory_path.is_file() else None,
             },
             "video": {
                 "id": f"{run_id}-seed-{seed}",
@@ -730,7 +805,10 @@ def _write_performance_summary(root: Path, summary: Mapping[str, object], gpu_pa
     episodes = summary.get("episodes", [])
     if not isinstance(episodes, list) or not episodes:
         raise ValueError("a performance summary requires at least one episode manifest")
-    event_groups = [read_jsonl(Path(str(episode["telemetry"]["path"]))).events for episode in episodes]
+    manifests = [episode for episode in episodes if isinstance(episode, Mapping)]
+    if len(manifests) != len(episodes):
+        raise ValueError("performance summary episodes must be manifests")
+    event_groups = [read_jsonl(Path(str(episode["telemetry"]["path"]))).events for episode in manifests]
     first = dict(event_groups[0][0])
     first["seeds"] = [episode["seed"] for episode in episodes]
     events = [first]
@@ -770,9 +848,28 @@ def _write_performance_summary(root: Path, summary: Mapping[str, object], gpu_pa
             raise ValueError("GPU telemetry does not span the Mac run within the configured interval tolerance")
     else:
         gpu_result = {}
-    manifests = [episode for episode in episodes if isinstance(episode, Mapping)]
     rewards = [episode["episode"].get("reward_max") for episode in manifests]
     reward_max = max((value for value in rewards if isinstance(value, int | float)), default=None)
+    trajectory_sample_count = sum(int(episode.get("trajectory", {}).get("sample_count", 0)) for episode in manifests)
+    trajectory_steps = sum(int(episode["episode"].get("steps_applied", 0)) for episode in manifests)
+    trajectory_plot_ids = [
+        str(episode["trajectory"]["plot_id"])
+        for episode in manifests
+        if isinstance(episode.get("trajectory"), Mapping) and episode["trajectory"].get("plot_status") == "passed"
+    ]
+    trajectory_statuses = {
+        episode["trajectory"].get("plot_status")
+        for episode in manifests
+        if isinstance(episode.get("trajectory"), Mapping)
+    }
+    if len(trajectory_plot_ids) == len(manifests):
+        trajectory_plot_status = "passed"
+    elif "failed" in trajectory_statuses:
+        trajectory_plot_status = "failed"
+    elif not trajectory_plot_ids:
+        trajectory_plot_status = "no_samples"
+    else:
+        trajectory_plot_status = "partial"
     events.append(
         {
             "schema": 1,
@@ -791,6 +888,12 @@ def _write_performance_summary(root: Path, summary: Mapping[str, object], gpu_pa
             "task_success": sum(episode["episode"].get("task_success") is True for episode in manifests),
             "reward_sum": sum(float(episode["episode"].get("reward_sum", 0)) for episode in manifests),
             "reward_max": reward_max,
+            "trajectory_sample_count": trajectory_sample_count,
+            "trajectory_joint_count": 14,
+            "trajectory_step_coverage": (1.0 if trajectory_steps == 0 else trajectory_sample_count / trajectory_steps),
+            "trajectory_plots_passed": len(trajectory_plot_ids),
+            "trajectory_plot_status": trajectory_plot_status,
+            "trajectory_plot_ids": trajectory_plot_ids,
             "video_ids": [f"{first['run_id']}-seed-{episode['seed']}" for episode in manifests],
             **gpu_result,
         }
