@@ -173,6 +173,7 @@ cython_debug/
 outputs/
 .runtime/
 policy_records/
+.Rhistory
 *.mp4
 *.pid
 *.jsonl

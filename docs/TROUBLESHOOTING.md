@@ -227,4 +227,4 @@ gh repo view therealjaysun/pi-robotics
 
 Run `make ci`, `make secret-scan`, `make public-audit`, and `make pr-status` locally. The publication audit checks both current files and project-added history; if it reports a real secret, stop publication and rotate it before rewriting unpublished history. Do not silence a finding or edit generated evidence into a pass.
 
-Review the seven PRs in numerical order from [PR stack](../PLANS/PR_STACK.md), using [Review and merge](../PLANS/REVIEW_AND_MERGE.md). A child diff that contains earlier phases must be retargeted/repaired before review; do not merge out of order or enable auto-merge.
+The original stacked-PR procedure is archived in [Original implementation plans](../PLANS/ORIGINAL_IMPLEMENTATION_0828/README.md). New work starts from updated `main` on one scoped `codex/` branch and PR; GitHub Actions remain disabled, so local gates are authoritative.
