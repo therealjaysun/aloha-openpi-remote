@@ -86,6 +86,8 @@ The runtime work may complete even if no speed candidate survives measurement; r
 
 **Current boundary:** Complete on `8faea85`. The private captured observation and fixed local noise seed produced bitwise-identical actions across all warmup and measured calls; synchronized stage totals reconciled.
 
+**Completed work; do not rerun B0:**
+
 1. Reuse existing request telemetry; add only enough CUDA-event timing to separate input transfer, three-camera SigLIP, Gemma prefix/KV, ten-step denoising, and device-to-host output.
 2. Include the final CUDA-to-CPU synchronization that the current `Policy.infer` timer misses.
 3. Record buffer depth at request submission and at result receipt, usable fresh actions, elapsed-prefix count, and replacement-step command delta.
