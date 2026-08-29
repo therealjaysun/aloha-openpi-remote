@@ -277,14 +277,13 @@ def test_publishable_custom_scenario_keeps_safe_identity_counts_and_omits_privat
     assert "desktop-name" not in encoded
 
 
-@pytest.mark.parametrize("profile", ["pi0_aloha_sim", "pi05_aloha_base"])
-def test_publishable_staged_prompt_metadata_keeps_only_fixed_safe_identifiers(profile: str) -> None:
+def test_publishable_staged_prompt_metadata_keeps_only_fixed_safe_identifiers() -> None:
     raw = aggregate_events(
         [
             _event(
                 "metadata",
                 1,
-                profile=profile,
+                profile="pi05_aloha_base",
                 task="pi_robotics/PushPiSingleArm-v0",
                 scenario="push_pi_single",
                 scene_hash="d" * 64,
@@ -309,6 +308,7 @@ def test_publishable_staged_prompt_metadata_keeps_only_fixed_safe_identifiers(pr
     ("profile", "scenario", "schedule", "count", "boundaries"),
     [
         ("pi0_aloha_sim", "push_pi_single", "custom", 3, [0, 500, 1500, 6000]),
+        ("pi0_aloha_sim", "push_pi_single", "push_pi_single_left_staged_v1", 3, [0, 500, 1500, 6000]),
         ("pi0_aloha_sim", "push_pi_single", "push_pi_single_left_staged_v1", 2, [0, 500, 1500, 6000]),
         ("pi0_aloha_sim", "push_pi_single", "push_pi_single_left_staged_v1", 3, [0, 1, 2, 6000]),
     ],

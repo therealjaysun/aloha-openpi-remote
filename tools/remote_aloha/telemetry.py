@@ -428,7 +428,8 @@ def _valid_publishable_metadata(metadata: Mapping[str, object]) -> dict[str, obj
     prompt_stage_boundaries = result.get("prompt_stage_boundaries")
     if prompt_schedule == STAGED_PROMPT_SCHEDULE:
         if (
-            scenario != "push_pi_single"
+            profile != "pi05_aloha_base"
+            or scenario != "push_pi_single"
             or prompt_stage_count != 3
             or prompt_stage_boundaries != list(STAGED_PROMPT_BOUNDARIES)
         ):

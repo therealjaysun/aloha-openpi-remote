@@ -1217,7 +1217,7 @@ def test_run_writes_failed_root_summary(tmp_path: Path, monkeypatch, capsys) -> 
     assert str(tmp_path) not in progress.err
 
 
-def test_run_accepts_staged_prompt_schedule_for_pi0(monkeypatch, capsys) -> None:
+def test_run_rejects_staged_prompt_schedule_for_pi0_before_connecting(monkeypatch, capsys) -> None:
     scenario = SCENARIOS["push_pi_single"]
     monkeypatch.setattr(
         "tools.remote_aloha.run.load_mac_sim_config",
@@ -1235,8 +1235,8 @@ def test_run_accepts_staged_prompt_schedule_for_pi0(monkeypatch, capsys) -> None
     )
     monkeypatch.setattr(
         "tools.remote_aloha.run.verify_ready_tunnel",
-        lambda config: (_ for _ in ()).throw(RuntimeError("staged pi0 accepted")),
+        lambda config: pytest.fail("staged profile validation must happen before tunnel access"),
     )
-    with pytest.raises(RuntimeError, match="staged pi0 accepted"):
+    with pytest.raises(ValueError, match="pi05_aloha_base"):
         run()
     assert capsys.readouterr().err == ""

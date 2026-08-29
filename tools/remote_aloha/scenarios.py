@@ -236,7 +236,9 @@ SCENARIOS = {
         "pi_robotics/PushPiSingleArm-v0",
         "pi",
         "left",
-        "Using only the left arm, push the pi-shaped block onto its matching target.",
+        "Using only the left arm, first tilt the wrist down to see the pi-shaped block and its matching outline, "
+        "then lower the gripper close to the table beside the block and make short incremental pushes that move "
+        "the block into the outline; recheck alignment after each push and do not lift the block.",
     ),
     "push_pi_dual": ScenarioSpec(
         "push_pi_dual",

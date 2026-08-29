@@ -669,6 +669,11 @@ def _run_seed(
 
     _status(f"episode seed={seed} preparing")
     try:
+        if (
+            sim_config.prompt_schedule == STAGED_PROMPT_SCHEDULE
+            and remote_config.policy_profile.name != "pi05_aloha_base"
+        ):
+            raise ValueError("the staged prompt schedule is limited to the pi05_aloha_base diagnostic")
         telemetry_writer = JsonlWriter(telemetry_path)
         versions = package_versions()
         environment = _make_environment(sim_config)
@@ -1379,6 +1384,8 @@ def _write_performance_summary(root: Path, summary: Mapping[str, object], gpu_pa
 def run() -> dict[str, object]:
     sim_config = load_mac_sim_config()
     remote_config = load_remote_config()
+    if sim_config.prompt_schedule == STAGED_PROMPT_SCHEDULE and remote_config.policy_profile.name != "pi05_aloha_base":
+        raise ValueError("the staged prompt schedule is limited to the pi05_aloha_base diagnostic")
     if remote_config.policy_backend != "pytorch":
         raise RemoteError("Phase 5 requires OPENPI_POLICY_BACKEND=pytorch on the validated 24 GiB PC")
     _, source_sha = verify_ready_tunnel(remote_config)

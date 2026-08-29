@@ -13,13 +13,13 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 | 04 End-to-end | Complete; open for review | `codex/04-end-to-end-control` | 5 | [PR 5](https://github.com/therealjaysun/pi-robotics/pull/5) | `codex/03-secure-connectivity` | `codex/04-end-to-end-control` | 205 local and isolated-lock tests plus lint/format/shell/secret scan pass; hosted `pure-checks`/`secret-scan` pass; Mac 900-step smoke and six exact-candidate policy episodes/videos pass with clean stops | None; sustained 50 Hz was not claimed (45.44–47.09 Hz measured) | `d7e9714` |
 | 05 Observability | Complete; open for review | `codex/05-observability` | 6 | [PR 6](https://github.com/therealjaysun/pi-robotics/pull/6) | `codex/04-end-to-end-control` | `codex/05-observability` | 297 passed + 1 platform skip; lint/format/Bash/secret and hosted checks pass; exact π₀/π₀.₅ hardware runs produced 1,661/1,661 samples and six verified 14-joint plots | None | Hardware implementation `2065dd9`; completion evidence at branch HEAD |
 | 06 Hardening/docs | Complete; open for review | `codex/06-hardening-docs` | 7 | [PR 7](https://github.com/therealjaysun/pi-robotics/pull/7) | `codex/05-observability` | `codex/06-hardening-docs` | 318 passed + 1 platform skip; 21 feasible upstream tests, lint/format/Bash, doctors, public/secret audits, plan/link/ancestry validators, hosted checks, and seven-PR status pass | None; final hardware proof remains Phase 5 `2065dd9`, with Phase 6 `90b0fed` smokes retained as historical evidence | Implementation `a8a3ca1`; final evidence at branch HEAD |
-| S0827 Push-PI | In progress; open for review | `codex/push-pi-scenarios` | 8 | [PR 8](https://github.com/therealjaysun/pi-robotics/pull/8) | `codex/06-hardening-docs` | `codex/push-pi-scenarios` | 423 passed + 1 platform skip; lint/format/Bash/secret/public and four hosted checks pass; exact-SHA π₀.₅ staged three-view run/evidence/cleanup pass | Requested same-schedule π₀ block-transfer comparison pending | Live-status/staged implementation `b1a1727`; comparison candidate pending |
+| S0827 Push-PI | In progress; open for review | `codex/push-pi-scenarios` | 8 | [PR 8](https://github.com/therealjaysun/pi-robotics/pull/8) | `codex/06-hardening-docs` | `codex/push-pi-scenarios` | 423 passed + 1 platform skip; lint/format/Bash/secret/public pass; exact-SHA π₀.₅ staged three-view run/evidence/cleanup pass | Requested fixed one-go-prompt π₀ block-transfer comparison pending | Fixed-prompt candidate pending commit |
 
 ## Active extension cursor
 
-- S0827 composite-video/staged-prompt extension remains on `codex/push-pi-scenarios`; π₀.₅ is the default and π₀ remains explicit. The π₀.₅ candidate passed; the same-schedule π₀ block-transfer comparison is in progress.
+- S0827 remains on `codex/push-pi-scenarios`; π₀.₅ is the default and π₀ remains explicit. The historical staged π₀.₅ candidate passed; the fixed one-go-prompt π₀ block-transfer comparison is in progress.
 - Behavior result: the π₀.₅ staged Scenario 1 run achieved 0% coverage and naturally ended off-table at step 3,646/6,000 after non-finger hand contact; deterministic seed-0 retry is not justified.
-- Next comparison: run the same seed-0 staged three-view Scenario 1 ceiling with the task-specific `pi0_aloha_sim` block-transfer checkpoint; keep artifacts ignored and append results without a per-run commit.
+- Next comparison: run the same seed-0 three-view Scenario 1 ceiling with one fixed full-sequence prompt and task-specific `pi0_aloha_sim`; keep artifacts ignored and append results without a per-run commit.
 - Identity: custom 3-D ALOHA Push-PI experiment inspired by PushT, not the standard PushT benchmark. The glyph task uses Greek π; the letter task uses uppercase dotless `P` and `I`.
 - Machine gate: PC online and SSH ready; no owned server/tunnel currently running.
 - PR dependency: PR 8 is based on `codex/06-hardening-docs`; retarget to `main` only after PR 7 merges and verify the incremental diff.
@@ -34,7 +34,7 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 - Source baseline remains upstream `215abfb217dbac7d5f1273282331b9b1866c0479`. Baseline commit is `13426ca`; validated Phase 01 implementation is `44e1d5f229c787d7d1af24bf323a968bce33dfcf`.
 - Remotes: official OpenPI is fetch-only `upstream` with push disabled; public project `origin` is `https://github.com/therealjaysun/pi-robotics`.
 - Submodules: ALOHA `d1dc83afd89ded4379851257fe5d85632d31d5ec`; LIBERO `f78abd68ee283de9f9be3c8f7e2a9ad60246e95c`.
-- GitHub: authenticated access works. The public repository exists; Actions allows selected immutable-SHA actions, requires SHA pinning, uses read-only default workflow permissions, and cannot approve pull-request reviews. See [`00-bootstrap/04-github-blocker.md`](00-bootstrap/04-github-blocker.md).
+- GitHub: authenticated access works. On 2026-08-29 the user designated the project local-only and repository Actions was set to `enabled: false`; existing workflow files remain tracked but inert. Prior hosted evidence remains historical. See [`00-bootstrap/04-github-blocker.md`](00-bootstrap/04-github-blocker.md).
 - Remote: strict `robot-gpu` key/host trust passes through Windows cmd to explicitly selected Ubuntu 24.04 WSL2. Latest hardware candidate `b1a1727e8aad06fb5592ecba94c2eb57fa406306` passed locked setup, π₀.₅ smoke, staged run infrastructure/evidence, and cleanup; machine identifiers remain untracked.
 - Public repository URL: https://github.com/therealjaysun/pi-robotics.
 
@@ -52,10 +52,10 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 
 ## Execution cursor
 
-- Active subphase: S0827 staged Scenario 1 π₀ block-transfer comparison; phases 00–06 remain complete.
+- Active subphase: S0827 fixed one-go-prompt Scenario 1 π₀ block-transfer comparison; phases 00–06 remain complete.
 - Machine gate: PC online; SSH readiness passed and port ownership will be rechecked before launch.
 - Exact user action: none while the comparison runs.
-- Release gate: exact comparison candidate, hosted checks, π₀ smoke/run, artifact inspection, evidence, and cleanup.
+- Release gate: exact comparison candidate, local gates, π₀ smoke/run, artifact inspection, evidence, and cleanup; hosted checks are disabled.
 - Recovery: camera-only amendments require global contract tests plus the bounded Scenario 1 hardware run; do not claim the historical matrices validate three-view behavior.
 - Three-view implementation `6662a235278f01c6ee08dec976f58359c47181ec`; latest top-only diagnostic `6e6180c85b5ae279966f790ee7e96720b3285a6e`; coverage `4516422a95e3d3572997cace51b6a9b718cb8794`; matrix `7c2ec5927ad200e5aaf30bed0db4ef61cb9e2ba4`; upstream `215abfb217dbac7d5f1273282331b9b1866c0479`.
 - PR state: PRs 1–7 remain open and stacked; PR 8 is the standalone S0827 extension based temporarily on PR 7.

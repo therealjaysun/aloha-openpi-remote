@@ -182,12 +182,12 @@ For the exact Push-PI evaluation, replace `make run` with one `make scenario-mat
 
 `ALOHA_EPISODE_STEPS` defaults to the accepted 300-step limit. A single diagnostic run may raise it to at most 6,000 steps (120 simulated seconds at 50 Hz); the acceptance matrix rejects overrides so its results remain comparable.
 
-Scenario 1 also has a fail-closed staged diagnostic for either validated profile. It first asks the left arm to point its wrist down and look, then lower beside the π, then make short pushes toward the target. Boundaries are exact and old queued actions are discarded before each new instruction:
+Scenario 1 sends this complete instruction once and works with either validated profile: `Using only the left arm, first tilt the wrist down to see the pi-shaped block and its matching outline, then lower the gripper close to the table beside the block and make short incremental pushes that move the block into the outline; recheck alignment after each push and do not lift the block.`
 
 ```bash
 profile=pi0_aloha_sim  # or pi05_aloha_base
 ALOHA_SCENARIO=push_pi_single ALOHA_EPISODES=1 ALOHA_EPISODE_STEPS=6000 \
-  ALOHA_PROMPT_SCHEDULE=push_pi_single_left_staged_v1 \
+  ALOHA_PROMPT_SCHEDULE=fixed \
   OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make run
 ```
 
@@ -231,4 +231,4 @@ This project is derived from [Physical Intelligence's OpenPI repository](https:/
 
 The original Git history, [`LICENSE`](LICENSE), and other upstream attribution are retained. Project additions include Mac/WSL setup, strict profile/config and data contracts, memory-bounded BF16 conversion, loopback server metadata and health checks, finite receive/close deadlines, SSH/WSL process ownership, buffered seeded control, atomic evidence/video/trajectory validation, bounded retries, and local/GPU telemetry. The project does not train or redistribute weights and does not imply upstream endorsement.
 
-Security summary: secrets and machine identities stay in the Mac SSH config, ignored `.env`, or ignored raw evidence; weights/caches/videos/logs/telemetry are ignored; `origin` is the user repository and official `upstream` has push disabled; CI dependencies are pinned and permissions restricted; secret scanning fails closed before a remote candidate is accepted.
+Security summary: secrets and machine identities stay in the Mac SSH config, ignored `.env`, or ignored raw evidence; weights/caches/videos/logs/telemetry are ignored; `origin` is the user repository and official `upstream` has push disabled. GitHub Actions is disabled for this local-only project, while the preserved workflow files stay inert; local secret scanning fails closed before a remote candidate is accepted.
