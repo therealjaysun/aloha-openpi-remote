@@ -21,4 +21,4 @@
 
 ## Machine handoff
 
-The historical Phase 5 profile campaign remains complete. The S0827 extension adds only one π₀ Scenario 1 diagnostic after local/hosted gates; it does not rerun the Phase 5 campaign.
+The historical Phase 5 profile campaign remains complete. The S0827 extension adds only one π₀.₅ Scenario 1 diagnostic after local/hosted gates; it does not rerun the Phase 5 campaign.

@@ -14,7 +14,7 @@ from tools.remote_aloha.scenarios import ScenarioSpec
 from tools.remote_aloha.scenarios import get_scenario
 
 DEFAULT_TASK = "gym_aloha/AlohaTransferCube-v0"
-DEFAULT_POLICY_PROFILE = "pi0_aloha_sim"
+DEFAULT_POLICY_PROFILE = "pi05_aloha_base"
 DEFAULT_POLICY_BACKEND = "pytorch"
 DEFAULT_CONVERSION_RESTORE_MODE = "auto"
 FIXED_PROMPT_SCHEDULE = "fixed"

@@ -342,7 +342,7 @@ def test_launch_receipt_is_private_and_round_trips(monkeypatch: pytest.MonkeyPat
     assert receipt.stat().st_mode & 0o777 == 0o600
     assert _read_launch_receipt() == {
         "backend": "pytorch",
-        "profile": "pi0_aloha_sim",
+        "profile": "pi05_aloha_base",
         "port": 8000,
         "remote_dir": "~/src/openpi",
         "route": "powershell",
@@ -474,7 +474,7 @@ def test_convert_uses_one_bounded_allowlisted_remote_command(monkeypatch: pytest
             [
                 "__ALOHA_CONVERSION__=passed",
                 "__ALOHA_CONVERSION_PARTIAL__=absent",
-                "__ALOHA_PROFILE__=pi0_aloha_sim",
+                "__ALOHA_PROFILE__=pi05_aloha_base",
                 f"__ALOHA_PROJECT_SHA__={'a' * 40}",
                 "__ALOHA_CONVERSION_RESTORE_MODE__=partial-bfloat16",
                 "__ALOHA_AVAILABLE_RAM_KIB__=12000000",
@@ -508,7 +508,7 @@ def test_convert_rejects_nonpositive_resource_evidence(monkeypatch: pytest.Monke
         [
             "__ALOHA_CONVERSION__=passed",
             "__ALOHA_CONVERSION_PARTIAL__=absent",
-            "__ALOHA_PROFILE__=pi0_aloha_sim",
+            "__ALOHA_PROFILE__=pi05_aloha_base",
             f"__ALOHA_PROJECT_SHA__={'a' * 40}",
             "__ALOHA_CONVERSION_RESTORE_MODE__=partial-bfloat16",
             "__ALOHA_AVAILABLE_RAM_KIB__=12000000",
@@ -535,7 +535,7 @@ def test_convert_auto_requires_mode_matching_available_ram(monkeypatch: pytest.M
         [
             "__ALOHA_CONVERSION__=passed",
             "__ALOHA_CONVERSION_PARTIAL__=absent",
-            "__ALOHA_PROFILE__=pi0_aloha_sim",
+            "__ALOHA_PROFILE__=pi05_aloha_base",
             f"__ALOHA_PROJECT_SHA__={'a' * 40}",
             "__ALOHA_CONVERSION_RESTORE_MODE__=full-float32",
             "__ALOHA_AVAILABLE_RAM_KIB__=12000000",
@@ -562,7 +562,7 @@ def test_convert_explicit_full_mode_overrides_low_ram(monkeypatch: pytest.Monkey
         [
             "__ALOHA_CONVERSION__=passed",
             "__ALOHA_CONVERSION_PARTIAL__=absent",
-            "__ALOHA_PROFILE__=pi0_aloha_sim",
+            "__ALOHA_PROFILE__=pi05_aloha_base",
             f"__ALOHA_PROJECT_SHA__={'a' * 40}",
             "__ALOHA_CONVERSION_RESTORE_MODE__=full-float32",
             "__ALOHA_AVAILABLE_RAM_KIB__=12000000",

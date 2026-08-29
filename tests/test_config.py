@@ -142,7 +142,7 @@ def test_remote_defaults_and_profile_contract(tmp_path: Path) -> None:
         8000,
         "127.0.0.1",
         8000,
-        "pi0_aloha_sim",
+        "pi05_aloha_base",
         "pytorch",
         "auto",
         60,

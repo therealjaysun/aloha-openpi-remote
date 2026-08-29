@@ -22,8 +22,8 @@ The complete workflow was validated on the exact Phase 5 candidate `2065dd9` wit
 
 | Profile | Intended use | Infrastructure | Task result | Total steps | Active rate (mean / p95) | Warm request p95 | Peak GPU memory |
 | --- | --- | ---: | ---: | ---: | --- | ---: | ---: |
-| `pi0_aloha_sim` (default) | π₀ fine-tuned for this simulator | 3/3 | 2/3 success | 761 | 46.91 / 47.02 Hz | 359.21 ms | 15,401 MiB |
-| `pi05_aloha_base` | Experimental π₀.₅ base model with ALOHA transforms | 3/3 | 0/3 success | 900 | 48.13 / 48.38 Hz | 502.35 ms | 15,857 MiB |
+| `pi0_aloha_sim` | π₀ fine-tuned for this simulator | 3/3 | 2/3 success | 761 | 46.91 / 47.02 Hz | 359.21 ms | 15,401 MiB |
+| `pi05_aloha_base` (default) | Experimental π₀.₅ base model with ALOHA transforms | 3/3 | 0/3 success | 900 | 48.13 / 48.38 Hz | 502.35 ms | 15,857 MiB |
 
 GPU coverage passed for both runs (31 and 24 samples respectively), with no request retries or failures. The 1,661 successful simulator steps produced exactly 1,661 trajectory samples and six plots; each plot contains all 14 actual joints plus thinner dashed commands, normalized against pinned simulator limits. The π₀.₅ base checkpoint is not simulator-fine-tuned, so its zero task successes do not negate the separately reported infrastructure result. Neither profile met the complete cadence/underrun gate, so this project does **not** claim uninterrupted 50 Hz. The current execution cursor and complete evidence ledger are in [Project status](PLANS/STATUS.md).
 
@@ -146,7 +146,7 @@ make scenario-calibrate  # Mac only; fixed geometry, visibility, contact, and pa
 Policy only—starts the owned WSL server and Mac tunnel, verifies one bounded client workload, then stops server-first:
 
 ```bash
-profile=pi0_aloha_sim
+profile=pi05_aloha_base
 OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make server
 OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make tunnel
 OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make smoke-policy
@@ -156,7 +156,7 @@ OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BA
 Complete system—keep both machines on and run the same profile in every command:
 
 ```bash
-profile=pi0_aloha_sim
+profile=pi05_aloha_base
 OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make server
 OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make smoke-policy
 ALOHA_SEED=0 ALOHA_EPISODES=3 OPENPI_WSL_DISTRO=Ubuntu-24.04 \
@@ -170,12 +170,12 @@ For the exact Push-PI evaluation, replace `make run` with one `make scenario-mat
 
 `ALOHA_EPISODE_STEPS` defaults to the accepted 300-step limit. A single diagnostic run may raise it to at most 6,000 steps (120 simulated seconds at 50 Hz); the acceptance matrix rejects overrides so its results remain comparable.
 
-Scenario 1 also has one fail-closed π₀-only staged diagnostic. It first asks the left arm to point its wrist down and look, then lower beside the π, then make short pushes toward the target. Boundaries are exact and old queued actions are discarded before each new instruction:
+Scenario 1 also has one fail-closed π₀.₅-only staged diagnostic. It first asks the left arm to point its wrist down and look, then lower beside the π, then make short pushes toward the target. Boundaries are exact and old queued actions are discarded before each new instruction:
 
 ```bash
 ALOHA_SCENARIO=push_pi_single ALOHA_EPISODES=1 ALOHA_EPISODE_STEPS=6000 \
   ALOHA_PROMPT_SCHEDULE=push_pi_single_left_staged_v1 \
-  OPENPI_POLICY_PROFILE=pi0_aloha_sim OPENPI_POLICY_BACKEND=pytorch make run
+  OPENPI_POLICY_PROFILE=pi05_aloha_base OPENPI_POLICY_BACKEND=pytorch make run
 ```
 
 One automatic, low-frequency RTX sampler covers the whole `make run`. It validates the owned server identity before every bounded `nvidia-smi` query and stops in `finally`; there is no SSH or GPU query per simulation step. Start/end clock probes record the Mac↔WSL UTC offset with a round-trip uncertainty bound. `make metrics` only validates the latest run for the selected `OPENPI_POLICY_PROFILE` and atomically rebuilds derived summaries—it does not contact the PC, change raw evidence, or start a sampler.
@@ -204,7 +204,7 @@ make secret-scan
 make public-audit
 make pr-status
 # Select the profile whose latest run should be checked:
-OPENPI_POLICY_PROFILE=pi0_aloha_sim make metrics
+OPENPI_POLICY_PROFILE=pi05_aloha_base make metrics
 git status --short
 ```
 

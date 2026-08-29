@@ -17,7 +17,7 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 
 ## Active extension cursor
 
-- S0827 composite-video/staged-prompt extension is in progress on `codex/push-pi-scenarios`; implementation tests pass, while full gates and one exact-SHA π₀ diagnostic remain. Prior matrix/acceptance evidence is unchanged.
+- S0827 composite-video/staged-prompt extension is in progress on `codex/push-pi-scenarios`; π₀.₅ is now the project/experiment default, while π₀ remains explicit. Full gates and one exact-SHA π₀.₅ diagnostic remain.
 - Mac state: full CI, exact clean-checkout calibration, stock regression, four three-seed hold runs, four visual smokes, and image inspection pass for the amended prompt descriptor.
 - Identity: custom 3-D ALOHA Push-PI experiment inspired by PushT, not the standard PushT benchmark. The glyph task uses Greek π; the letter task uses uppercase dotless `P` and `I`.
 - Machine gate: **OFF pending candidate gates**; no PC action is needed until the exact implementation is committed, pushed, and hosted checks pass.

@@ -8,7 +8,7 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | --- | --- | --- | --- | --- |
 | G01 | Mac runs MuJoCo/gym-aloha/client; RTX 3090 WSL runs all π inference | 01,02 | process/device evidence | Pass: E-MAC01, E-PC-BF16 |
 | G02 | Default task is `gym_aloha/AlohaTransferCube-v0`; inference only, no training | 01,04 | config/run manifest | Pass through Phase 05: E-MAC01, E-PC-CONTROL, E-PC-OBS |
-| G03 | `pi0_aloha_sim` is the task-specific default; `pi05_aloha_base` is optional and explicitly experimental | 02–06 | server metadata and docs | Pass through Phase 05: E-PC-BF16, E-PC-CONTROL, E-PC-OBS |
+| G03 | `pi05_aloha_base` is the user-selected default but remains experimental/not sim-fine-tuned; `pi0_aloha_sim` remains an explicit task-specific option | 02–06,S0827 | config, server metadata, and docs | Pending default-change validation; both profiles already pass hardware infrastructure evidence |
 | G04 | Policy hosts are loopback; Mac reaches WSL only through authenticated SSH local forwarding | 02,03,06 | listener/routing checks | Pass: E-PC-TUNNEL, E-PC-OBS, E-MAC06 |
 | G05 | Machine values are discovered, not invented; private OS/SSH identity stays untracked | 00,02,03,06 | scan and doctor output | Pass: E-PC-SETUP, E-MAC06 |
 | G06 | Every project-added or project-modified operational shell script starts `set -euo pipefail`, quotes arguments, cleans temporary files, is rerunnable, and emits actionable failures | 00–06 | syntax/unit review | Pass: E-MAC06 |
@@ -35,7 +35,7 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | `LOCAL_POLICY_PORT` | `8000` | Integer `1..65535`; must be free before tunnel | 03 |
 | `REMOTE_POLICY_HOST` | `127.0.0.1` | Literal loopback only unless a separately approved routing remedy is documented | 02,03 |
 | `REMOTE_POLICY_PORT` | `8000` | Integer `1..65535`; must match server listener | 02,03 |
-| `OPENPI_POLICY_PROFILE` | `pi0_aloha_sim` | Enum: `pi0_aloha_sim` or `pi05_aloha_base` | 02–06 |
+| `OPENPI_POLICY_PROFILE` | `pi05_aloha_base` | Enum: `pi0_aloha_sim` or `pi05_aloha_base`; π₀.₅ is the chosen default but remains experimental in this simulator | 02–06,S0827 |
 | `OPENPI_POLICY_BACKEND` | `pytorch` | Enum: `jax` or `pytorch`; the validated demo defaults to the matching converted PyTorch checkpoint, JAX remains an explicit diagnostic path, and neither may fall back implicitly | 02–06 |
 | `OPENPI_CONVERSION_RESTORE_MODE` | `auto` | Enum: `auto`, `full-float32`, or `partial-bfloat16`; auto uses Linux `MemAvailable` and selects partial BF16 only below 16 GiB | 02 |
 | `ALOHA_TASK` | `gym_aloha/AlohaTransferCube-v0` | Fixed milestone task; other tasks require a later documented contract | 01,04 |
@@ -44,7 +44,7 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | `ALOHA_PREFETCH_STEPS` | `25` | Integer with `1 <= prefetch < horizon`; tune from tunneled end-to-end p95 plus the explicit margin | 04 |
 | `ALOHA_EPISODES` | `3` | Positive integer; default produces explicit seeds 0,1,2 | 04 |
 | `ALOHA_EPISODE_STEPS` | `300` | Integer `1..6000`; 300 remains the acceptance limit, while 6000 permits one bounded 120-second diagnostic | 04,S0827 |
-| `ALOHA_PROMPT_SCHEDULE` | `fixed` | Enum `fixed` or `push_pi_single_left_staged_v1`; staged mode requires π₀, Scenario 1, one episode, and exactly 6000 steps | S0827 |
+| `ALOHA_PROMPT_SCHEDULE` | `fixed` | Enum `fixed` or `push_pi_single_left_staged_v1`; staged mode requires π₀.₅, Scenario 1, one episode, and exactly 6000 steps | S0827 |
 | `RUN_OUTPUT_DIR` | `outputs` | Nonempty Mac path; created safely and ignored | 04,05 |
 | `GPU_METRICS_INTERVAL_SECONDS` | `1` | Finite positive number; never sampled per control step | 05 |
 | `SSH_CONNECT_TIMEOUT_SECONDS` | `10` | Finite positive total for a batch SSH attempt | 02,03 |
@@ -269,7 +269,7 @@ S0827's historical arm-explicit matrix, coverage run, and long diagnostic are co
 | SP17 | Keep tests and acceptance matrices fixed at 300 steps while allowing one standalone diagnostic to opt into at most 6,000 steps | S0827 | config/environment/matrix tests + exact-candidate diagnostic | Pass: E-MAC-S0827-LONG, E-PC-S0827-LONG |
 | SP18 | Every stock/custom policy request contains exactly real, nonblank, distinct overhead, left-wrist, and right-wrist uint8 CHW `(3,224,224)` views; safe metadata, request bound, representative visual inspection, local/hosted gates, one exact-candidate π₀ Scenario 1 run, artifacts, metrics, and cleanup pass | S0827 | contract/integration tests + hardware evidence | Pass: E-MAC-S0827-VIEWS, E-PC-S0827-VIEWS |
 | SP19 | Every future active episode MP4/display frame composes synchronized overhead, left-wrist, and right-wrist panels left-to-right at `224×672`; exact applied-step coverage, atomic partial/final output, ignored raw files, and safe metadata remain mandatory | S0827 | video/unit/runner tests + artifact inspection | Pending |
-| SP20 | One opt-in π₀ Scenario 1 diagnostic uses exact orient/approach/push prompts at steps `0/500/1500`, drains and discards old-stage actions before boundaries, records safe stage metadata without prompt text, preserves fixed 300-step tests, and completes one exact-SHA 6,000-step run | S0827 | config/buffer/telemetry tests + hardware evidence | Pending |
+| SP20 | One opt-in π₀.₅ Scenario 1 diagnostic uses exact orient/approach/push prompts at steps `0/500/1500`, drains and discards old-stage actions before boundaries, records safe stage metadata without prompt text, preserves fixed 300-step tests, and completes one exact-SHA 6,000-step run | S0827 | config/buffer/telemetry tests + hardware evidence | Pending |
 
 ## Evidence and recovery ledger
 

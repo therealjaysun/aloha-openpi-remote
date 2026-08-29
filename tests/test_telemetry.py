@@ -227,8 +227,8 @@ def test_publishable_custom_scenario_keeps_safe_identity_counts_and_omits_privat
             _event(
                 "metadata",
                 1,
-                profile="pi0_aloha_sim",
-                checkpoint_label="pi0_aloha_sim",
+                profile="pi05_aloha_base",
+                checkpoint_label="pi05_base",
                 run_id="c" * 32,
                 task="pi_robotics/PushLettersSingleArm-v0",
                 scenario="push_letters_single",
@@ -283,7 +283,7 @@ def test_publishable_staged_prompt_metadata_keeps_only_fixed_safe_identifiers() 
             _event(
                 "metadata",
                 1,
-                profile="pi0_aloha_sim",
+                profile="pi05_aloha_base",
                 task="pi_robotics/PushPiSingleArm-v0",
                 scenario="push_pi_single",
                 scene_hash="d" * 64,
@@ -308,7 +308,7 @@ def test_publishable_staged_prompt_metadata_keeps_only_fixed_safe_identifiers() 
     ("profile", "scenario", "schedule", "count", "boundaries"),
     [
         ("pi0_aloha_sim", "push_pi_single", "custom", 3, [0, 500, 1500, 6000]),
-        ("pi05_aloha_base", "push_pi_single", "push_pi_single_left_staged_v1", 3, [0, 500, 1500, 6000]),
+        ("pi0_aloha_sim", "push_pi_single", "push_pi_single_left_staged_v1", 3, [0, 500, 1500, 6000]),
         ("pi0_aloha_sim", "push_pi_single", "push_pi_single_left_staged_v1", 2, [0, 500, 1500, 6000]),
         ("pi0_aloha_sim", "push_pi_single", "push_pi_single_left_staged_v1", 3, [0, 1, 2, 6000]),
     ],

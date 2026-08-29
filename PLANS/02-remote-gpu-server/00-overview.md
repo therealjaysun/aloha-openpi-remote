@@ -23,8 +23,8 @@
 
 | Profile | Config | Checkpoint | Status/meaning |
 | --- | --- | --- | --- |
-| `pi0_aloha_sim` (default) | `pi0_aloha_sim` | `gs://openpi-assets/checkpoints/pi0_aloha_sim` | Official task-specific ALOHA Transfer Cube sim policy |
-| `pi05_aloha_base` | `pi05_aloha` | `gs://openpi-assets/checkpoints/pi05_base` | Official π₀.₅ base model through ALOHA transforms; experimental in this sim, not task-fine-tuned |
+| `pi0_aloha_sim` | `pi0_aloha_sim` | `gs://openpi-assets/checkpoints/pi0_aloha_sim` | Official task-specific ALOHA Transfer Cube sim policy |
+| `pi05_aloha_base` (default) | `pi05_aloha` | `gs://openpi-assets/checkpoints/pi05_base` | User-selected default; official π₀.₅ base model through ALOHA transforms, experimental here and not task-fine-tuned |
 
 Both return the same ALOHA wire action contract `(50,14)`. Record the profile in every run/video/telemetry summary and compare infrastructure plus task success separately.
 

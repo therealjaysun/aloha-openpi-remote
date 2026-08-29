@@ -588,7 +588,7 @@ def test_matrix_interruption_preserves_partial_raw_evidence(tmp_path: Path, monk
     monkeypatch.setattr("tools.remote_aloha.scenario_matrix._run_seed", interrupt)
     with pytest.raises(KeyboardInterrupt):
         run_matrix()
-    raw_path = next(tmp_path.glob("scenarios_0827/*/pi0_aloha_sim/matrix.json"))
+    raw_path = next(tmp_path.glob("scenarios_0827/*/pi05_aloha_base/matrix.json"))
     raw = json.loads(raw_path.read_text(encoding="utf-8"))
     assert raw["status"] == "interrupted"
     assert len(raw["scenario_runs"]["push_pi_single"]["episodes"]) == 1
@@ -627,7 +627,7 @@ def test_matrix_interruption_remains_primary_when_sampler_stop_fails(
     )
     with pytest.raises(KeyboardInterrupt):
         run_matrix()
-    raw_path = next(tmp_path.glob("scenarios_0827/*/pi0_aloha_sim/matrix.json"))
+    raw_path = next(tmp_path.glob("scenarios_0827/*/pi05_aloha_base/matrix.json"))
     raw = json.loads(raw_path.read_text(encoding="utf-8"))
     assert raw["status"] == "interrupted"
     assert raw["error"]["type"] == "KeyboardInterrupt"
@@ -650,7 +650,10 @@ def test_matrix_uses_one_sampler_and_checks_before_and_after_all_episodes(
     monkeypatch.setattr(
         "tools.remote_aloha.scenario_matrix.load_mac_sim_config", lambda: MacSimConfig(output_dir=tmp_path)
     )
-    monkeypatch.setattr("tools.remote_aloha.scenario_matrix.load_remote_config", RemoteConfig)
+    monkeypatch.setattr(
+        "tools.remote_aloha.scenario_matrix.load_remote_config",
+        lambda: RemoteConfig(policy_profile=POLICY_PROFILES["pi0_aloha_sim"]),
+    )
     monkeypatch.setattr("tools.remote_aloha.scenario_matrix.verify_ready_tunnel", lambda config: ({}, "d" * 40))
     monkeypatch.setattr(
         "tools.remote_aloha.scenario_matrix.start_gpu_sampler",
@@ -676,7 +679,10 @@ def test_scenario_metrics_rejects_stale_candidate(tmp_path: Path, monkeypatch: p
     monkeypatch.setattr(
         "tools.remote_aloha.scenario_matrix.load_mac_sim_config", lambda: MacSimConfig(output_dir=tmp_path)
     )
-    monkeypatch.setattr("tools.remote_aloha.scenario_matrix.load_remote_config", RemoteConfig)
+    monkeypatch.setattr(
+        "tools.remote_aloha.scenario_matrix.load_remote_config",
+        lambda: RemoteConfig(policy_profile=POLICY_PROFILES["pi0_aloha_sim"]),
+    )
     monkeypatch.setattr("tools.remote_aloha.scenario_matrix._candidate_sha", lambda: "0" * 40)
     with pytest.raises(RemoteError, match="exact current candidate"):
         summarize_latest()
@@ -690,7 +696,10 @@ def test_scenario_metrics_revalidates_missing_gpu_evidence(tmp_path: Path, monke
     monkeypatch.setattr(
         "tools.remote_aloha.scenario_matrix.load_mac_sim_config", lambda: MacSimConfig(output_dir=tmp_path)
     )
-    monkeypatch.setattr("tools.remote_aloha.scenario_matrix.load_remote_config", RemoteConfig)
+    monkeypatch.setattr(
+        "tools.remote_aloha.scenario_matrix.load_remote_config",
+        lambda: RemoteConfig(policy_profile=POLICY_PROFILES["pi0_aloha_sim"]),
+    )
     monkeypatch.setattr("tools.remote_aloha.scenario_matrix._candidate_sha", lambda: raw["source_sha"])
     with pytest.raises(ValueError, match="GPU evidence"):
         summarize_latest()

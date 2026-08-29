@@ -1180,14 +1180,14 @@ def test_run_writes_failed_root_summary(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr("tools.remote_aloha.run._run_seed", lambda *args: (_ for _ in ()).throw(RuntimeError("lost")))
     with pytest.raises(RuntimeError, match="lost"):
         run()
-    summaries = list(tmp_path.glob("phase05/*/pi0_aloha_sim/summary.json"))
+    summaries = list(tmp_path.glob("phase05/*/pi05_aloha_base/summary.json"))
     assert len(summaries) == 1
     summary = json.loads(summaries[0].read_text(encoding="utf-8"))
     assert summary["status"] == "failed"
     assert summary["error"] == {"type": "RuntimeError", "message": "lost"}
 
 
-def test_run_rejects_staged_prompt_schedule_for_pi05_before_connecting(monkeypatch) -> None:
+def test_run_rejects_staged_prompt_schedule_for_pi0_before_connecting(monkeypatch) -> None:
     scenario = SCENARIOS["push_pi_single"]
     monkeypatch.setattr(
         "tools.remote_aloha.run.load_mac_sim_config",
@@ -1201,11 +1201,11 @@ def test_run_rejects_staged_prompt_schedule_for_pi05_before_connecting(monkeypat
     )
     monkeypatch.setattr(
         "tools.remote_aloha.run.load_remote_config",
-        lambda: RemoteConfig(policy_profile=POLICY_PROFILES["pi05_aloha_base"]),
+        lambda: RemoteConfig(policy_profile=POLICY_PROFILES["pi0_aloha_sim"]),
     )
     monkeypatch.setattr(
         "tools.remote_aloha.run.verify_ready_tunnel",
         lambda config: pytest.fail("staged profile validation must happen before tunnel access"),
     )
-    with pytest.raises(ValueError, match="pi0_aloha_sim"):
+    with pytest.raises(ValueError, match="pi05_aloha_base"):
         run()
