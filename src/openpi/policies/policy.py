@@ -28,20 +28,6 @@ def _validate_benchmark_noise_seed(seed: object) -> int:
     return seed
 
 
-def _trim_trailing_language_padding(inputs: dict) -> None:
-    tokens = np.asarray(inputs["tokenized_prompt"])
-    mask = np.asarray(inputs["tokenized_prompt_mask"])
-    if mask.ndim < 1 or tokens.shape != mask.shape:
-        raise ValueError("prompt tokens and mask must have the same non-scalar shape")
-    valid_columns = np.any(mask, axis=tuple(range(mask.ndim - 1)))
-    valid_indices = np.flatnonzero(valid_columns)
-    if valid_indices.size == 0:
-        raise ValueError("prompt must contain at least one valid token")
-    stop = int(valid_indices[-1]) + 1
-    inputs["tokenized_prompt"] = tokens[..., :stop]
-    inputs["tokenized_prompt_mask"] = mask[..., :stop]
-
-
 class Policy(BasePolicy):
     def __init__(
         self,
@@ -100,8 +86,6 @@ class Policy(BasePolicy):
         # Make a copy since transformations may modify the inputs in place.
         inputs = jax.tree.map(lambda x: x, obs)
         inputs = self._input_transform(inputs)
-        if self._is_pytorch_model and getattr(self._model, "pi05", False):
-            _trim_trailing_language_padding(inputs)
         if self._compact_masked_images:
             present = [name for name, mask in inputs["image_mask"].items() if bool(mask)]
             if not present:
