@@ -7,6 +7,6 @@
 - **Validation:** imageio reads first/last frame; expected fps 50; `ffprobe` when installed; generated files stay untracked.
 - **Acceptance:** Nonempty image/video, readable frames, correct uint8 RGB, no EGL setting, clean renderer shutdown.
 - **Planned commit:** `feat(render): record offscreen ALOHA episodes`.
-- **Actual findings:** Stock gym render is RGB-array only; stock saver records the policy-ready 224×224 `cam_high` frames at 50 fps. Interactive human mode is not implemented by gym-aloha. The pinned imageio-ffmpeg 0.5.1 lacks a macOS arm64 wheel; 0.6.0 is the first planned narrow fallback, subject to implementation-time index verification.
-- **Remaining blockers:** FFmpeg/ffprobe are absent locally and the actual native writer/render path has not run.
-- **Completion status:** Planned.
+- **Actual findings:** Stock `VideoSaver` encoded one bounded episode per run. ImageIO decoded first/last frames and counted 300 frames at 224×224 and 50 fps; the saved reset PNG is RGB 640×480. The latest ignored MP4 SHA-256 is `4c3d283559aab448c87c72223c51e36572900cdf8c0db1d5cd8017e4c47925f2`. Bundled FFmpeg 7.1 from `imageio-ffmpeg==0.6.0` was used; system `ffprobe` remains optional and absent.
+- **Remaining blockers:** None; external ffprobe was not needed because the actual decoder validated frame count, dimensions, and fps.
+- **Completion status:** Complete; evidence `E-MAC01`.
