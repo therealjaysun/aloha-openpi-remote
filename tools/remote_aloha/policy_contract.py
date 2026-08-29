@@ -47,6 +47,14 @@ def validate_policy_response(response: object, profile: PolicyProfile) -> np.nda
     return actions
 
 
+def validate_policy_action(action: object, profile: PolicyProfile) -> np.ndarray:
+    array = np.asarray(action)
+    expected = (profile.action_dimension,)
+    if array.shape != expected or not np.issubdtype(array.dtype, np.floating) or not np.isfinite(array).all():
+        raise ValueError(f"action must be finite floating values with shape {expected}")
+    return array
+
+
 def validate_server_timing(response: object) -> dict[str, Real]:
     timing = response.get("server_timing") if isinstance(response, Mapping) else None
     if not isinstance(timing, Mapping):

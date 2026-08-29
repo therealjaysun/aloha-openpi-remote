@@ -33,7 +33,7 @@ This directory is the execution contract for the Mac ALOHA simulator and remote 
 | 01 | [`01-mac-simulation/00-overview.md`](01-mac-simulation/00-overview.md) | Native Mac ALOHA simulation and video |
 | 02 | [`02-remote-gpu-server/00-overview.md`](02-remote-gpu-server/00-overview.md) | WSL OpenPI server on RTX 3090 |
 | 03 | [`03-secure-connectivity/00-overview.md`](03-secure-connectivity/00-overview.md) | Validated loopback-only SSH tunnel |
-| 04 | [`04-end-to-end-control/00-overview.md`](04-end-to-end-control/00-overview.md) | 50 Hz policy-controlled episodes |
+| 04 | [`04-end-to-end-control/00-overview.md`](04-end-to-end-control/00-overview.md) | Policy-controlled episodes with measured cadence |
 | 05 | [`05-observability-and-reliability/00-overview.md`](05-observability-and-reliability/00-overview.md) | JSONL telemetry, GPU metrics, recovery |
 | 06 | [`06-hardening-and-documentation/00-overview.md`](06-hardening-and-documentation/00-overview.md) | Tests, security audit, docs, release evidence |
 

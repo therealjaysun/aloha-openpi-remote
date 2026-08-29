@@ -10,7 +10,7 @@ It is an independent integration project, not an official Physical Intelligence 
 - Reproducible OpenPI installation and CUDA validation in Ubuntu WSL2.
 - Selectable π₀ and π₀.₅ server profiles for RTX inference.
 - Private SSH orchestration with a loopback-only policy server.
-- A planned end-to-end path from simulated observations to remote policy actions.
+- A latency-aware end-to-end path from simulated observations to remote policy actions.
 
 ```text
 Mac: ALOHA simulation and video
@@ -35,7 +35,8 @@ Both profiles use the same `(50, 14)` ALOHA action-chunk contract. Results are r
 - Phase 1: native Mac simulation and video validated.
 - Phase 2: WSL, CUDA, locked setup, bounded checkpoint conversion, both RTX inference profiles, loopback lifecycle, and clean shutdown validated.
 - Phase 3: secure tunnel, WSL lifetime ownership, bounded client, and real two-profile tunneled inference validated.
-- Phases 4–6: end-to-end control, reliability, and final hardening planned.
+- Phase 4: end-to-end buffered control validated for three π₀ and three π₀.₅ episodes on the exact Mac/RTX candidate.
+- Phases 5–6: observability, reliability, and final hardening planned.
 
 See [`PLANS/STATUS.md`](PLANS/STATUS.md) for the live execution cursor and [`PLANS/README.md`](PLANS/README.md) for the AI-readable implementation plans.
 
@@ -65,14 +66,17 @@ OPENPI_POLICY_PROFILE=pi0_aloha_sim OPENPI_POLICY_BACKEND=pytorch make server
 # Optional recheck of the already-running route and tunnel.
 OPENPI_POLICY_PROFILE=pi0_aloha_sim OPENPI_POLICY_BACKEND=pytorch make tunnel
 OPENPI_POLICY_PROFILE=pi0_aloha_sim OPENPI_POLICY_BACKEND=pytorch make smoke-policy
+ALOHA_SEED=0 ALOHA_EPISODES=3 OPENPI_POLICY_PROFILE=pi0_aloha_sim OPENPI_POLICY_BACKEND=pytorch make run
 make stop
 ```
 
-On a fresh cache, require π₀ to return finite RTX actions before repeating conversion and PyTorch smoke with profile `pi05_aloha_base`. Ubuntu 22.04 is the upstream-supported target; this project also permits an explicitly selected Ubuntu 24.04 environment only after it passes the same locked dependency and GPU checks.
+`make run` requires an already-running, exact-candidate server/tunnel; it does not start or replace shared remote state. It runs one fresh seeded simulator and one fresh client per episode, records post-step video, and separates infrastructure success from the environment's `is_success`. Repeat the server, smoke, run, and stop sequence with `pi05_aloha_base`. Ubuntu 22.04 is the upstream-supported target; this project also permits an explicitly selected Ubuntu 24.04 environment only after it passes the same locked dependency and GPU checks.
+
+Phase 4 infrastructure passed all six episodes. π₀ solved all three seeded transfers; experimental π₀.₅ solved none. The observed active control rate was 45.4–47.1 Hz because tunneled inference tails caused up to two buffer underruns per episode. The runner therefore records the 50 Hz target but does not claim it was sustained.
 
 ### Memory-bounded recovery
 
-The prepared PC has an RTX 3090 with 24 GB VRAM and 16 GB system RAM. The π₀ JAX server loads but every measured first request on this pinned WSL setup failed with CUDA OOM. The stock JAX→PyTorch converter also exceeds available WSL RAM. `make convert-pc` now selects the bounded partial-BF16 restore automatically when Linux `MemAvailable` is below 16 GiB; at or above the threshold it preserves the full-FP32 restore. Set `OPENPI_CONVERSION_RESTORE_MODE=full-float32` or `partial-bfloat16` only for an intentional override. The bounded path restores one stored leaf at a time, copies mapped tensors layer-by-layer into a GPU-resident model, and writes standard 1 GB SafeTensors shards. It passed on this PC for both profiles, including fresh loads and finite-action inference. `OPENPI_POLICY_BACKEND` still defaults to `jax`; `pytorch` explicitly selects only the matching converted local checkpoint and never falls back silently. The server disables optional PyTorch compile autotuning to avoid a first-call memory spike on this demo hardware.
+The prepared PC has an RTX 3090 with 24 GB VRAM and 16 GB system RAM. The π₀ JAX server loads but every measured first request on this pinned WSL setup failed with CUDA OOM. The stock JAX→PyTorch converter also exceeds available WSL RAM. `make convert-pc` now selects the bounded partial-BF16 restore automatically when Linux `MemAvailable` is below 16 GiB; at or above the threshold it preserves the full-FP32 restore. Set `OPENPI_CONVERSION_RESTORE_MODE=full-float32` or `partial-bfloat16` only for an intentional override. The bounded path restores one stored leaf at a time, copies mapped tensors layer-by-layer into a GPU-resident model, and writes standard 1 GB SafeTensors shards. It passed on this PC for both profiles, including fresh loads and finite-action inference. `OPENPI_POLICY_BACKEND` therefore defaults to `pytorch` and selects only the matching converted local checkpoint without silent fallback. JAX remains an explicit diagnostic option outside the Phase 4 runner. The server disables optional PyTorch compile autotuning to avoid a first-call memory spike on this demo hardware.
 
 On this PC, WSL stops background Linux processes after the final Windows-side WSL client exits. The project therefore keeps one synchronous WSL client inside the same owned SSH ControlMaster that provides the tunnel. No Windows service, scheduled task, global WSL setting, or public listener is added.
 

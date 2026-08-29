@@ -312,7 +312,7 @@ def test_launch_receipt_is_private_and_round_trips(monkeypatch: pytest.MonkeyPat
     receipt = Path(".runtime/phase2-launch.json")
     assert receipt.stat().st_mode & 0o777 == 0o600
     assert _read_launch_receipt() == {
-        "backend": "jax",
+        "backend": "pytorch",
         "profile": "pi0_aloha_sim",
         "port": 8000,
         "remote_dir": "~/src/openpi",
@@ -381,7 +381,7 @@ def test_candidate_gate_accepts_exact_clean_pushed_scan(monkeypatch: pytest.Monk
 def test_server_passes_jax_memory_fraction_to_wsl(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(remote_module, "_candidate_sha", lambda: "a" * 40)
-    session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04", jax_mem_fraction="0.85"))
+    session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04", jax_mem_fraction="0.85", policy_backend="jax"))
     target = RemoteTarget("powershell", "Ubuntu-24.04")
     monkeypatch.setattr(session, "discover_target", lambda: target)
     events = []

@@ -9,7 +9,7 @@ import re
 
 DEFAULT_TASK = "gym_aloha/AlohaTransferCube-v0"
 DEFAULT_POLICY_PROFILE = "pi0_aloha_sim"
-DEFAULT_POLICY_BACKEND = "jax"
+DEFAULT_POLICY_BACKEND = "pytorch"
 DEFAULT_CONVERSION_RESTORE_MODE = "auto"
 _KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 _UINT = re.compile(r"[0-9]+\Z")
@@ -22,6 +22,8 @@ class MacSimConfig:
     task: str = DEFAULT_TASK
     seed: int = 0
     episodes: int = 3
+    action_horizon: int = 30
+    prefetch_steps: int = 25
     output_dir: Path = Path("outputs")
 
 
@@ -148,23 +150,41 @@ def get_policy_profile(name: str) -> PolicyProfile:
 def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str] | None = None) -> MacSimConfig:
     values = _read_env_file(Path(env_file))
     source = os.environ if environ is None else environ
-    for key in ("ALOHA_TASK", "ALOHA_SEED", "ALOHA_EPISODES", "RUN_OUTPUT_DIR"):
+    for key in (
+        "ALOHA_TASK",
+        "ALOHA_SEED",
+        "ALOHA_EPISODES",
+        "ALOHA_ACTION_HORIZON",
+        "ALOHA_PREFETCH_STEPS",
+        "RUN_OUTPUT_DIR",
+    ):
         if key in source:
             values[key] = source[key]
 
     task = values.get("ALOHA_TASK", DEFAULT_TASK)
     if task != DEFAULT_TASK:
-        raise ValueError(f"ALOHA_TASK must be {DEFAULT_TASK!r} for Phase 01")
+        raise ValueError(f"ALOHA_TASK must be the pinned task {DEFAULT_TASK!r}")
     seed = _uint("ALOHA_SEED", values.get("ALOHA_SEED", "0"), maximum=2**32 - 1)
     episodes = _uint("ALOHA_EPISODES", values.get("ALOHA_EPISODES", "3"))
     if episodes < 1:
         raise ValueError("ALOHA_EPISODES must be positive")
     if seed + episodes - 1 > 2**32 - 1:
         raise ValueError("ALOHA_SEED + ALOHA_EPISODES exceeds the seed range")
+    action_horizon = _uint("ALOHA_ACTION_HORIZON", values.get("ALOHA_ACTION_HORIZON", "30"), maximum=50)
+    prefetch_steps = _uint("ALOHA_PREFETCH_STEPS", values.get("ALOHA_PREFETCH_STEPS", "25"), maximum=50)
+    if not 1 <= prefetch_steps < action_horizon:
+        raise ValueError("ALOHA buffering must satisfy 1 <= ALOHA_PREFETCH_STEPS < ALOHA_ACTION_HORIZON <= 50")
     output = values.get("RUN_OUTPUT_DIR", "outputs")
     if not output or "\x00" in output:
         raise ValueError("RUN_OUTPUT_DIR must be a nonempty path")
-    return MacSimConfig(task=task, seed=seed, episodes=episodes, output_dir=Path(output))
+    return MacSimConfig(
+        task=task,
+        seed=seed,
+        episodes=episodes,
+        action_horizon=action_horizon,
+        prefetch_steps=prefetch_steps,
+        output_dir=Path(output),
+    )
 
 
 def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str] | None = None) -> RemoteConfig:

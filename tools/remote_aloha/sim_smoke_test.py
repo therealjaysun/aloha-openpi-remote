@@ -61,7 +61,7 @@ def _policy_image(image: np.ndarray) -> np.ndarray:
     return converted
 
 
-def _package_versions() -> dict[str, str]:
+def package_versions() -> dict[str, str]:
     names = ("dm-control", "gym-aloha", "gymnasium", "imageio", "imageio-ffmpeg", "mujoco", "numpy")
     return {name: importlib.metadata.version(name) for name in names}
 
@@ -71,7 +71,7 @@ def _git_sha() -> str:
     return result.stdout.strip()
 
 
-def _verify_video(path: Path, expected_frames: int) -> dict[str, Any]:
+def verify_video(path: Path, expected_frames: int) -> dict[str, Any]:
     import imageio.v2 as imageio
 
     if not path.is_file() or path.stat().st_size == 0:
@@ -150,7 +150,7 @@ def _run_episode(config: MacSimConfig, seed: int, run_dir: Path, *, record: bool
             result["artifacts"] = {
                 "reset_frame": str((video_dir / "reset.png").relative_to(run_dir)),
                 "video": str(video_path.relative_to(run_dir)),
-                "video_validation": _verify_video(video_path, int(result["steps"])),
+                "video_validation": verify_video(video_path, int(result["steps"])),
             }
         result.update(
             {
@@ -182,7 +182,7 @@ def run(config: MacSimConfig, *, enforce_budget: bool = True) -> Path:
         "machine": {"system": platform.system(), "release": platform.release(), "architecture": platform.machine()},
         "python": platform.python_version(),
         "mujoco_gl": os.environ.get("MUJOCO_GL", "default"),
-        "package_versions": _package_versions(),
+        "package_versions": package_versions(),
         "episodes": [],
     }
     all_latencies: list[float] = []
