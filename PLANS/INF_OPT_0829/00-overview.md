@@ -155,7 +155,7 @@ Crop only trailing language positions whose masks are false for the whole batch.
 
 **Keep only if:** Retained tokens/masks match baseline, no prompt truncation occurs, and warmed π₀.₅ p95 improves without bucket churn.
 
-**Result:** Rejected and reverted. Candidate `61be2fd` reduced prefix/KV p95 to 70.17 ms and server p95 to 348.37 ms, but changed the fixed-input action digest; numeric magnitude was not measured.
+**Result:** Rejected and reverted. Candidate `61be2fd` reduced prefix/KV p95 to 70.17 ms and server p95 to 348.37 ms, but changed every fixed-input action value versus S1. Error was max 0.004600, p95 0.002937, mean 0.000804, and at most 0.148% of a joint range; none reached 0.01, but the result exceeded the declared numerical-equivalence band.
 
 ### S4 — Test native fused attention
 
