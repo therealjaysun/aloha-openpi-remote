@@ -2,12 +2,12 @@
 
 ## Handoff
 
-- **Status:** P0/B0 and short R1/R2 trials are complete. Candidate `36bbf1a` retained S1 with exact π₀.₅ replay parity and a stable >20% server-p95 gain. S2 is next.
+- **Status:** P0/B0 and short R1/R2 trials are complete. S1 is retained; S2 was reverted after failing exact π₀.₅ action parity. S3 is next.
 - **Base candidate:** main after merged plan PR #9 (`3ebf8b017384e1e38ba97261d65a723966596b45`).
 - **Optimization scope:** `pi05_aloha_base` only. By user decision on 2026-08-29, do not run, benchmark, optimize, or qualify π₀. Keep existing π₀ support unchanged for compatibility.
 - **Order:** P0 clean baseline → implement B0 instrumentation plus disabled R1/R2 switches → B0 measurements → isolated R1/R2 trials → S1–S6 measured speed work → final hardware validation.
 - **Ownership:** One integrating agent owns shared files and final validation. Read-only agents may inspect independent candidates.
-- **PC boundary:** The PC is live with retained S1 candidate `36bbf1a`. Implement S2 locally, sync its exact candidate, then A/B with the same π₀.₅ capture and noise seed. Do not rerun B0 or short R1/R2 trials.
+- **PC boundary:** The S2 server is stopped. Sync the post-revert/S3 candidate, then A/B with the same π₀.₅ capture and noise seed. Do not rerun B0 or short R1/R2 trials.
 
 ## Objective
 
@@ -147,6 +147,8 @@ Stack the ordered overhead/left-wrist/right-wrist tensors, call the existing Sig
 
 **Keep only if:** Pixels, masks, order, output shape, and declared parity hold; peak VRAM remains safe; vision-stage and warmed p95 improve.
 
+**Result:** Rejected and reverted. Candidate `547bd0c` reduced vision p95 to 26.18 ms and server p95 to 350.26 ms, but changed the fixed-input action digest (`38f302fd…` to `7bc3aefa…`).
+
 ### S3 — Trim masked language padding
 
 Crop only trailing language positions whose masks are false for the whole batch. Never truncate a valid token. If compilation later needs stable shapes, derive the smallest buckets from observed valid lengths.
@@ -187,7 +189,7 @@ Only if B0 shows material CPU/input-transfer cost, remove redundant `np.array` c
 2. **Mac candidate — complete:** B0 instrumentation and selectable R1/R2 passed local gates and were pushed.
 3. **PC timing baseline — complete:** Exact `8faea85` synced; doctor/setup, captured three-camera observation, and tunneled fixed-noise 5+50 replay passed for π₀.₅.
 4. **Isolated runtime trials — complete:** Short matched baseline, R1, R2, and combined π₀.₅ runs are recorded above; no default is promoted yet.
-5. **Speed A/B — active:** S1 retained on `36bbf1a`. Apply S2–S6 one at a time; benchmark π₀.₅ after each and remove losers. Do not run a 120-second episode per experiment.
+5. **Speed A/B — active:** S1 retained on `36bbf1a`; S2 rejected and reverted. Apply S3–S6 one at a time; benchmark π₀.₅ after each and remove losers. Do not run a 120-second episode per experiment.
 6. **Combined smoke:** Run the existing four-call π₀.₅ policy smoke plus one 300-step three-camera episode. Verify finite 14D actions, crossfade/buffer metrics, video, trajectory, and cleanup.
 7. **Final hardware run:** Run the same 120-second Scenario 2 seed/profile pair used by the π₀.₅ baseline. Inspect its video and all 14 trajectory series; compare task coverage/time honestly.
 8. **Closeout:** Re-run local gates on the exact pushed SHA, update status/evidence only after the final candidate passes, run `make stop`, confirm the policy port is free, and tell the user the PC can be switched off.
