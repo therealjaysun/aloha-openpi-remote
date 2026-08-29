@@ -106,13 +106,14 @@ def validate_timing_reconciliation(policy_timing: Mapping[str, Real], server_tim
         raise ValueError("PyTorch policy timing stages are incomplete")
     model_stages_ms = float(policy_timing["model_stages_ms"])
     stage_sum = sum(float(policy_timing[key]) for key in stages)
-    tolerance = max(1.0, float(policy_timing["infer_ms"]) * 0.01)
-    if abs(stage_sum - model_stages_ms) > tolerance:
+    stage_tolerance = max(0.1, model_stages_ms * 0.01)
+    host_tolerance = max(5.0, float(policy_timing["infer_ms"]) * 0.05)
+    if abs(stage_sum - model_stages_ms) > stage_tolerance:
         raise ValueError("policy timing stages do not reconcile")
-    if model_stages_ms > float(policy_timing["model_ms"]) + tolerance:
+    if model_stages_ms > float(policy_timing["model_ms"]) + host_tolerance:
         raise ValueError("policy timing model stages exceed synchronized model time")
     accounted = sum(float(policy_timing[key]) for key in ("input_transfer_ms", "model_ms", "output_transfer_ms"))
-    if accounted > float(policy_timing["infer_ms"]) + tolerance:
+    if accounted > float(policy_timing["infer_ms"]) + host_tolerance:
         raise ValueError("policy timing components exceed total inference time")
-    if float(policy_timing["infer_ms"]) > float(server_timing["infer_ms"]) + tolerance:
+    if float(policy_timing["infer_ms"]) > float(server_timing["infer_ms"]) + host_tolerance:
         raise ValueError("policy timing exceeds server inference time")

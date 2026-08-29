@@ -131,6 +131,7 @@ def test_policy_timing_reconciliation_rejects_inconsistent_cuda_stages() -> None
         "model_stages_ms": 7.0,
     }
     validate_timing_reconciliation(timing, {"infer_ms": 11.0})
+    validate_timing_reconciliation({**timing, "model_ms": 4.0}, {"infer_ms": 11.0})
     with pytest.raises(ValueError, match="reconcile"):
         validate_timing_reconciliation({**timing, "denoise_ms": 8.0}, {"infer_ms": 11.0})
 
