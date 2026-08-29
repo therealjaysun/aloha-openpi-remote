@@ -41,7 +41,7 @@ This directory is the execution contract for the Mac ALOHA simulator and remote 
 
 | Suite | Plan | Status | Relationship to completed stack |
 | --- | --- | --- | --- |
-| S0827 Push-PI | [`SCENARIOS_0827/00-overview.md`](SCENARIOS_0827/00-overview.md) | Mac implementation/calibration locally passed; exact candidate and hardware pending | Custom PushT-inspired ALOHA experiment in one standalone PR temporarily based on PR 7; it is not PR 8 of the completed stack. |
+| S0827 Push-PI | [`SCENARIOS_0827/00-overview.md`](SCENARIOS_0827/00-overview.md) | Complete; final evidence recorded in E-MAC-S0827/E-PC-S0827 | Custom PushT-inspired ALOHA experiment in standalone GitHub PR 8, temporarily based on PR 7; it is not an eighth phase of the completed stack. |
 
 The suite owns its `SP` requirements in `REQUIREMENTS.md`. Its evidence does not weaken or reopen completed phase evidence.
 

@@ -45,4 +45,4 @@ For PRs 1–7 only, include exactly: `This is PR X of 7 in a stacked series. Rev
 
 ## Post-stack experiment
 
-S0827 Push-PI is not PR 8. The explicitly scheduled fallback uses one standalone `codex/push-pi-scenarios` PR based on `codex/06-hardening-docs`; its body states that dependency and omits the `PR X of 7` sentence. Keep it draft through exact hardware validation. After PR 7 merges, retarget to `main` and verify the incremental diff before review.
+S0827 Push-PI is not an eighth phase in the seven-PR stack; GitHub assigned its standalone change PR number 8. The explicitly scheduled fallback uses `codex/push-pi-scenarios` based on `codex/06-hardening-docs`; its body states that dependency and omits the `PR X of 7` sentence. Keep it draft through exact hardware validation. After PR 7 merges, retarget to `main` and verify the incremental diff before review.

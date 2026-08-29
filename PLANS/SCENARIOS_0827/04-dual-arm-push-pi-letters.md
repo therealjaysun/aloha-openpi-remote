@@ -8,5 +8,6 @@
 - **Acceptance:** Three episodes per required profile end in `success`, `off_table`, `fallen`, or an exact 300-step `time_limit`; partial runs do not count and must be rerun. Both arm command groups are available, artifacts are valid, paired manifests permit direct single/two-arm comparison for each model/seed, results report actual per-arm participation, and joint and per-letter success remain separate and may be zero.
 - **Planned commit:** Included in `feat(sim): add shared Push-PI environment` and `test(scenarios): validate Push-PI matrix workflow`.
 - **Actual findings:** This is the highest-complexity zero-shot condition because the policy must coordinate two arms and sequence two semantic targets; that affects expected task quality, not the inference contract.
-- **Remaining blockers:** Exact-candidate local/hosted gates and both hardware matrices. Zero-shot sequencing is an experiment result.
-- **Completion status:** Implementation and Mac calibration pass with uppercase dotless `P`/`I`; hardware validation pending.
+- **Actual validation:** Six exact-SHA hardware episodes completed 1,800 applied steps and matching trajectory rows with six valid videos and six inspected 14-joint plots. All reached the time limit with no contact, two-arm participation, lift, fall, off-table event, or task success.
+- **Remaining blockers:** None. Zero-shot sequencing remains an experiment result.
+- **Completion status:** Complete with uppercase dotless `P`/`I`; E-MAC-S0827 and E-PC-S0827.

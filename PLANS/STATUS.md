@@ -13,14 +13,15 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 | 04 End-to-end | Complete; open for review | `codex/04-end-to-end-control` | 5 | [PR 5](https://github.com/therealjaysun/pi-robotics/pull/5) | `codex/03-secure-connectivity` | `codex/04-end-to-end-control` | 205 local and isolated-lock tests plus lint/format/shell/secret scan pass; hosted `pure-checks`/`secret-scan` pass; Mac 900-step smoke and six exact-candidate policy episodes/videos pass with clean stops | None; sustained 50 Hz was not claimed (45.44–47.09 Hz measured) | `d7e9714` |
 | 05 Observability | Complete; open for review | `codex/05-observability` | 6 | [PR 6](https://github.com/therealjaysun/pi-robotics/pull/6) | `codex/04-end-to-end-control` | `codex/05-observability` | 297 passed + 1 platform skip; lint/format/Bash/secret and hosted checks pass; exact π₀/π₀.₅ hardware runs produced 1,661/1,661 samples and six verified 14-joint plots | None | Hardware implementation `2065dd9`; completion evidence at branch HEAD |
 | 06 Hardening/docs | Complete; open for review | `codex/06-hardening-docs` | 7 | [PR 7](https://github.com/therealjaysun/pi-robotics/pull/7) | `codex/05-observability` | `codex/06-hardening-docs` | 318 passed + 1 platform skip; 21 feasible upstream tests, lint/format/Bash, doctors, public/secret audits, plan/link/ancestry validators, hosted checks, and seven-PR status pass | None; final hardware proof remains Phase 5 `2065dd9`, with Phase 6 `90b0fed` smokes retained as historical evidence | Implementation `a8a3ca1`; final evidence at branch HEAD |
+| S0827 Push-PI | Complete; review-ready only while live checks are green | `codex/push-pi-scenarios` | 8 | [PR 8](https://github.com/therealjaysun/pi-robotics/pull/8) | `codex/06-hardening-docs` | `codex/push-pi-scenarios` | 396 passed + 1 platform skip; local/hosted gates; exact Mac calibration; 24/24 infrastructure-valid hardware episodes with 7,200 exact trajectory samples, 24 videos, and 24 inspected plots | None; zero-shot task success was 0/24 and is reported separately | Implementation `7c2ec592`; final evidence at branch HEAD |
 
 ## Active extension cursor
 
-- S0827 Push-PI is active on `codex/push-pi-scenarios`, stacked temporarily on `codex/06-hardening-docs` by explicit user direction.
-- Mac code/calibration state: three implementation slices exist; strict reset/runtime/matrix tests pass; all four canonical 300-step pushes, seeds 0–2 visibility checks, and four display-on smokes pass. Exact committed-candidate gates remain.
+- S0827 Push-PI is complete on `codex/push-pi-scenarios`, stacked temporarily on `codex/06-hardening-docs` by explicit user direction.
+- Mac state: all three implementation slices, strict reset/runtime/matrix tests, exact calibration, stock/custom reruns, four display-on smokes, and local/hosted candidate gates pass.
 - Identity: custom 3-D ALOHA Push-PI experiment inspired by PushT, not the standard PushT benchmark. The glyph task uses Greek π; the letter task uses uppercase dotless `P` and `I`.
-- Machine gate: **S0 Mac-only**. Keep the PC off. Push the committed, clean, secret-scanned candidate and obtain green hosted checks before requesting power-on for one 12-episode matrix per profile, 24 episodes total. Do not run PC CI or display smokes.
-- PR dependency: open one standalone S0827 PR against `codex/06-hardening-docs`, then retarget to `main` only after PR 7 merges and verify the incremental diff.
+- Machine gate: **OFF**. Both exact-SHA 12-episode matrices and cleanup pass; the PC is safe to power off.
+- PR dependency: PR 8 is based on `codex/06-hardening-docs`; retarget to `main` only after PR 7 merges and verify the incremental diff.
 - Plan: [`SCENARIOS_0827/00-overview.md`](SCENARIOS_0827/00-overview.md).
 
 ## Audited state
@@ -50,13 +51,13 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 
 ## Execution cursor
 
-- Active subphase: S0827 S0 Mac exact-candidate validation and PR setup; phases 00–06 remain complete.
-- Machine gate: Mac only; PC gate closed until the committed candidate is pushed and hosted checks are green.
-- Exact user action: none; keep the PC off.
-- Next gate: stock/custom smokes, local CI/lint/secret/public audits, commit/push, standalone draft PR, hosted checks, then `PC ACTION REQUIRED — POWER ON`.
+- Active subphase: S0827 complete; implementation, hardware, and final evidence are locked; phases 00–06 remain complete.
+- Machine gate: OFF; no further PC work is required unless a hardware-affecting file changes.
+- Exact user action: none; the PC may be powered off.
+- Release gate: PR 8 remains draft unless current-head hosted checks are green; no implementation or hardware step remains.
 - Recovery: if a hardware-affecting file changes after matrix validation, create a new candidate and rerun both 12-episode matrices.
-- Last verified Mac/WSL hardware candidate SHA: `2065dd9d5a5e7f21ea40a940944d48ac08c6da20`; upstream SHA: `215abfb217dbac7d5f1273282331b9b1866c0479`.
-- PR state: PRs 1–7 are open, ready, correctly stacked, green, and manual-merge only.
+- Last verified Mac/WSL S0827 hardware candidate SHA: `7c2ec5927ad200e5aaf30bed0db4ef61cb9e2ba4`; upstream SHA: `215abfb217dbac7d5f1273282331b9b1866c0479`.
+- PR state: PRs 1–7 remain open and stacked; PR 8 is the standalone S0827 extension based temporarily on PR 7.
 
 Update this cursor immediately before pausing for GitHub login, `conversion host ready`, `PC ready`, PC console work, or power-off.
 
@@ -67,4 +68,5 @@ Update this cursor immediately before pausing for GitHub login, `conversion host
 - Phase 04 hardware coordination is complete. Six policy-controlled episodes and both stop lifecycles passed; no PC-side CI was run.
 - Phase 05 hardware coordination is complete: both existing profile runs include exact trajectory capture and plot verification, with no redundant GPU campaign.
 - Phase 06's prior exact-SHA smokes passed at historical candidate `90b0fed`; final descendant `a8a3ca1` passed local/hosted revalidation. No redundant GPU run was added.
+- S0827 hardware coordination is complete at `7c2ec592`: π₀ and experimental π₀.₅ each passed one four-scenario/three-seed matrix; all 24 videos and plots were inspected; no PC CI or display smoke was run; final cleanup passed.
 - Full procedure: [`EXECUTION_LOGISTICS.md`](EXECUTION_LOGISTICS.md).

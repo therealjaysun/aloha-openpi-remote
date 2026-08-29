@@ -8,5 +8,6 @@
 - **Acceptance:** Three episodes per required profile end in `success`, `off_table`, `fallen`, or an exact 300-step `time_limit`; partial runs do not count and must be rerun. Both arm command groups are available, artifacts are valid, paired manifests prove identical scene initial conditions to S0827.01, and results report actual per-arm participation plus per-profile success/time/raw-error deltas without treating three seeds as a statistical claim.
 - **Planned commit:** Included in `feat(sim): add shared Push-PI environment` and `test(scenarios): validate Push-PI matrix workflow`.
 - **Actual findings:** The installed MuJoCo/Gym-Aloha model is already bimanual and its policy/state contract already matches both model profiles.
-- **Remaining blockers:** Exact-candidate local/hosted gates and both hardware matrices. Zero-shot coordination competence is an experiment result.
-- **Completion status:** Implementation and Mac calibration pass; hardware validation pending.
+- **Actual validation:** Six exact-SHA hardware episodes completed 1,800 applied steps and matching trajectory rows with six valid videos and six inspected 14-joint plots. All reached the time limit with no contact, two-arm participation, lift, fall, off-table event, or task success.
+- **Remaining blockers:** None. Zero-shot coordination competence remains an experiment result.
+- **Completion status:** Complete; E-MAC-S0827 and E-PC-S0827.

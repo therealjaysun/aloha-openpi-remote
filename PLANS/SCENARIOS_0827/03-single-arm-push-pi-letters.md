@@ -8,7 +8,8 @@
 - **Acceptance:** Three episodes per required profile end in `success`, `off_table`, `fallen`, or an exact 300-step `time_limit`; partial runs do not count and must be rerun. Two valid random bodies start fully on the table, the right arm stays parked, results contain per-letter and joint success metrics, and each video/manifest is readable even when neither letter reaches its goal.
 - **Planned commit:** Included in `feat(sim): add shared Push-PI environment` and `feat(runtime): integrate Push-PI scenarios and display`.
 - **Actual findings:** Gym-Aloha has no multi-letter task or general object-pose sampler; its global one/two-object `BOX_POSE` path should not be extended for this suite.
-- **Remaining blockers:** Exact-candidate local/hosted gates and both hardware matrices. Zero-shot sequencing remains an experiment result.
-- **Completion status:** Implementation and Mac calibration pass with uppercase dotless `P`/`I`; hardware validation pending.
+- **Actual validation:** Six exact-SHA hardware episodes completed 1,800 applied steps and matching trajectory rows with six valid videos and six inspected 14-joint plots. All reached the time limit with no contact, lift, fall, off-table event, or task success.
+- **Remaining blockers:** None. Zero-shot sequencing remains an experiment result.
+- **Completion status:** Complete with uppercase dotless `P`/`I`; E-MAC-S0827 and E-PC-S0827.
 
 `ponytail:` primitive glyphs are sufficient for the first experiment; add authored meshes only if top-camera recognition is demonstrably inadequate.
