@@ -12,6 +12,7 @@ from tools.remote_aloha.config import MacSimConfig
 from tools.remote_aloha.config import RemoteConfig
 from tools.remote_aloha.metrics import summarize_latest
 from tools.remote_aloha.remote import RemoteError
+from tools.remote_aloha.scenarios import SCENARIOS
 from tools.remote_aloha.telemetry import JsonlWriter
 from tools.remote_aloha.telemetry import aggregate_events
 from tools.remote_aloha.telemetry import aggregate_jsonl
@@ -38,6 +39,20 @@ def test_metrics_requires_a_completed_selected_profile_run(tmp_path: Path, monke
     )
     monkeypatch.setattr("tools.remote_aloha.metrics.load_remote_config", RemoteConfig)
     with pytest.raises(RemoteError, match="no Phase 5 run exists"):
+        summarize_latest()
+
+
+def test_stock_metrics_directs_custom_scenarios_to_matrix_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "tools.remote_aloha.metrics.load_mac_sim_config",
+        lambda: MacSimConfig(
+            task="pi_robotics/PushPiSingleArm-v0",
+            scenario=SCENARIOS["push_pi_single"],
+        ),
+    )
+    with pytest.raises(RemoteError, match="scenario-metrics"):
         summarize_latest()
 
 
@@ -206,15 +221,177 @@ def test_publishable_summary_is_allowlisted_labels_profile_and_does_not_mutate_r
     assert "private" not in markdown
 
 
+def test_publishable_custom_scenario_keeps_safe_identity_counts_and_omits_private_fields() -> None:
+    raw = aggregate_events(
+        [
+            _event(
+                "metadata",
+                1,
+                profile="pi05_aloha_base",
+                checkpoint_label="pi05_base",
+                run_id="c" * 32,
+                task="pi_robotics/PushLettersSingleArm-v0",
+                scenario="push_letters_single",
+                scene_hash="d" * 64,
+                target_area_coverage_method="exact-planar-union-v1",
+                camera_views=["cam_high", "cam_left_wrist", "cam_right_wrist"],
+                prompt="private run prompt",
+                absolute_path="/private/output",
+            ),
+            _event(
+                "terminal",
+                2,
+                status="complete",
+                steps_applied=300,
+                trajectory_sample_count=300,
+                push_success=1,
+                lifted_count=0,
+                both_arms_count=0,
+                time_limit_count=2,
+                videos_passed=3,
+                episodes=3,
+                coverage_sample_count=300,
+                initial_target_area_coverage_percent=12.0,
+                final_target_area_coverage_percent=80.0,
+                best_target_area_coverage_percent=95.0,
+                best_target_area_coverage_step=120,
+                time_to_best_target_area_coverage_seconds=2.4,
+                episode_elapsed_seconds=6.0,
+                private_machine="desktop-name",
+            ),
+        ]
+    )
+    public = publishable_summary(raw)
+    encoded = json.dumps(public, sort_keys=True)
+    assert public["metadata"]["scenario"] == "push_letters_single"
+    assert public["metadata"]["scene_hash"] == "d" * 64
+    assert public["metadata"]["camera_views"] == ["cam_high", "cam_left_wrist", "cam_right_wrist"]
+    assert public["result"]["push_success"] == 1
+    assert public["result"]["lifted_count"] == public["result"]["both_arms_count"] == 0
+    assert public["result"]["time_limit_count"] == 2
+    assert public["result"]["videos_passed"] == 3
+    assert public["result"]["best_target_area_coverage_percent"] == 95.0
+    assert public["result"]["time_to_best_target_area_coverage_seconds"] == 2.4
+    assert "private run prompt" not in encoded
+    assert "/private/output" not in encoded
+    assert "desktop-name" not in encoded
+
+
+def test_publishable_staged_prompt_metadata_keeps_only_fixed_safe_identifiers() -> None:
+    raw = aggregate_events(
+        [
+            _event(
+                "metadata",
+                1,
+                profile="pi05_aloha_base",
+                task="pi_robotics/PushPiSingleArm-v0",
+                scenario="push_pi_single",
+                scene_hash="d" * 64,
+                target_area_coverage_method="exact-planar-union-v1",
+                prompt_schedule="push_pi_single_left_staged_v1",
+                prompt_stage_count=3,
+                prompt_stage_boundaries=[0, 500, 1500, 6000],
+                prompt="private staged prompt",
+            ),
+            _event("prompt_stage", 2, prompt_stage_id="orient", metrics={"prompt_transition_wait_ms": 1.0}),
+            _event("terminal", 3, status="complete", steps_applied=0),
+        ]
+    )
+    public = publishable_summary(raw)
+    assert public["metadata"]["prompt_schedule"] == "push_pi_single_left_staged_v1"
+    assert public["metadata"]["prompt_stage_boundaries"] == [0, 500, 1500, 6000]
+    assert public["event_counts"]["prompt_stage"] == 1
+    assert "private staged prompt" not in json.dumps(public)
+
+
+@pytest.mark.parametrize(
+    ("profile", "scenario", "schedule", "count", "boundaries"),
+    [
+        ("pi0_aloha_sim", "push_pi_single", "custom", 3, [0, 500, 1500, 6000]),
+        ("pi0_aloha_sim", "push_pi_single", "push_pi_single_left_staged_v1", 3, [0, 500, 1500, 6000]),
+        ("pi0_aloha_sim", "push_pi_single", "push_pi_single_left_staged_v1", 2, [0, 500, 1500, 6000]),
+        ("pi0_aloha_sim", "push_pi_single", "push_pi_single_left_staged_v1", 3, [0, 1, 2, 6000]),
+    ],
+)
+def test_publishable_prompt_schedule_rejects_arbitrary_or_mismatched_metadata(
+    profile: str, scenario: str, schedule: str, count: int, boundaries: list[int]
+) -> None:
+    task = "pi_robotics/PushPiSingleArm-v0"
+    raw = aggregate_events(
+        [
+            _event(
+                "metadata",
+                1,
+                profile=profile,
+                task=task,
+                scenario=scenario,
+                scene_hash="d" * 64,
+                target_area_coverage_method="exact-planar-union-v1",
+                prompt_schedule=schedule,
+                prompt_stage_count=count,
+                prompt_stage_boundaries=boundaries,
+            ),
+            _event("terminal", 2, status="failed", steps_applied=0),
+        ]
+    )
+    with pytest.raises(ValueError, match="prompt"):
+        publishable_summary(raw)
+
+
+@pytest.mark.parametrize(
+    ("task", "scenario", "scene_hash"),
+    [
+        (None, "push_pi_single", "d" * 64),
+        ("pi_robotics/PushPiSingleArm-v0", None, "d" * 64),
+        ("gym_aloha/AlohaTransferCube-v0", "push_pi_single", "d" * 64),
+        ("pi_robotics/PushPiSingleArm-v0", "push_pi_single", None),
+        ("pi_robotics/PushPiSingleArm-v0", "push_pi_single", "bad"),
+        ("gym_aloha/AlohaTransferCube-v0", "transfer_cube", "d" * 64),
+    ],
+)
+def test_publishable_scenario_identity_is_fail_closed(
+    task: str | None, scenario: str | None, scene_hash: str | None
+) -> None:
+    raw = aggregate_events(
+        [
+            _event(
+                "metadata",
+                1,
+                profile="pi0_aloha_sim",
+                task=task,
+                scenario=scenario,
+                scene_hash=scene_hash,
+            ),
+            _event("terminal", 2, status="failed", steps_applied=0),
+        ]
+    )
+    with pytest.raises(ValueError, match="scenario"):
+        publishable_summary(raw)
+
+
+def test_publishable_per_episode_counts_are_bounded_without_aggregate_episode_field() -> None:
+    raw = aggregate_events(
+        [
+            _event("metadata", 1, profile="pi0_aloha_sim"),
+            _event("terminal", 2, status="complete", push_success=2),
+        ]
+    )
+    with pytest.raises(ValueError, match="episode count"):
+        publishable_summary(raw)
+
+
 @pytest.mark.parametrize(
     ("section", "key", "value"),
     [
         ("metadata", "package_versions", {"numpy": "/" + "Users/name"}),
         ("metadata", "package_versions", {"numpy": "DESKTOP-" + "EXAMPLE"}),
+        ("metadata", "camera_views", ["cam_high"]),
         ("result", "request_count", "192" + ".168.1.2"),
         ("result", "trajectory_plot_id", "/" + "Users/private/plot.png"),
         ("result", "trajectory_joint_count", 13),
         ("result", "trajectory_step_coverage", 1.01),
+        ("result", "best_target_area_coverage_percent", 101.0),
+        ("result", "time_to_best_target_area_coverage_seconds", -1.0),
         ("metrics", "warm_inference_ms", {"count": 1, "mean": "raw error", "p50": 1, "p95": 1, "max": 1}),
     ],
 )
@@ -263,6 +440,37 @@ def test_line_buffered_writer_p95_overhead_is_below_one_millisecond(tmp_path: Pa
                 elapsed_seconds=(step + 1) / 50,
                 actual_joint_positions=[float(step)] * 14,
                 commanded_joint_positions=[float(step + 1)] * 14,
+                scenario_info={
+                    "is_success": False,
+                    "scenario": "push_letters_dual",
+                    "scene_hash": "a" * 64,
+                    "layout_hash": "b" * 64,
+                    "body_count": 2,
+                    "held_steps": 0,
+                    "lifted_ever": False,
+                    "off_table": False,
+                    "fallen": False,
+                    "terminal_reason": "running",
+                    "left_contact_ever": True,
+                    "right_contact_ever": True,
+                    "both_arms_participated": True,
+                    "interference_ever": False,
+                    "left_joint_travel": 0.1,
+                    "right_joint_travel": 0.1,
+                    "target_area_coverage": 0.1,
+                    **{
+                        f"body_{body}_{metric}": 0.1
+                        for body in range(2)
+                        for metric in (
+                            "xy_error",
+                            "yaw_error",
+                            "roll",
+                            "pitch",
+                            "height_error",
+                            "target_area_coverage",
+                        )
+                    },
+                },
                 metrics={"sim_step_ms": 0.5},
             )
             durations.append((time.perf_counter_ns() - started) / 1_000_000)

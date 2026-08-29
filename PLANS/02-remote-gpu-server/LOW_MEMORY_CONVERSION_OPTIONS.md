@@ -1,10 +1,10 @@
 # Phase 02 recovery options — low-memory checkpoint conversion
 
-This decision plan exists because the stock JAX policy loads in BF16 but first inference exceeds RTX 3090 VRAM, while OpenPI's stock JAX→PyTorch converter restores the complete checkpoint as FP32 and exceeds the PC's roughly 11.7 GiB WSL RAM. It does not change Phase 02 acceptance: both profiles must still return finite `(50,14)` actions on the RTX GPU.
+This decision plan records the pre-upgrade recovery: the stock JAX policy loaded in BF16 but first inference exceeded RTX 3090 VRAM, while OpenPI's stock JAX→PyTorch converter restored the complete checkpoint as FP32 and exceeded the then-configured roughly 11.7 GiB WSL RAM. It does not change Phase 02 acceptance.
 
 ## Constraints
 
-- WSL sees about 11.7 GiB RAM, 8 GiB swap, 24 GiB RTX VRAM, and ample disk.
+- Original evidence used about 11.7 GiB WSL RAM, 8 GiB swap, and 24 GiB RTX VRAM. The upgraded PC now has a 32 GB WSL ceiling, but less than 32 GiB is actually available and VRAM is unchanged.
 - Preserve the direct converter's stock `full-float32` default; project orchestration defaults to automatic selection.
 - No custom checkpoint format, allocator flags, public listener, destructive cache cleanup, or PC-side CI.
 - A failed experiment may retain ignored logs but must publish no checkpoint directory.
@@ -19,7 +19,7 @@ This decision plan exists because the stock JAX policy loads in BF16 but first i
 | A. Retry whole-tree FP32 conversion | No | None | Already kernel-OOM-killed | Rejected |
 | B. Retry whole-tree BF16 restore | No | One dtype change | Already kernel-OOM-killed; existing NumPy→Torch bridge cannot carry BF16 | Rejected |
 | C. Partial BF16 restore → DLPack → GPU-resident PyTorch model → 1 GB SafeTensors shards | Passed for both profiles | Bounded project-local mode plus sharded loader | Largest stored BF16 leaf is about 2.25 GiB; stock mappings, strict load, and finite-action inference passed | Selected and passed |
-| D. Stock converter on ≥32 GiB available RAM | No; requires another/upgraded host | No converter change | Evidence-based practical capacity target, not a validated guarantee; extra hardware required | Supported fallback |
+| D. Stock converter on ≥32 GiB available RAM | Newly testable but unvalidated/marginal under the 32 GB cap | No converter change | Evidence-based practical capacity target, not a guarantee; the measured available RAM is below 32 GiB | Supported fallback |
 | E. Download an official matching PyTorch checkpoint | Not currently available | None | No drop-in artifacts were found for the pinned profiles | Reconsider only if upstream publishes one |
 
 ## Selected experiment: `partial-bfloat16`
@@ -45,7 +45,7 @@ This decision plan exists because the stock JAX policy loads in BF16 but first i
 
 ## Outcome
 
-Option C passed on the current PC for both profiles. π₀ and π₀.₅ each passed the one-leaf proof, full BF16 conversion, fresh sharded load, explicit PyTorch launch, four finite RTX actions, a second-session check while WSL remained active, and safe stop. Phase 03 separately owns persistence after the final Windows WSL client exits. The ≥32 GiB stock-converter fallback was not needed. Exact memory, latency, artifact-hash, and raw-evidence hashes are recorded in E-PC-BF16.
+Option C passed on the pre-upgrade PC for both profiles. π₀ and π₀.₅ each passed the one-leaf proof, full BF16 conversion, fresh sharded load, explicit PyTorch launch, four finite RTX actions, a second-session check while WSL remained active, and safe stop. Those PC-local artifacts remain valid after the RAM upgrade and are not reconverted. The ≥32 GiB stock-converter fallback remains unvalidated. Exact historical evidence is recorded in E-PC-BF16.
 
 `make convert-pc` subsequently made the selection automatic: Linux `MemAvailable < 16 GiB` selects Option C; otherwise it selects the full-FP32 route. `OPENPI_CONVERSION_RESTORE_MODE` permits an intentional allowlisted override. Auto mode fails closed if available RAM cannot be measured and records both the measurement and selected mode.
 

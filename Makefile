@@ -3,7 +3,7 @@ VENV := examples/aloha_sim/.venv
 PYTHON := $(VENV)/bin/python
 RUFF := $(VENV)/bin/ruff
 
-.PHONY: help setup-mac doctor doctor-mac doctor-repo smoke-sim setup-pc doctor-pc convert-pc server tunnel smoke-policy run metrics stop test lint secret-scan public-audit pr-status ci
+.PHONY: help setup-mac doctor doctor-mac doctor-repo smoke-sim scenario-calibrate setup-pc doctor-pc convert-pc server tunnel smoke-policy run metrics scenario-matrix scenario-metrics stop test lint secret-scan public-audit pr-status ci
 
 help:
 	@printf '%s\n' \
@@ -12,6 +12,7 @@ help:
 		'make doctor-mac  Validate native imports, rendering, and FFmpeg' \
 		'make doctor-repo Validate clean Git remotes and GitHub project access' \
 		'make smoke-sim   Run three 300-step ALOHA simulation episodes' \
+		'make scenario-calibrate Run the fixed Mac-only Push-PI calibration gate' \
 		'make setup-pc    Install the exact candidate inside verified WSL' \
 		'make doctor-pc   Discover WSL2, Ubuntu, RTX 3090, disk, and tools' \
 		'make convert-pc  Convert the selected profile; partial BF16 below 16 GiB available RAM' \
@@ -20,6 +21,8 @@ help:
 		'make smoke-policy Run bounded Mac-through-tunnel profile inference' \
 		'make run         Run the configured remote-policy simulation episodes' \
 		'make metrics     Rebuild and validate the latest selected-profile summary' \
+		'make scenario-matrix Run the four Push-PI scenarios for seeds 0-2' \
+		'make scenario-metrics Revalidate the latest selected-profile Push-PI matrix' \
 		'make stop        Stop the owned Mac tunnel and WSL policy server' \
 		'make test        Run project pure tests' \
 		'make lint        Run project Ruff and shell syntax checks' \
@@ -41,6 +44,9 @@ doctor-repo:
 
 smoke-sim:
 	./scripts/smoke_sim.sh
+
+scenario-calibrate:
+	./scripts/smoke_sim.sh --calibrate
 
 setup-pc:
 	./scripts/setup_pc.sh
@@ -67,6 +73,12 @@ run:
 metrics:
 	"$(PYTHON)" -m tools.remote_aloha.metrics
 
+scenario-matrix:
+	./scripts/run_aloha.sh scenario-matrix
+
+scenario-metrics:
+	"$(PYTHON)" -m tools.remote_aloha.scenario_matrix metrics
+
 stop:
 	@status=0; \
 	"$(PYTHON)" -m tools.remote_aloha.remote stop || status=1; \
@@ -83,8 +95,8 @@ test:
 
 lint:
 	@test -x "$(RUFF)" || { echo 'Missing Phase 01 environment; run: make setup-mac' >&2; exit 1; }
-	"$(RUFF)" check tools/remote_aloha tests scripts/serve_policy.py examples/aloha_sim/saver.py
-	"$(RUFF)" format --check tools/remote_aloha tests scripts/serve_policy.py examples/aloha_sim/saver.py
+	"$(RUFF)" check tools/remote_aloha tests scripts/serve_policy.py examples/aloha_sim/saver.py examples/aloha_sim/push_pi_env.py
+	"$(RUFF)" format --check tools/remote_aloha tests scripts/serve_policy.py examples/aloha_sim/saver.py examples/aloha_sim/push_pi_env.py
 	"$(RUFF)" check examples/convert_jax_model_to_pytorch.py
 	"$(RUFF)" format --check examples/convert_jax_model_to_pytorch.py
 	"$(RUFF)" check packages/openpi-client/src/openpi_client/websocket_client_policy.py src/openpi/serving/websocket_policy_server.py

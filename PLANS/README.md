@@ -37,13 +37,13 @@ This directory is the execution contract for the Mac ALOHA simulator and remote 
 | 05 | [`05-observability-and-reliability/00-overview.md`](05-observability-and-reliability/00-overview.md) | JSONL telemetry, GPU metrics, recovery |
 | 06 | [`06-hardening-and-documentation/00-overview.md`](06-hardening-and-documentation/00-overview.md) | Tests, security audit, docs, release evidence |
 
-## Deferred extensions
+## Active extension
 
 | Suite | Plan | Status | Relationship to completed stack |
 | --- | --- | --- | --- |
-| S0827 Push-π | [`SCENARIOS_0827/00-overview.md`](SCENARIOS_0827/00-overview.md) | Reviewed; ready after branch gate; not implemented | Custom PushT-inspired ALOHA experiment. Prefer one new PR from post-merge `main`; it is not an eighth member of the completed seven-PR phase stack. |
+| S0827 Push-PI | [`SCENARIOS_0827/00-overview.md`](SCENARIOS_0827/00-overview.md) | Complete; final evidence recorded in E-MAC-S0827/E-PC-S0827 | Custom PushT-inspired ALOHA experiment in standalone GitHub PR 8, temporarily based on PR 7; it is not an eighth phase of the completed stack. |
 
-Deferred suites own their pending requirements in `REQUIREMENTS.md`. They must preserve the stable interfaces above, pass the same privacy/security gates, and update `STATUS.md` when scheduled; their pending rows do not weaken or reopen completed phase evidence.
+The suite owns its `SP` requirements in `REQUIREMENTS.md`. Its evidence does not weaken or reopen completed phase evidence.
 
 ## Stable implementation interface
 
@@ -51,7 +51,7 @@ Do not rename these targets without updating every plan and user document:
 
 ```text
 make doctor doctor-mac doctor-pc setup-mac setup-pc
-make convert-pc server tunnel smoke-sim smoke-policy run metrics stop
+make convert-pc server tunnel smoke-sim scenario-calibrate smoke-policy run metrics scenario-matrix scenario-metrics stop
 make test lint secret-scan public-audit pr-status
 ```
 

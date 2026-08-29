@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import base64
+import codecs
+from contextlib import suppress
 from dataclasses import dataclass
 from dataclasses import replace
 from datetime import datetime
@@ -12,6 +14,7 @@ from pathlib import Path
 import re
 import stat
 import subprocess
+import sys
 import time
 from typing import BinaryIO
 
@@ -27,6 +30,16 @@ UPSTREAM_SHA = "215abfb217dbac7d5f1273282331b9b1866c0479"
 _ROUTES = {"bash", "powershell", "cmd"}
 _SCAN_RECEIPT = Path(".runtime/secret-scan.sha")
 _LAUNCH_RECEIPT = Path(".runtime/phase2-launch.json")
+_SETUP_STATUS_LINES = frozenset(
+    {
+        "[setup] validating workspace and storage",
+        "[setup] syncing the exact source candidate",
+        "[setup] synchronizing pinned submodules",
+        "[setup] synchronizing the locked Python environment",
+        "[setup] validating the RTX 3090 runtime",
+        "[setup] setup complete",
+    }
+)
 
 
 class RemoteError(RuntimeError):
@@ -307,16 +320,99 @@ class RemoteSession:
         timeout: int,
         label: str,
         check: bool = True,
+        stream: bool = False,
     ) -> tuple[int, str]:
         try:
-            result = subprocess.run(
-                [*ssh_argv(self.config), command],
-                input=input_text,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                check=False,
-            )
+            if not stream:
+                result = subprocess.run(
+                    [*ssh_argv(self.config), command],
+                    input=input_text,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    check=False,
+                )
+            else:
+                process = subprocess.Popen(
+                    [*ssh_argv(self.config), command],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                shown = [0, 0]
+                decoders = [codecs.getincrementaldecoder("utf-8")(errors="replace") for _ in range(2)]
+                pending = ["", ""]
+                first = True
+
+                def visible_status(line: str) -> str | None:
+                    if label == "setup-pc" and line in _SETUP_STATUS_LINES:
+                        return line
+                    expected = (
+                        f"[server] loading profile={self.config.policy_profile.name} "
+                        f"backend={self.config.policy_backend}; a temporary RAM increase is expected"
+                    )
+                    if label == "server-start" and line == expected:
+                        return expected
+                    match = re.fullmatch(r"\[server\] still loading; elapsed=([0-9]{1,4})s", line)
+                    if (
+                        label == "server-start"
+                        and match is not None
+                        and int(match[1]) <= self.config.server_startup_timeout_seconds
+                    ):
+                        return f"[server] still loading; elapsed={int(match[1])}s"
+                    return None
+
+                def publish(
+                    stdout: str | bytes | None, stderr: str | bytes | None, *, final: bool = False
+                ) -> tuple[str, str]:
+                    values = [value.encode() if isinstance(value, str) else value or b"" for value in (stdout, stderr)]
+                    for index, value in enumerate(values):
+                        suffix = value[shown[index] :]
+                        rendered = decoders[index].decode(suffix, final=final)
+                        pending[index] += rendered
+                        while "\n" in pending[index]:
+                            line, pending[index] = pending[index].split("\n", 1)
+                            visible = visible_status(line)
+                            if visible is not None and sys.stderr is not None:
+                                with suppress(OSError, ValueError):
+                                    print(visible, file=sys.stderr, flush=True)
+                        if final:
+                            visible = visible_status(pending[index])
+                            if visible is not None and sys.stderr is not None:
+                                with suppress(OSError, ValueError):
+                                    print(visible, file=sys.stderr, flush=True)
+                            pending[index] = ""
+                        shown[index] = len(value)
+                    return tuple(value.decode(errors="replace") for value in values)
+
+                try:
+                    deadline = time.monotonic() + timeout
+                    while True:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            process.kill()
+                            stdout, stderr = process.communicate()
+                            stdout, stderr = publish(stdout, stderr, final=True)
+                            raise subprocess.TimeoutExpired(process.args, timeout, output=stdout, stderr=stderr)
+                        try:
+                            stdout, stderr = process.communicate(
+                                input=input_text.encode() if first else None,
+                                timeout=min(0.25, remaining),
+                            )
+                        except subprocess.TimeoutExpired as error:
+                            publish(error.stdout, error.stderr)
+                            first = False
+                            continue
+                        stdout, stderr = publish(stdout, stderr, final=True)
+                        result = subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
+                        break
+                except KeyboardInterrupt:
+                    process.kill()
+                    stdout, stderr = process.communicate()
+                    stdout = stdout.decode(errors="replace") if isinstance(stdout, bytes) else stdout or ""
+                    stderr = stderr.decode(errors="replace") if isinstance(stderr, bytes) else stderr or ""
+                    self._save_raw(label, subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr))
+                    raise
         except subprocess.TimeoutExpired as error:
             stdout = error.stdout.decode(errors="replace") if isinstance(error.stdout, bytes) else error.stdout or ""
             stderr = error.stderr.decode(errors="replace") if isinstance(error.stderr, bytes) else error.stderr or ""
@@ -381,12 +477,14 @@ class RemoteSession:
         timeout: int,
         label: str,
         command_timeout: int | None = None,
+        stream: bool = False,
     ) -> str:
         _, output = self.ssh(
             build_wsl_command(target.route, target.distro, command_timeout),
             input_text=script,
             timeout=timeout,
             label=label,
+            stream=stream,
         )
         return output
 
@@ -484,6 +582,7 @@ printf '__ALOHA_GPU_NAME__=%s\n' "${{gpu_name# }}"
 printf '__ALOHA_GPU_MEMORY_MIB__=%s\n' "${{gpu_memory// /}}"
 printf '__ALOHA_DRIVER__=%s\n' "${{gpu_driver// /}}"
 printf '__ALOHA_DISK_FREE_KIB__=%s\n' "$(df -Pk "$HOME" | awk 'NR==2 {{print $4}}')"
+printf '__ALOHA_RAM_TOTAL_KIB__=%s\n' "$(awk '$1 == \"MemTotal:\" {{print $2; exit}}' /proc/meminfo)"
 printf '__ALOHA_RAM_AVAILABLE_KIB__=%s\n' "$(awk '$1 == \"MemAvailable:\" {{print $2; exit}}' /proc/meminfo)"
 printf '__ALOHA_PORT__=%s\n' "$port_state"
 printf '__ALOHA_PYTHON__=%s\n' "$(python3 --version 2>&1 || printf missing)"
@@ -525,9 +624,16 @@ def doctor(session: RemoteSession, target: RemoteTarget | None = None) -> Remote
             "uv is missing in the selected WSL distro; run inside it: "
             "curl -LsSf https://astral.sh/uv/install.sh | sh"
         )
+    total_ram_kib = facts.get("RAM_TOTAL_KIB", "")
     available_ram_kib = facts.get("RAM_AVAILABLE_KIB", "")
-    if not available_ram_kib.isdigit() or int(available_ram_kib) <= 0:
-        raise RemoteError("WSL available system RAM could not be measured")
+    if (
+        not total_ram_kib.isdigit()
+        or int(total_ram_kib) <= 0
+        or not available_ram_kib.isdigit()
+        or int(available_ram_kib) <= 0
+        or int(available_ram_kib) > int(total_ram_kib)
+    ):
+        raise RemoteError("WSL system RAM could not be measured")
     summary = {
         "os": f"Ubuntu {version} WSL2",
         "openpi_support": "upstream" if version == "22.04" else "experimental",
@@ -536,6 +642,7 @@ def doctor(session: RemoteSession, target: RemoteTarget | None = None) -> Remote
         "gpu_memory_mib": facts.get("GPU_MEMORY_MIB"),
         "driver": facts.get("DRIVER"),
         "disk_free_kib": facts.get("DISK_FREE_KIB"),
+        "ram_total_kib": int(total_ram_kib),
         "ram_available_kib": int(available_ram_kib),
         "automatic_conversion_restore_mode": (
             "partial-bfloat16" if int(available_ram_kib) < 16 * 1024 * 1024 else "full-float32"
@@ -561,8 +668,8 @@ def _candidate() -> tuple[str, str]:
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise RemoteError("local candidate SHA is invalid")
     branch = _git("branch", "--show-current")
-    if branch not in {"main", "codex/06-hardening-docs"}:
-        raise RemoteError("remote work requires main or codex/06-hardening-docs")
+    if branch not in {"main", "codex/06-hardening-docs", "codex/push-pi-scenarios"}:
+        raise RemoteError("remote work requires main, codex/06-hardening-docs, or codex/push-pi-scenarios")
     if _git("status", "--porcelain", "--untracked-files=all"):
         raise RemoteError("remote work requires a clean candidate checkout")
     if _git("rev-parse", f"origin/{branch}") != sha:
@@ -669,6 +776,8 @@ umask 077
 {_encoded_assignment('upstream_sha', UPSTREAM_SHA)}
 min_free_gib={config.min_free_gib}
 policy_port={config.policy_port}
+progress() {{ printf '[setup] %s\n' "$1" >&2; }}
+progress 'validating workspace and storage'
 case "$remote_input" in "~/"*) remote_dir="$HOME/${{remote_input:2}}" ;; /*) remote_dir="$remote_input" ;; *) exit 2 ;; esac
 if [[ -z "$data_input" ]]; then data_home="$HOME/.cache/openpi"; else data_home="$data_input"; fi
 [[ "$data_home" == /* ]] || {{ echo 'OPENPI_DATA_HOME must resolve to an absolute path' >&2; exit 2; }}
@@ -720,23 +829,27 @@ fi
     echo 'Remote checkout is dirty.' >&2
     exit 1
 }}
+progress 'syncing the exact source candidate'
 git -C "$remote_dir" fetch --no-tags origin "refs/heads/$branch"
 [[ "$(git -C "$remote_dir" rev-parse FETCH_HEAD)" == "$candidate" ]] || {{ echo 'Published branch does not match candidate SHA.' >&2; exit 1; }}
 git -C "$remote_dir" cat-file -e "$upstream_sha^{{commit}}"
 git -C "$remote_dir" merge-base --is-ancestor "$upstream_sha" "$candidate"
 git -C "$remote_dir" checkout --detach "$candidate"
+progress 'synchronizing pinned submodules'
 git -C "$remote_dir" submodule sync --recursive
 git -C "$remote_dir" submodule update --init --recursive
 ! git -C "$remote_dir" submodule status --recursive | grep -Eq '^[+-U]'
 [[ -z "$(git -C "$remote_dir" status --porcelain --untracked-files=all)" ]]
 command -v uv >/dev/null || {{ echo 'uv is missing in WSL; install uv, then rerun make setup-pc.' >&2; exit 1; }}
 cd "$remote_dir"
+progress 'synchronizing the locked Python environment'
 GIT_LFS_SKIP_SMUDGE=1 OPENPI_DATA_HOME="$data_home" uv sync --locked
 checkpoint_cache="$data_home/openpi-assets/checkpoints"
 if [[ -d "$checkpoint_cache" ]] && find "$checkpoint_cache" -name '*.partial' -print -quit | grep -q .; then
     echo 'A partial OpenPI cache entry exists; it was preserved for diagnosis.' >&2
     exit 1
 fi
+progress 'validating the RTX 3090 runtime'
 OPENPI_DATA_HOME="$data_home" .venv/bin/python - <<'PY'
 import jax
 
@@ -744,6 +857,7 @@ assert jax.default_backend() == "gpu", f"CPU fallback rejected: {{jax.default_ba
 assert any("3090" in device.device_kind for device in jax.devices()), jax.devices()
 print("JAX GPU validation passed.")
 PY
+progress 'setup complete'
 printf '__ALOHA_PROJECT_SHA__=%s\n' "$(git rev-parse HEAD)"
 printf '__ALOHA_UPSTREAM_SHA__=%s\n' "$upstream_sha"
 printf '__ALOHA_SETUP__=passed\n'
@@ -761,6 +875,7 @@ def setup(session: RemoteSession) -> None:
         timeout=session.config.server_startup_timeout_seconds + 45,
         label="setup-pc",
         command_timeout=session.config.server_startup_timeout_seconds,
+        stream=True,
     )
     facts = _markers(output)
     if facts.get("SETUP") != "passed" or facts.get("PROJECT_SHA") != candidate:
@@ -1192,6 +1307,7 @@ def server(session: RemoteSession) -> None:
             _remote_script_command(config, "start_policy_server.sh", args),
             timeout=config.server_startup_timeout_seconds + 75,
             label="server-start",
+            stream=True,
         )
         connection_check.start(config, target)
         route(session)

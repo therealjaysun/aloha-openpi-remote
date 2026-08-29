@@ -15,6 +15,13 @@ from typing import TextIO
 
 import numpy as np
 
+from tools.remote_aloha.config import FIXED_PROMPT_SCHEDULE
+from tools.remote_aloha.config import STAGED_PROMPT_BOUNDARIES
+from tools.remote_aloha.config import STAGED_PROMPT_SCHEDULE
+from tools.remote_aloha.scenarios import SCENARIOS
+from tools.remote_aloha.scenarios import TARGET_AREA_COVERAGE_METHOD
+from tools.remote_aloha.scenarios import TASK_TO_SCENARIO
+
 _EVENT_NAME = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 _SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 _SAFE_VERSION = re.compile(r"[0-9][A-Za-z0-9.+_-]{0,127}\Z")
@@ -33,15 +40,22 @@ _PACKAGE_NAMES = {
 
 _PUBLISHABLE_METADATA = {
     "action_horizon",
+    "camera_views",
     "checkpoint_label",
     "model_action_horizon",
     "package_versions",
     "prefetch_steps",
     "profile",
+    "prompt_schedule",
+    "prompt_stage_boundaries",
+    "prompt_stage_count",
     "run_id",
+    "scenario",
+    "scene_hash",
     "seeds",
     "source_sha",
     "task",
+    "target_area_coverage_method",
     "upstream_sha",
 }
 _PUBLISHABLE_RESULTS = {
@@ -69,6 +83,23 @@ _PUBLISHABLE_RESULTS = {
     "video_ids",
     "clock_max_uncertainty_ms",
     "clock_offset_change_ms",
+    "both_arms_count",
+    "fallen_count",
+    "interference_count",
+    "left_contact_count",
+    "lifted_count",
+    "off_table_count",
+    "push_success",
+    "right_contact_count",
+    "time_limit_count",
+    "videos_passed",
+    "coverage_sample_count",
+    "initial_target_area_coverage_percent",
+    "final_target_area_coverage_percent",
+    "best_target_area_coverage_percent",
+    "best_target_area_coverage_step",
+    "time_to_best_target_area_coverage_seconds",
+    "episode_elapsed_seconds",
 }
 _PUBLISHABLE_EVENTS = {
     "episode",
@@ -77,6 +108,7 @@ _PUBLISHABLE_EVENTS = {
     "metadata",
     "policy_request",
     "policy_result",
+    "prompt_stage",
     "retry",
     "step",
     "terminal",
@@ -95,9 +127,25 @@ _PUBLISHABLE_METRICS = {
     "server_rss_kib",
     "server_total_ms",
     "sim_step_ms",
+    "prompt_transition_wait_ms",
     "telemetry_write_ms",
     "wall_episode_hz",
     "warm_inference_ms",
+    "body_0_height_error",
+    "body_0_pitch",
+    "body_0_roll",
+    "body_0_xy_error",
+    "body_0_yaw_error",
+    "body_1_height_error",
+    "body_1_pitch",
+    "body_1_roll",
+    "body_1_xy_error",
+    "body_1_yaw_error",
+    "initial_target_area_coverage_percent",
+    "final_target_area_coverage_percent",
+    "best_target_area_coverage_percent",
+    "time_to_best_target_area_coverage_seconds",
+    "episode_elapsed_seconds",
 }
 
 
@@ -116,8 +164,8 @@ def json_safe(value: object, depth: int = 0) -> object:
     if isinstance(value, np.ndarray):
         raise ValueError("NumPy arrays are not valid telemetry fields")
     if isinstance(value, Mapping):
-        if len(value) > 32 or not all(isinstance(key, str) for key in value):
-            raise ValueError("telemetry mappings must have at most 32 string keys")
+        if len(value) > 40 or not all(isinstance(key, str) for key in value):
+            raise ValueError("telemetry mappings must have at most 40 string keys")
         return {key: json_safe(item, depth + 1) for key, item in value.items()}
     if isinstance(value, list | tuple) and len(value) <= 100:
         return [json_safe(item, depth + 1) for item in value]
@@ -346,12 +394,48 @@ def _valid_publishable_metadata(metadata: Mapping[str, object]) -> dict[str, obj
     expected_checkpoint = "pi0_aloha_sim" if profile == "pi0_aloha_sim" else "pi05_base"
     if "checkpoint_label" in result and result["checkpoint_label"] != expected_checkpoint:
         raise ValueError("publishable telemetry checkpoint label is invalid")
-    if "task" in result and result["task"] != "gym_aloha/AlohaTransferCube-v0":
+    task = result.get("task")
+    scenario = result.get("scenario")
+    if (task is None) != (scenario is None):
+        raise ValueError("publishable telemetry task and scenario must be provided together")
+    if task is not None and task not in TASK_TO_SCENARIO:
         raise ValueError("publishable telemetry task is invalid")
+    if scenario is not None and scenario not in SCENARIOS:
+        raise ValueError("publishable telemetry scenario is invalid")
+    if task is not None and scenario is not None and TASK_TO_SCENARIO[task] != scenario:
+        raise ValueError("publishable telemetry scenario/task pair is invalid")
+    scene_id = result.get("scene_hash")
+    custom = scenario is not None and SCENARIOS[str(scenario)].is_custom
+    if custom and (not isinstance(scene_id, str) or not re.fullmatch(r"[0-9a-f]{64}", scene_id)):
+        raise ValueError("publishable telemetry custom scenario hash is invalid")
+    if not custom and scene_id is not None:
+        raise ValueError("publishable telemetry stock scenario must not have a scene hash")
+    coverage_method = result.get("target_area_coverage_method")
+    if custom and coverage_method != TARGET_AREA_COVERAGE_METHOD:
+        raise ValueError("publishable telemetry area coverage method is invalid")
+    if not custom and coverage_method is not None:
+        raise ValueError("publishable stock telemetry must not define area coverage")
     for key in ("action_horizon", "model_action_horizon", "prefetch_steps"):
         value = result.get(key)
         if value is not None and (isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 50):
             raise ValueError(f"publishable telemetry {key} is invalid")
+    if "camera_views" in result and result["camera_views"] != ["cam_high", "cam_left_wrist", "cam_right_wrist"]:
+        raise ValueError("publishable telemetry camera views are invalid")
+    prompt_schedule = result.get("prompt_schedule")
+    if prompt_schedule not in {None, FIXED_PROMPT_SCHEDULE, STAGED_PROMPT_SCHEDULE}:
+        raise ValueError("publishable telemetry prompt schedule is invalid")
+    prompt_stage_count = result.get("prompt_stage_count")
+    prompt_stage_boundaries = result.get("prompt_stage_boundaries")
+    if prompt_schedule == STAGED_PROMPT_SCHEDULE:
+        if (
+            profile != "pi05_aloha_base"
+            or scenario != "push_pi_single"
+            or prompt_stage_count != 3
+            or prompt_stage_boundaries != list(STAGED_PROMPT_BOUNDARIES)
+        ):
+            raise ValueError("publishable staged prompt metadata is invalid")
+    elif prompt_stage_count not in {None, 1} or prompt_stage_boundaries is not None:
+        raise ValueError("publishable fixed prompt metadata is invalid")
     seeds = result.get("seeds")
     if seeds is not None and (
         not isinstance(seeds, list)
@@ -384,6 +468,18 @@ def _valid_publishable_result(result: Mapping[str, object]) -> dict[str, object]
         "trajectory_joint_count",
         "trajectory_plots_passed",
         "trajectory_sample_count",
+        "both_arms_count",
+        "fallen_count",
+        "interference_count",
+        "left_contact_count",
+        "lifted_count",
+        "off_table_count",
+        "push_success",
+        "right_contact_count",
+        "time_limit_count",
+        "videos_passed",
+        "coverage_sample_count",
+        "best_target_area_coverage_step",
     ):
         value = safe.get(key)
         if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
@@ -394,10 +490,28 @@ def _valid_publishable_result(result: Mapping[str, object]) -> dict[str, object]
     steps_applied = safe.get("steps_applied")
     if sample_count is not None and steps_applied is not None and sample_count != steps_applied:
         raise ValueError("publishable trajectory samples must match applied steps")
+    coverage_samples = safe.get("coverage_sample_count")
+    if coverage_samples is not None and steps_applied is not None and coverage_samples != steps_applied:
+        raise ValueError("publishable area coverage samples must match applied steps")
     plots_passed = safe.get("trajectory_plots_passed")
     episodes = safe.get("episodes")
+    count_limit = episodes if episodes is not None else 1
     if plots_passed is not None and episodes is not None and plots_passed > episodes:
         raise ValueError("publishable trajectory plot count exceeds episodes")
+    for key in (
+        "both_arms_count",
+        "fallen_count",
+        "interference_count",
+        "left_contact_count",
+        "lifted_count",
+        "off_table_count",
+        "push_success",
+        "right_contact_count",
+        "time_limit_count",
+        "videos_passed",
+    ):
+        if safe.get(key, 0) > count_limit:
+            raise ValueError(f"publishable result {key} exceeds episode count")
     if "infrastructure_pass" in safe and not isinstance(safe["infrastructure_pass"], bool):
         raise ValueError("publishable infrastructure result is invalid")
     if "gpu_coverage_pass" in safe and not isinstance(safe["gpu_coverage_pass"], bool):
@@ -415,12 +529,51 @@ def _valid_publishable_result(result: Mapping[str, object]) -> dict[str, object]
         "reward_final",
         "reward_max",
         "reward_sum",
+        "initial_target_area_coverage_percent",
+        "final_target_area_coverage_percent",
+        "best_target_area_coverage_percent",
+        "time_to_best_target_area_coverage_seconds",
+        "episode_elapsed_seconds",
     ):
         value = safe.get(key)
         if value is not None and (
             isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value)
         ):
             raise ValueError(f"publishable result {key} is invalid")
+    for key in (
+        "initial_target_area_coverage_percent",
+        "final_target_area_coverage_percent",
+        "best_target_area_coverage_percent",
+    ):
+        value = safe.get(key)
+        if value is not None and not 0 <= value <= 100:
+            raise ValueError(f"publishable result {key} is invalid")
+    for key in ("time_to_best_target_area_coverage_seconds", "episode_elapsed_seconds"):
+        value = safe.get(key)
+        if value is not None and value < 0:
+            raise ValueError(f"publishable result {key} is invalid")
+    best_step = safe.get("best_target_area_coverage_step")
+    if best_step is not None and (steps_applied is None or not 1 <= best_step <= steps_applied):
+        raise ValueError("publishable area coverage best step is invalid")
+    best_fields = (
+        safe.get("best_target_area_coverage_percent"),
+        best_step,
+        safe.get("time_to_best_target_area_coverage_seconds"),
+    )
+    if any(value is None for value in best_fields) != all(value is None for value in best_fields):
+        raise ValueError("publishable area coverage best fields are incomplete")
+    if (
+        safe.get("final_target_area_coverage_percent") is not None
+        and safe.get("best_target_area_coverage_percent") is not None
+        and safe["final_target_area_coverage_percent"] > safe["best_target_area_coverage_percent"]
+    ):
+        raise ValueError("publishable final area coverage exceeds its best value")
+    if (
+        safe.get("time_to_best_target_area_coverage_seconds") is not None
+        and safe.get("episode_elapsed_seconds") is not None
+        and safe["time_to_best_target_area_coverage_seconds"] > safe["episode_elapsed_seconds"]
+    ):
+        raise ValueError("publishable area coverage time exceeds episode time")
     video_ids = safe.get("video_ids")
     if video_ids is not None and (
         not isinstance(video_ids, list)
@@ -475,6 +628,14 @@ def _valid_publishable_metrics(metrics: Mapping[str, object]) -> dict[str, objec
         ):
             raise ValueError("publishable metric statistics are invalid")
         result[name] = dict(stats)
+        if name.endswith("_target_area_coverage_percent") and any(
+            stats[key] is not None and not 0 <= stats[key] <= 100 for key in ("mean", "p50", "p95", "max")
+        ):
+            raise ValueError("publishable area coverage metric is invalid")
+        if name.endswith("_seconds") and any(
+            stats[key] is not None and stats[key] < 0 for key in ("mean", "p50", "p95", "max")
+        ):
+            raise ValueError("publishable duration metric is invalid")
     return result
 
 

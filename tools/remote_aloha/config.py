@@ -9,10 +9,17 @@ from pathlib import PurePosixPath
 import re
 import subprocess
 
+from tools.remote_aloha.scenarios import SCENARIOS
+from tools.remote_aloha.scenarios import ScenarioSpec
+from tools.remote_aloha.scenarios import get_scenario
+
 DEFAULT_TASK = "gym_aloha/AlohaTransferCube-v0"
-DEFAULT_POLICY_PROFILE = "pi0_aloha_sim"
+DEFAULT_POLICY_PROFILE = "pi05_aloha_base"
 DEFAULT_POLICY_BACKEND = "pytorch"
 DEFAULT_CONVERSION_RESTORE_MODE = "auto"
+FIXED_PROMPT_SCHEDULE = "fixed"
+STAGED_PROMPT_SCHEDULE = "push_pi_single_left_staged_v1"
+STAGED_PROMPT_BOUNDARIES = (0, 500, 1500, 6000)
 _KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 _UINT = re.compile(r"[0-9]+\Z")
 _SSH_ALIAS = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
@@ -22,10 +29,14 @@ _JAX_MEM_FRACTIONS = ("0.75", "0.80", "0.85", "0.90", "0.95")
 @dataclass(frozen=True)
 class MacSimConfig:
     task: str = DEFAULT_TASK
+    scenario: ScenarioSpec = SCENARIOS["transfer_cube"]
+    display: bool = False
     seed: int = 0
     episodes: int = 3
+    episode_steps: int = 300
     action_horizon: int = 30
     prefetch_steps: int = 25
+    prompt_schedule: str = FIXED_PROMPT_SCHEDULE
     output_dir: Path = Path("outputs")
 
 
@@ -182,10 +193,14 @@ def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str
     source = os.environ if environ is None else environ
     for key in (
         "ALOHA_TASK",
+        "ALOHA_SCENARIO",
+        "ALOHA_DISPLAY",
         "ALOHA_SEED",
         "ALOHA_EPISODES",
+        "ALOHA_EPISODE_STEPS",
         "ALOHA_ACTION_HORIZON",
         "ALOHA_PREFETCH_STEPS",
+        "ALOHA_PROMPT_SCHEDULE",
         "RUN_OUTPUT_DIR",
     ):
         if key in source:
@@ -194,25 +209,45 @@ def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str
     task = values.get("ALOHA_TASK", DEFAULT_TASK)
     if task != DEFAULT_TASK:
         raise ValueError(f"ALOHA_TASK must be the pinned task {DEFAULT_TASK!r}")
+    scenario = get_scenario(values.get("ALOHA_SCENARIO", "transfer_cube"))
+    display_value = values.get("ALOHA_DISPLAY", "0")
+    if display_value not in {"0", "1"}:
+        raise ValueError("ALOHA_DISPLAY must be exactly 0 or 1")
     seed = _uint("ALOHA_SEED", values.get("ALOHA_SEED", "0"), maximum=2**32 - 1)
     episodes = _uint("ALOHA_EPISODES", values.get("ALOHA_EPISODES", "3"))
     if episodes < 1:
         raise ValueError("ALOHA_EPISODES must be positive")
     if seed + episodes - 1 > 2**32 - 1:
         raise ValueError("ALOHA_SEED + ALOHA_EPISODES exceeds the seed range")
+    episode_steps = _uint("ALOHA_EPISODE_STEPS", values.get("ALOHA_EPISODE_STEPS", "300"), maximum=6000)
+    if episode_steps < 1:
+        raise ValueError("ALOHA_EPISODE_STEPS must be positive")
     action_horizon = _uint("ALOHA_ACTION_HORIZON", values.get("ALOHA_ACTION_HORIZON", "30"), maximum=50)
     prefetch_steps = _uint("ALOHA_PREFETCH_STEPS", values.get("ALOHA_PREFETCH_STEPS", "25"), maximum=50)
     if not 1 <= prefetch_steps < action_horizon:
         raise ValueError("ALOHA buffering must satisfy 1 <= ALOHA_PREFETCH_STEPS < ALOHA_ACTION_HORIZON <= 50")
+    prompt_schedule = values.get("ALOHA_PROMPT_SCHEDULE", FIXED_PROMPT_SCHEDULE)
+    if prompt_schedule not in {FIXED_PROMPT_SCHEDULE, STAGED_PROMPT_SCHEDULE}:
+        raise ValueError("ALOHA_PROMPT_SCHEDULE must be exactly fixed or push_pi_single_left_staged_v1")
+    if prompt_schedule == STAGED_PROMPT_SCHEDULE and (
+        scenario.key != "push_pi_single" or episodes != 1 or episode_steps != STAGED_PROMPT_BOUNDARIES[-1]
+    ):
+        raise ValueError(
+            "the staged prompt schedule must use push_pi_single, ALOHA_EPISODES=1, and ALOHA_EPISODE_STEPS=6000"
+        )
     output = values.get("RUN_OUTPUT_DIR", "outputs")
     if not output or "\x00" in output:
         raise ValueError("RUN_OUTPUT_DIR must be a nonempty path")
     return MacSimConfig(
-        task=task,
+        task=scenario.gym_id,
+        scenario=scenario,
+        display=display_value == "1",
         seed=seed,
         episodes=episodes,
+        episode_steps=episode_steps,
         action_horizon=action_horizon,
         prefetch_steps=prefetch_steps,
+        prompt_schedule=prompt_schedule,
         output_dir=Path(output),
     )
 

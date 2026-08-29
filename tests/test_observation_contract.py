@@ -1,22 +1,29 @@
 import numpy as np
 import pytest
 
+from tools.remote_aloha.observation_contract import convert_gym_artifact_observation
 from tools.remote_aloha.observation_contract import convert_gym_observation
 from tools.remote_aloha.observation_contract import validate_policy_observation
 
 
 def _gym_observation() -> dict:
     return {
-        "pixels": {"top": np.zeros((480, 640, 3), dtype=np.uint8)},
+        "pixels": {name: np.zeros((480, 640, 3), dtype=np.uint8) for name in ("top", "left_wrist", "right_wrist")},
         "agent_pos": np.zeros(14, dtype=np.float64),
     }
 
 
 def test_stock_gym_observation_is_converted_without_changing_state_dtype() -> None:
-    converted = convert_gym_observation(_gym_observation(), "Transfer cube")
+    raw = _gym_observation()
+    raw["pixels"]["left_wrist"].fill(1)
+    raw["pixels"]["right_wrist"].fill(2)
+    converted = convert_gym_observation(raw, "Transfer cube")
     assert converted["state"].dtype == np.float64
     assert converted["images"]["cam_high"].shape == (3, 224, 224)
     assert converted["images"]["cam_high"].dtype == np.uint8
+    assert set(converted["images"]) == {"cam_high", "cam_left_wrist", "cam_right_wrist"}
+    assert converted["images"]["cam_left_wrist"].max() == 1
+    assert converted["images"]["cam_right_wrist"].max() == 2
     assert converted["prompt"] == "Transfer cube"
 
 
@@ -34,7 +41,9 @@ def test_stock_gym_observation_is_converted_without_changing_state_dtype() -> No
 def test_invalid_policy_observation_is_rejected(mutate) -> None:
     value = {
         "state": np.zeros(14, dtype=np.float64),
-        "images": {"cam_high": np.zeros((3, 224, 224), dtype=np.uint8)},
+        "images": {
+            name: np.zeros((3, 224, 224), dtype=np.uint8) for name in ("cam_high", "cam_left_wrist", "cam_right_wrist")
+        },
     }
     mutate(value)
     with pytest.raises(ValueError, match="observation"):
@@ -46,3 +55,20 @@ def test_invalid_raw_layout_is_rejected() -> None:
     value["pixels"]["top"] = np.zeros((3, 224, 224), dtype=np.uint8)
     with pytest.raises(ValueError, match="Gym observation.pixels.top"):
         convert_gym_observation(value)
+
+
+def test_missing_wrist_view_is_rejected() -> None:
+    value = _gym_observation()
+    del value["pixels"]["left_wrist"]
+    with pytest.raises(ValueError, match="left_wrist"):
+        convert_gym_observation(value)
+
+
+def test_partial_artifact_uses_real_top_and_black_unavailable_wrists() -> None:
+    raw = _gym_observation()
+    raw["pixels"] = {"top": np.full((480, 640, 3), 7, dtype=np.uint8)}
+    converted = convert_gym_artifact_observation(raw)
+    assert converted["images"]["cam_high"].max() == 7
+    assert converted["images"]["cam_left_wrist"].shape == (3, 224, 224)
+    assert converted["images"]["cam_left_wrist"].max() == 0
+    assert converted["images"]["cam_right_wrist"].max() == 0

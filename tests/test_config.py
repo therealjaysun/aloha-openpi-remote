@@ -6,18 +6,23 @@ from tools.remote_aloha.config import DEFAULT_TASK
 from tools.remote_aloha.config import POLICY_PROFILES
 from tools.remote_aloha.config import load_mac_sim_config
 from tools.remote_aloha.config import load_remote_config
+from tools.remote_aloha.scenarios import SCENARIOS
 
 
 def test_defaults_when_env_file_is_missing(tmp_path: Path) -> None:
     config = load_mac_sim_config(tmp_path / "missing", {})
     assert (
         config.task,
+        config.scenario.key,
+        config.display,
         config.seed,
         config.episodes,
+        config.episode_steps,
         config.action_horizon,
         config.prefetch_steps,
+        config.prompt_schedule,
         config.output_dir,
-    ) == (DEFAULT_TASK, 0, 3, 30, 25, Path("outputs"))
+    ) == (DEFAULT_TASK, "transfer_cube", False, 0, 3, 300, 30, 25, "fixed", Path("outputs"))
 
 
 def test_file_values_and_environment_override(tmp_path: Path) -> None:
@@ -27,6 +32,35 @@ def test_file_values_and_environment_override(tmp_path: Path) -> None:
     assert (config.seed, config.episodes, config.output_dir) == (4, 2, Path("from-environment"))
 
 
+def test_fixed_scenario_resolves_task_prompt_and_display(tmp_path: Path) -> None:
+    config = load_mac_sim_config(
+        tmp_path / "missing",
+        {"ALOHA_SCENARIO": "push_letters_single", "ALOHA_DISPLAY": "1"},
+    )
+    assert config.scenario is SCENARIOS["push_letters_single"]
+    assert config.task == "pi_robotics/PushLettersSingleArm-v0"
+    assert config.scenario.prompt == "Using only the left arm, push the P and I blocks onto their matching targets."
+    assert config.display is True
+
+
+def test_episode_step_override_is_bounded(tmp_path: Path) -> None:
+    config = load_mac_sim_config(tmp_path / "missing", {"ALOHA_EPISODE_STEPS": "6000"})
+    assert config.episode_steps == 6000
+
+
+def test_staged_prompt_schedule_is_one_exact_scenario_one_episode_diagnostic(tmp_path: Path) -> None:
+    config = load_mac_sim_config(
+        tmp_path / "missing",
+        {
+            "ALOHA_SCENARIO": "push_pi_single",
+            "ALOHA_EPISODES": "1",
+            "ALOHA_EPISODE_STEPS": "6000",
+            "ALOHA_PROMPT_SCHEDULE": "push_pi_single_left_staged_v1",
+        },
+    )
+    assert config.prompt_schedule == "push_pi_single_left_staged_v1"
+
+
 @pytest.mark.parametrize(
     ("contents", "environment"),
     [
@@ -34,11 +68,29 @@ def test_file_values_and_environment_override(tmp_path: Path) -> None:
         ("ALOHA_SEED=nan\n", {}),
         ("ALOHA_SEED=4294967296\n", {}),
         ("ALOHA_EPISODES=0\n", {}),
+        ("ALOHA_EPISODE_STEPS=0\n", {}),
+        ("ALOHA_EPISODE_STEPS=6001\n", {}),
         ("ALOHA_SEED=4294967295\nALOHA_EPISODES=2\n", {}),
         ("ALOHA_TASK=other\n", {}),
+        ("ALOHA_SCENARIO=\n", {}),
+        ("ALOHA_SCENARIO=push_letters_single;id\n", {}),
+        ("ALOHA_DISPLAY=true\n", {}),
+        ("ALOHA_DISPLAY=2\n", {}),
         ("ALOHA_ACTION_HORIZON=10\nALOHA_PREFETCH_STEPS=10\n", {}),
         ("ALOHA_ACTION_HORIZON=51\n", {}),
         ("ALOHA_PREFETCH_STEPS=0\n", {}),
+        ("ALOHA_PROMPT_SCHEDULE=custom\n", {}),
+        ("ALOHA_PROMPT_SCHEDULE=push_pi_single_left_staged_v1\n", {}),
+        (
+            "ALOHA_SCENARIO=push_pi_dual\nALOHA_EPISODES=1\nALOHA_EPISODE_STEPS=6000\n"
+            "ALOHA_PROMPT_SCHEDULE=push_pi_single_left_staged_v1\n",
+            {},
+        ),
+        (
+            "ALOHA_SCENARIO=push_pi_single\nALOHA_EPISODES=2\nALOHA_EPISODE_STEPS=6000\n"
+            "ALOHA_PROMPT_SCHEDULE=push_pi_single_left_staged_v1\n",
+            {},
+        ),
         ("RUN_OUTPUT_DIR=\n", {}),
         ("ALOHA_SEED=1 trailing\n", {}),
     ],
@@ -90,7 +142,7 @@ def test_remote_defaults_and_profile_contract(tmp_path: Path) -> None:
         8000,
         "127.0.0.1",
         8000,
-        "pi0_aloha_sim",
+        "pi05_aloha_base",
         "pytorch",
         "auto",
         60,

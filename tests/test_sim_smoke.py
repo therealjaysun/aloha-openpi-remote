@@ -2,6 +2,11 @@ import numpy as np
 import pytest
 
 from tools.remote_aloha.config import MacSimConfig
+import tools.remote_aloha.scenarios as scenarios
+from tools.remote_aloha.sim_smoke_test import _color_mask
+from tools.remote_aloha.sim_smoke_test import _git_sha
+from tools.remote_aloha.sim_smoke_test import calibration_commands
+from tools.remote_aloha.sim_smoke_test import calibration_contact_seen
 from tools.remote_aloha.sim_smoke_test import percentile_ms
 from tools.remote_aloha.sim_smoke_test import run
 from tools.remote_aloha.sim_smoke_test import validate_action
@@ -41,6 +46,42 @@ def test_invalid_action_and_empty_latency_are_rejected() -> None:
 
 def test_percentile_is_reported_in_milliseconds() -> None:
     assert percentile_ms([1.0, 2.0, 3.0], 50) == 2.0
+
+
+def test_calibration_commands_are_one_exact_episode() -> None:
+    home = np.arange(14, dtype=np.float64)
+    left = calibration_commands(home, "left")
+    right = calibration_commands(home, "right")
+    assert len(left) == len(right) == 300
+    assert all(command.shape == (14,) and np.isfinite(command).all() for command in left + right)
+    assert all(command[6] == command[13] == 0.5 for command in left + right)
+    assert np.allclose(left[-1][:6], scenarios.LEFT_PUSH_WAYPOINTS[-1], atol=1e-15)
+    assert np.array_equal(left[-1][7:13], home[7:13])
+    assert np.allclose(right[-1][7:13], scenarios.RIGHT_PUSH_WAYPOINTS[-1], atol=1e-15)
+    assert np.array_equal(right[-1][:6], home[:6])
+
+
+def test_calibration_masks_and_named_contacts_are_exact() -> None:
+    frame = np.zeros((2, 3, 3), dtype=np.uint8)
+    frame[0, 0] = (242, 140, 20)
+    frame[0, 1] = (217, 31, 31)
+    frame[0, 2] = (26, 89, 230)
+    assert _color_mask(frame, "pi")[0, 0]
+    assert _color_mask(frame, "P")[0, 1]
+    assert _color_mask(frame, "I")[0, 2]
+    assert calibration_contact_seen([("vx300s_left/10_left_gripper_finger", "push_pi/P_2")], "P", "left")
+    assert not calibration_contact_seen([("vx300s_right/not_a_finger", "push_pi/P_2")], "P", "right")
+
+
+def test_release_calibration_rejects_dirty_provenance(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Result:
+        def __init__(self, stdout: str) -> None:
+            self.stdout = stdout
+
+    responses = iter((Result("a" * 40 + "\n"), Result(" M changed.py\n")))
+    monkeypatch.setattr("tools.remote_aloha.sim_smoke_test.subprocess.run", lambda *args, **kwargs: next(responses))
+    with pytest.raises(RuntimeError, match="clean exact-candidate"):
+        _git_sha(require_clean=True)
 
 
 def test_smoke_validates_output_root_before_writing(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -22,8 +22,8 @@ The complete workflow was validated on the exact Phase 5 candidate `2065dd9` wit
 
 | Profile | Intended use | Infrastructure | Task result | Total steps | Active rate (mean / p95) | Warm request p95 | Peak GPU memory |
 | --- | --- | ---: | ---: | ---: | --- | ---: | ---: |
-| `pi0_aloha_sim` (default) | π₀ fine-tuned for this simulator | 3/3 | 2/3 success | 761 | 46.91 / 47.02 Hz | 359.21 ms | 15,401 MiB |
-| `pi05_aloha_base` | Experimental π₀.₅ base model with ALOHA transforms | 3/3 | 0/3 success | 900 | 48.13 / 48.38 Hz | 502.35 ms | 15,857 MiB |
+| `pi0_aloha_sim` | π₀ fine-tuned for this simulator | 3/3 | 2/3 success | 761 | 46.91 / 47.02 Hz | 359.21 ms | 15,401 MiB |
+| `pi05_aloha_base` (default) | Experimental π₀.₅ base model with ALOHA transforms | 3/3 | 0/3 success | 900 | 48.13 / 48.38 Hz | 502.35 ms | 15,857 MiB |
 
 GPU coverage passed for both runs (31 and 24 samples respectively), with no request retries or failures. The 1,661 successful simulator steps produced exactly 1,661 trajectory samples and six plots; each plot contains all 14 actual joints plus thinner dashed commands, normalized against pinned simulator limits. The π₀.₅ base checkpoint is not simulator-fine-tuned, so its zero task successes do not negate the separately reported infrastructure result. Neither profile met the complete cadence/underrun gate, so this project does **not** claim uninterrupted 50 Hz. The current execution cursor and complete evidence ledger are in [Project status](PLANS/STATUS.md).
 
@@ -110,6 +110,16 @@ make secret-scan
 
 Then switch on the PC, sign in, start the selected WSL distro, and confirm Windows OpenSSH is running. Back on the Mac, verify the private alias and run the PC gates:
 
+The 48 GB demo PC uses this Windows-side WSL2 ceiling in `%UserProfile%\.wslconfig` (merge it with any existing settings), preserving 8 GB swap:
+
+```ini
+[wsl2]
+memory=32GB
+swap=8GB
+```
+
+Run `wsl --shutdown` once after editing and before starting project services; it stops every WSL distro. `make doctor-pc` reports the effective Linux total/available RAM. Project scripts never edit the Windows file or require this PC-specific ceiling on other hosts.
+
 ```bash
 ssh -o BatchMode=yes -o StrictHostKeyChecking=yes robot-gpu exit
 OPENPI_WSL_DISTRO=Ubuntu-24.04 make doctor-pc
@@ -118,6 +128,8 @@ OPENPI_WSL_DISTRO=Ubuntu-24.04 make setup-pc
 
 `make doctor-pc` discovers WSL, architecture, disk, RAM, NVIDIA/CUDA visibility, ports, and tools before setup changes the WSL project environment. It must identify an RTX 3090; CPU fallback is rejected. The PC must remain awake only for conversion, policy smoke tests, and full runs; after `make stop` succeeds, it is safe to switch off.
 
+`make setup-pc` and `make server` stream only exact allowlisted setup/model-loading stages to the Mac terminal, including a bounded server-loading heartbeat. `make run` keeps final JSON on stdout and writes safe episode, staged-prompt, 10% progress, coverage, and terminal status lines to stderr; `make scenario-matrix` keeps its summary-path stdout contract and adds matrix lifecycle status. Private raw evidence remains in ignored outputs.
+
 Converted weights are PC-local and ignored. Convert each desired profile once, or again after its artifact is removed or the source/runtime pin changes:
 
 ```bash
@@ -125,7 +137,7 @@ OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE=pi0_aloha_sim make convert-
 OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE=pi05_aloha_base make convert-pc
 ```
 
-Conversion mode `auto` uses the one-layer-at-a-time partial-BF16 restore when Linux `MemAvailable` is below 16 GiB; otherwise it preserves the full-FP32 restore. The bounded path passed for both profiles on the prepared 16 GB PC. The original JAX server remains an explicit diagnostic option, but its first inference repeatedly exhausted GPU memory on this machine. The demo therefore defaults to the matching converted PyTorch checkpoint and never falls back silently.
+Conversion mode `auto` uses the one-layer-at-a-time partial-BF16 restore when Linux `MemAvailable` is below 16 GiB; otherwise it preserves the full-FP32 restore. The bounded path passed for both profiles before the PC RAM upgrade and remains the low-memory fallback; the 32 GB WSL configuration selects the normal full-memory path. The original JAX server remains an explicit diagnostic option, but its first inference repeatedly exhausted GPU memory on the RTX 3090. The demo therefore defaults to the matching converted PyTorch checkpoint and never falls back silently.
 
 ## Run modes
 
@@ -135,10 +147,18 @@ Simulation only—no PC required:
 make smoke-sim
 ```
 
+The optional Push-PI suite uses four fixed prompts and scenario IDs. Each prompt explicitly names the active arm(s). There is no text-prompt box: select the task before launch. Every newly recorded active episode MP4 (and optional `ALOHA_DISPLAY=1` view) places overhead, left-wrist, and right-wrist feeds side-by-side in that order. Each applied step also records exact target coverage and timing.
+
+```bash
+ALOHA_SCENARIO=push_pi_single ALOHA_DISPLAY=1 ALOHA_EPISODES=1 make smoke-sim
+# Other IDs: push_pi_dual, push_letters_single, push_letters_dual
+make scenario-calibrate  # Mac only; fixed geometry, visibility, contact, and park checks
+```
+
 Policy only—starts the owned WSL server and Mac tunnel, verifies one bounded client workload, then stops server-first:
 
 ```bash
-profile=pi0_aloha_sim
+profile=pi05_aloha_base
 OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make server
 OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make tunnel
 OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make smoke-policy
@@ -148,7 +168,7 @@ OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BA
 Complete system—keep both machines on and run the same profile in every command:
 
 ```bash
-profile=pi0_aloha_sim
+profile=pi05_aloha_base
 OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make server
 OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make smoke-policy
 ALOHA_SEED=0 ALOHA_EPISODES=3 OPENPI_WSL_DISTRO=Ubuntu-24.04 \
@@ -157,6 +177,19 @@ OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BA
 ```
 
 Repeat after `make stop` with `profile=pi05_aloha_base`. `make server` owns the server, synchronous WSL lifetime holder, and loopback SSH tunnel together; `make tunnel` only revalidates them. Do not close the tunnel before the server. `make stop` is idempotent and refuses to signal an unverified PID.
+
+For the exact Push-PI evaluation, replace `make run` with one `make scenario-matrix`, then run `make scenario-metrics` before `make stop`. The matrix fixes seeds to 0–2 and runs all four scenarios once per seed, for 12 episodes under the selected profile. Run it once for π₀ and once for experimental π₀.5; do not add display-on GPU runs.
+
+`ALOHA_EPISODE_STEPS` defaults to the accepted 300-step limit. A single diagnostic run may raise it to at most 6,000 steps (120 simulated seconds at 50 Hz); the acceptance matrix rejects overrides so its results remain comparable.
+
+Scenario 1 sends this complete instruction once and works with either validated profile: `Using only the left arm, first tilt the wrist down to see the pi-shaped block and its matching outline, then lower the gripper close to the table beside the block and make short incremental pushes that move the block into the outline; recheck alignment after each push and do not lift the block.`
+
+```bash
+profile=pi0_aloha_sim  # or pi05_aloha_base
+ALOHA_SCENARIO=push_pi_single ALOHA_EPISODES=1 ALOHA_EPISODE_STEPS=6000 \
+  ALOHA_PROMPT_SCHEDULE=fixed \
+  OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make run
+```
 
 One automatic, low-frequency RTX sampler covers the whole `make run`. It validates the owned server identity before every bounded `nvidia-smi` query and stops in `finally`; there is no SSH or GPU query per simulation step. Start/end clock probes record the Mac↔WSL UTC offset with a round-trip uncertainty bound. `make metrics` only validates the latest run for the selected `OPENPI_POLICY_PROFILE` and atomically rebuilds derived summaries—it does not contact the PC, change raw evidence, or start a sampler.
 
@@ -172,6 +205,7 @@ Connect, metadata receive, inference receive, and close have explicit deadlines.
 - `outputs/phase02/` and `outputs/phase03/`: ignored setup, conversion, server, route, and policy-smoke evidence.
 - `outputs/phase04/<UTC>/<profile>/`: validated Phase 4 summary, per-seed manifest, and video.
 - `outputs/phase05/<UTC>/<profile>/`: `summary.json`, `performance-summary.json`, `performance-summary.md`, `gpu-metrics.jsonl`, `clock-correlation.json`, and capped `server-tail.log`; each `seed-N/` contains `manifest.json`, `telemetry.jsonl`, `telemetry-summary.json`, `telemetry-summary.md`, `joint-trajectory.png`, and `episode.mp4`.
+- `outputs/scenarios_0827/<UTC>/<profile>/`: private `matrix.json`, safe `matrix-summary.json`, one GPU/clock sample set, and four scenario directories containing three seed directories with the same per-episode telemetry, plot, and video artifacts.
 - `.runtime/`: private ownership records, locks, control socket, scan receipt, and remote sampler/server state.
 
 JSONL is line-buffered without per-step `fsync`; every successful step records its exact step number, monotonic elapsed time, and finite 14-value actual/commanded vectors. A damaged final fragment can be discarded while earlier complete events remain readable. After each complete or partial episode, the runner atomically plots all 14 joints against fixed gym-aloha 0.1.1 ranges. Raw rows, plot paths, and images stay private; publishable summaries expose only counts, coverage, status, and safe local IDs.
@@ -183,7 +217,7 @@ make secret-scan
 make public-audit
 make pr-status
 # Select the profile whose latest run should be checked:
-OPENPI_POLICY_PROFILE=pi0_aloha_sim make metrics
+OPENPI_POLICY_PROFILE=pi05_aloha_base make metrics
 git status --short
 ```
 
@@ -197,4 +231,4 @@ This project is derived from [Physical Intelligence's OpenPI repository](https:/
 
 The original Git history, [`LICENSE`](LICENSE), and other upstream attribution are retained. Project additions include Mac/WSL setup, strict profile/config and data contracts, memory-bounded BF16 conversion, loopback server metadata and health checks, finite receive/close deadlines, SSH/WSL process ownership, buffered seeded control, atomic evidence/video/trajectory validation, bounded retries, and local/GPU telemetry. The project does not train or redistribute weights and does not imply upstream endorsement.
 
-Security summary: secrets and machine identities stay in the Mac SSH config, ignored `.env`, or ignored raw evidence; weights/caches/videos/logs/telemetry are ignored; `origin` is the user repository and official `upstream` has push disabled; CI dependencies are pinned and permissions restricted; secret scanning fails closed before a remote candidate is accepted.
+Security summary: secrets and machine identities stay in the Mac SSH config, ignored `.env`, or ignored raw evidence; weights/caches/videos/logs/telemetry are ignored; `origin` is the user repository and official `upstream` has push disabled. GitHub Actions is disabled for this local-only project, while the preserved workflow files stay inert; local secret scanning fails closed before a remote candidate is accepted.

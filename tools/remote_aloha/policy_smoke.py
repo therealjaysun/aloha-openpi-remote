@@ -7,6 +7,7 @@ import time
 import numpy as np
 
 from tools.remote_aloha.config import get_policy_profile
+from tools.remote_aloha.observation_contract import POLICY_CAMERA_VIEWS
 from tools.remote_aloha.observation_contract import validate_policy_observation
 from tools.remote_aloha.policy_contract import validate_policy_response
 from tools.remote_aloha.policy_contract import validate_server_metadata
@@ -45,7 +46,7 @@ def run_policy_smoke(
         image = np.zeros((3, 224, 224), dtype=np.uint8)
         observation = {
             "state": np.zeros(14, dtype=np.float64),
-            "images": {"cam_high": image},
+            "images": {name: image for name in POLICY_CAMERA_VIEWS},
         }
         if profile.default_prompt is not None:
             observation["prompt"] = profile.default_prompt
@@ -63,6 +64,7 @@ def run_policy_smoke(
             "backend": backend,
             "source_sha": source_sha,
             "action_shape": list(actions.shape),
+            "camera_views": list(POLICY_CAMERA_VIEWS),
             "cold_latency_ms": latencies_ms[0],
             "warmup_latency_ms": latencies_ms[1:3],
             "warmed_latency_ms": latencies_ms[3],

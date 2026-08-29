@@ -9,15 +9,35 @@ from openpi_client.runtime import subscriber as _subscriber
 from typing_extensions import override
 
 
+def _horizontal_camera_strip(observation: dict, camera_views: tuple[str, ...]) -> np.ndarray:
+    images = observation.get("images")
+    if not isinstance(images, dict) or not camera_views:
+        raise ValueError("video observation must contain configured camera images")
+    frames = []
+    for name in camera_views:
+        image = images.get(name)
+        if not isinstance(image, np.ndarray) or image.shape != (3, 224, 224) or image.dtype != np.uint8:
+            raise ValueError(f"video camera {name} must be uint8 CHW with shape (3, 224, 224)")
+        frames.append(np.transpose(image, (1, 2, 0)))
+    return np.concatenate(frames, axis=1)
+
+
 class VideoSaver(_subscriber.Subscriber):
     """Saves episode data."""
 
-    def __init__(self, out_dir: pathlib.Path, subsample: int = 1, filename: str | None = None) -> None:
+    def __init__(
+        self,
+        out_dir: pathlib.Path,
+        subsample: int = 1,
+        filename: str | None = None,
+        camera_views: tuple[str, ...] = ("cam_high",),
+    ) -> None:
         out_dir.mkdir(parents=True, exist_ok=True)
         self._out_dir = out_dir
         self._images: list[np.ndarray] = []
         self._subsample = subsample
         self._filename = filename
+        self._camera_views = camera_views
         self._finalized = False
         self.output_path: pathlib.Path | None = None
 
@@ -33,9 +53,8 @@ class VideoSaver(_subscriber.Subscriber):
 
     @override
     def on_step(self, observation: dict, action: dict) -> None:
-        im = observation["images"]["cam_high"]  # [C, H, W]
-        im = np.transpose(im, (1, 2, 0))  # [H, W, C]
-        self._images.append(im)
+        del action
+        self._images.append(_horizontal_camera_strip(observation, self._camera_views))
 
     @override
     def on_episode_end(self) -> None:
@@ -63,3 +82,59 @@ class VideoSaver(_subscriber.Subscriber):
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
+
+
+class LiveDisplay(_subscriber.Subscriber):
+    """Optional local-only view of the same post-step policy frame saved to video."""
+
+    def __init__(
+        self,
+        *,
+        enabled: bool,
+        every_steps: int = 5,
+        camera_views: tuple[str, ...] = ("cam_high",),
+    ) -> None:
+        self._enabled = enabled
+        self._every_steps = every_steps
+        self._camera_views = camera_views
+        self._step = 0
+        self._figure = None
+        self._axes = None
+        self._image = None
+        self._pyplot = None
+
+    @override
+    def on_episode_start(self) -> None:
+        self._step = 0
+        if not self._enabled:
+            return
+        import matplotlib.pyplot as plt
+
+        plt.ion()
+        self._pyplot = plt
+        self._figure, self._axes = plt.subplots(num="Push-PI ALOHA simulation")
+        self._axes.set_axis_off()
+        self._axes.set_title("Post-step policy view")
+
+    @override
+    def on_step(self, observation: dict, action: dict) -> None:
+        del action
+        if not self._enabled:
+            return
+        self._step += 1
+        if self._step != 1 and self._step % self._every_steps:
+            return
+        frame = _horizontal_camera_strip(observation, self._camera_views)
+        if self._image is None:
+            self._image = self._axes.imshow(frame)
+        else:
+            self._image.set_data(frame)
+        self._figure.canvas.draw_idle()
+        self._figure.canvas.flush_events()
+        self._pyplot.pause(0.001)
+
+    @override
+    def on_episode_end(self) -> None:
+        if self._figure is not None:
+            self._pyplot.close(self._figure)
+        self._figure = self._axes = self._image = self._pyplot = None

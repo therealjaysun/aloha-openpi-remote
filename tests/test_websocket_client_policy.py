@@ -184,7 +184,10 @@ def test_server_rejects_browser_origins_and_uses_bounded_default_frames() -> Non
     payload = msgpack_numpy.Packer().pack(
         {
             "state": np.zeros(14, dtype=np.float32),
-            "images": {name: np.zeros((3, 224, 224), dtype=np.uint8) for name in ("high", "left", "right")},
+            "images": {
+                name: np.zeros((3, 224, 224), dtype=np.uint8)
+                for name in ("cam_high", "cam_left_wrist", "cam_right_wrist")
+            },
             "prompt": "Transfer cube",
         }
     )

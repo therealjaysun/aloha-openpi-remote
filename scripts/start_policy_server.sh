@@ -111,6 +111,7 @@ pid="$(.venv/bin/python -m tools.remote_aloha.process_record launch \
     "$record" "$profile" "$port" "$expected_sha" "$log_relative" \
     "$repo_root/.venv/bin/python" "$repo_root/scripts/serve_policy.py" \
     -- "${command[@]}")"
+echo "[server] loading profile=$profile backend=$backend; a temporary RAM increase is expected"
 
 cleanup_failed_start() {
     local status=$?
@@ -124,6 +125,7 @@ cleanup_failed_start() {
 trap cleanup_failed_start EXIT
 
 deadline=$((SECONDS + startup_timeout))
+next_progress=$SECONDS
 while ! curl --fail --silent --max-time 2 "http://127.0.0.1:$port/healthz" >/dev/null 2>&1; do
     if ! .venv/bin/python -m tools.remote_aloha.process_record verify "$record" >/dev/null 2>&1; then
         echo 'Policy server exited before readiness; inspect the ignored log.' >&2
@@ -134,6 +136,10 @@ while ! curl --fail --silent --max-time 2 "http://127.0.0.1:$port/healthz" >/dev
         flock -u 9
         "$repo_root/scripts/stop_policy_server.sh" "$port" || true
         exit 1
+    fi
+    if (( SECONDS >= next_progress )); then
+        echo "[server] still loading; elapsed=${SECONDS}s"
+        next_progress=$((SECONDS + 10))
     fi
     sleep 2
 done
