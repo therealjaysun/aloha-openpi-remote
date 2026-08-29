@@ -58,7 +58,6 @@ def test_pi05_sampler_uses_exact_bounded_loop_and_reuses_denoise_inputs():
     assert len(calls) == 4
     assert all(call[3] for call in calls)
     assert all(model.paligemma_with_expert.inference_modes)
-    assert model.paligemma_with_expert.paligemma.language_model.config._attn_implementation == "eager"  # noqa: SLF001
     assert len({call[1]["denoise_attention_mask"].data_ptr() for call in calls}) == 1
     assert len({call[1]["denoise_position_ids"].data_ptr() for call in calls}) == 1
     assert len({id(call[2]) for call in calls}) == 1

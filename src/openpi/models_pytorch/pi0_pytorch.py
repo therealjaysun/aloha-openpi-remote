@@ -1,12 +1,9 @@
-from contextlib import nullcontext
 import logging
 import math
 
 import torch
 from torch import Tensor
 from torch import nn
-from torch.nn.attention import SDPBackend
-from torch.nn.attention import sdpa_kernel
 import torch.nn.functional as F  # noqa: N812
 
 import openpi.models.gemma as _gemma
@@ -423,23 +420,15 @@ class PI0Pytorch(nn.Module):
 
         # Compute image and language key value cache
         prefix_att_2d_masks_4d = self._prepare_attention_masks_4d(prefix_att_2d_masks)
-        if self.pi05 and torch.device(device).type == "cuda":
-            prefix_dtype = self.paligemma_with_expert.paligemma.language_model.layers[0].self_attn.q_proj.weight.dtype
-            prefix_att_2d_masks_4d = prefix_att_2d_masks_4d.to(dtype=prefix_dtype)
-            self.paligemma_with_expert.paligemma.language_model.config._attn_implementation = "sdpa"  # noqa: SLF001
-            prefix_attention_backend = sdpa_kernel(SDPBackend.EFFICIENT_ATTENTION)
-        else:
-            self.paligemma_with_expert.paligemma.language_model.config._attn_implementation = "eager"  # noqa: SLF001
-            prefix_attention_backend = nullcontext()
+        self.paligemma_with_expert.paligemma.language_model.config._attn_implementation = "eager"  # noqa: SLF001
 
-        with prefix_attention_backend:
-            _, past_key_values = self.paligemma_with_expert.forward(
-                attention_mask=prefix_att_2d_masks_4d,
-                position_ids=prefix_position_ids,
-                past_key_values=None,
-                inputs_embeds=[prefix_embs, None],
-                use_cache=True,
-            )
+        _, past_key_values = self.paligemma_with_expert.forward(
+            attention_mask=prefix_att_2d_masks_4d,
+            position_ids=prefix_position_ids,
+            past_key_values=None,
+            inputs_embeds=[prefix_embs, None],
+            use_cache=True,
+        )
         if timing_events is not None:
             timing_events["prefix_end"].record()
 
