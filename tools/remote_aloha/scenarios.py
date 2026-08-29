@@ -332,22 +332,11 @@ def effective_layout_seed(requested_seed: int, attempt: int) -> int:
 
 
 def project_action(action: object, scenario: ScenarioSpec, home: object | None = None) -> np.ndarray:
+    """Validate and copy the complete model action without masking any joints."""
     command = np.asarray(action, dtype=np.float64)
     if command.shape != (JOINT_COUNT,) or not np.isfinite(command).all():
         raise ValueError("scenario action must be a finite 14-vector")
-    command = command.copy()
-    if not scenario.is_custom:
-        return command
-    reference = np.asarray(home, dtype=np.float64)
-    if reference.shape != (JOINT_COUNT,) or not np.isfinite(reference).all():
-        raise ValueError("scenario home state must be a finite 14-vector")
-    if scenario.arm_mode == "left":
-        command[7:13] = reference[7:13]
-    elif scenario.arm_mode != "both":
-        raise ValueError("custom scenario arm mode is invalid")
-    command[6] = PUSHER_POSITION
-    command[13] = PUSHER_POSITION
-    return command
+    return command.copy()
 
 
 def quaternion_euler(state: BodyState) -> tuple[float, float, float]:
@@ -603,6 +592,7 @@ def scene_hash(xml: bytes, assets: Mapping[str, bytes], object_kind: str) -> str
 def descriptor_payload() -> dict[str, object]:
     return {
         "version": DESCRIPTOR_VERSION,
+        "action_mode": "identity-14d",
         "tabletop_sha256": TABLETOP_SHA256,
         "table_bounds": TABLE_BOUNDS,
         "spawn_bounds": SPAWN_BOUNDS,

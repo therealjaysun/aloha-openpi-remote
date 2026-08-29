@@ -407,7 +407,7 @@ def test_control_episode_uses_exact_seed_steps_and_non_catchup_cadence() -> None
     assert all(event["commanded_joint_positions"] == [0.0] * 14 for event in steps)
 
 
-def test_custom_episode_projects_one_command_into_sim_video_and_telemetry() -> None:
+def test_custom_episode_passes_all_model_joints_into_sim_video_and_telemetry() -> None:
     scenario = SCENARIOS["push_letters_single"]
     home = np.arange(14, dtype=np.float64) + 100
     raw_action = np.arange(14, dtype=np.float64)
@@ -457,8 +457,6 @@ def test_custom_episode_projects_one_command_into_sim_video_and_telemetry() -> N
         emit=lambda event, **fields: events.append({"event": event, **fields}),
     )
     expected = raw_action.copy()
-    expected[6] = expected[13] = 0.5
-    expected[7:13] = home[7:13]
     step = next(event for event in events if event["event"] == "step")
     assert result["steps_applied"] == 1
     assert np.array_equal(environment.action, expected)

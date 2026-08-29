@@ -31,7 +31,6 @@ from tools.remote_aloha.run import _scenario_step_info
 from tools.remote_aloha.run import _status
 from tools.remote_aloha.run import _write_performance_summary
 from tools.remote_aloha.scenarios import CUSTOM_SCENARIOS
-from tools.remote_aloha.scenarios import PUSHER_POSITION
 from tools.remote_aloha.scenarios import SCENARIOS
 from tools.remote_aloha.scenarios import TARGET_AREA_COVERAGE_METHOD
 from tools.remote_aloha.scenarios import body_descriptors
@@ -157,7 +156,7 @@ def _episode_result(
     elif episode.get("terminated") is not True or episode.get("truncated") is not False:
         raise ValueError("matrix task-terminal episode must be terminated")
 
-    home = validate_joint_vector(reset.get("home_joint_positions"), "home_joint_positions")
+    validate_joint_vector(reset.get("home_joint_positions"), "home_joint_positions")
     telemetry = _mapping(manifest.get("telemetry"), "matrix telemetry")
     telemetry_path = Path(str(telemetry.get("path")))
     read_result = read_jsonl(telemetry_path)
@@ -207,12 +206,8 @@ def _episode_result(
         ):
             raise ValueError("matrix telemetry elapsed time is invalid")
         previous_elapsed = float(elapsed)
-        command = validate_joint_vector(event.get("commanded_joint_positions"), "commanded_joint_positions")
+        validate_joint_vector(event.get("commanded_joint_positions"), "commanded_joint_positions")
         validate_joint_vector(event.get("actual_joint_positions"), "actual_joint_positions")
-        if command[6] != PUSHER_POSITION or command[13] != PUSHER_POSITION:
-            raise ValueError("matrix command does not preserve the fixed pushers")
-        if scenario.arm_mode == "left" and command[7:13] != home[7:13]:
-            raise ValueError("matrix single-arm command does not preserve the parked arm")
         info = _scenario_step_info(event.get("scenario_info"), scenario)
         if info["scene_hash"] != scene_hash or info["layout_hash"] != reset_step["layout_hash"]:
             raise ValueError("matrix telemetry scenario identity changed")

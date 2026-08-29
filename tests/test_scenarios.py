@@ -91,20 +91,18 @@ def test_layout_rejects_bad_seed_and_exhaustion(monkeypatch: pytest.MonkeyPatch)
         sample_layout("pi", 7, max_attempts=1)
 
 
-def test_projection_preserves_stock_and_active_joints_exactly() -> None:
+@pytest.mark.parametrize("scenario", SCENARIOS.values(), ids=lambda scenario: scenario.key)
+def test_projection_preserves_every_model_joint_exactly(scenario) -> None:
     action = np.arange(14, dtype=np.float64)
-    home = np.arange(100, 114, dtype=np.float64)
-    assert np.array_equal(project_action(action, SCENARIOS["transfer_cube"]), action)
-    single = project_action(action, SCENARIOS["push_pi_single"], home)
-    assert np.array_equal(single[:6], action[:6])
-    assert np.array_equal(single[7:13], home[7:13])
-    assert single[6] == single[13] == scenarios.PUSHER_POSITION
-    dual = project_action(action, SCENARIOS["push_pi_dual"], home)
-    assert np.array_equal(dual[:6], action[:6])
-    assert np.array_equal(dual[7:13], action[7:13])
-    assert dual[6] == dual[13] == scenarios.PUSHER_POSITION
+    projected = project_action(action, scenario)
+    assert np.array_equal(projected, action)
+    assert projected is not action
     with pytest.raises(ValueError, match="14-vector"):
-        project_action(np.zeros(13), SCENARIOS["push_pi_dual"], home)
+        project_action(np.zeros(13), scenario)
+    invalid = action.copy()
+    invalid[6] = np.nan
+    with pytest.raises(ValueError, match="finite"):
+        project_action(invalid, scenario)
 
 
 def test_success_requires_five_held_steps_and_i_yaw_is_pi_symmetric() -> None:
@@ -198,7 +196,7 @@ def test_scene_hash_covers_only_physical_xml_assets_and_kind(monkeypatch: pytest
 
 
 def test_descriptor_hash_freezes_every_calibrated_value() -> None:
-    assert descriptor_sha256() == "f5d288ea862016e5f7b47705b8b4915a91fd4938a991cca445b19ad00c74db07"
+    assert descriptor_sha256() == "afce0142e6eb984c411d6c551cd3e4f7ab27cc7c649351d1899f913105708c4f"
 
 
 @pytest.mark.parametrize(
@@ -295,8 +293,7 @@ def _synthetic_matrix(tmp_path: Path) -> dict[str, object]:
                 "descriptor_sha256": descriptor_sha256(),
             }
             final = _matrix_info(scenario_key, pose_hash, terminal=True)
-            command = [0.0] * 14
-            command[6] = command[13] = 0.5
+            command = [value / 20 for value in range(14)]
             plot_id = f"{run_id}-{scenario_key}-{seed}-plot"
             video_id = f"{run_id}-{scenario_key}-{seed}"
             rows = [
