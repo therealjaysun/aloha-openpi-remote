@@ -2,12 +2,12 @@
 
 ## Handoff
 
-- **Status:** P0 is merged. Candidate `8faea85` passed local gates, four short R1/R2 trials, and the captured-observation/fixed-noise π₀.₅ B0 replay. S1 is next.
+- **Status:** P0/B0 and short R1/R2 trials are complete. Candidate `36bbf1a` retained S1 with exact π₀.₅ replay parity and a stable >20% server-p95 gain. S2 is next.
 - **Base candidate:** main after merged plan PR #9 (`3ebf8b017384e1e38ba97261d65a723966596b45`).
 - **Optimization scope:** `pi05_aloha_base` only. By user decision on 2026-08-29, do not run, benchmark, optimize, or qualify π₀. Keep existing π₀ support unchanged for compatibility.
 - **Order:** P0 clean baseline → implement B0 instrumentation plus disabled R1/R2 switches → B0 measurements → isolated R1/R2 trials → S1–S6 measured speed work → final hardware validation.
 - **Ownership:** One integrating agent owns shared files and final validation. Read-only agents may inspect independent candidates.
-- **PC boundary:** The PC is live with `8faea85`. Implement S1 locally, sync its exact candidate, then A/B it against the completed π₀.₅ B0 replay. Do not rerun completed short R1/R2 trials.
+- **PC boundary:** The PC is live with retained S1 candidate `36bbf1a`. Implement S2 locally, sync its exact candidate, then A/B with the same π₀.₅ capture and noise seed. Do not rerun B0 or short R1/R2 trials.
 
 ## Objective
 
@@ -39,6 +39,8 @@ Exact candidate `e00768e` adds a timing-only π₀.₅ smoke result of 659.85 ms
 All four preserved 300/300 step/trajectory/video coverage. `45/40 + 5` addresses both observed failure modes, but its jump p95 still misses the 5% gate; no runtime default is promoted yet.
 
 Exact candidate `8faea85` completed B0 with one captured three-camera Scenario 2 observation, fixed noise seed 7, 5 warmups, and 50 measured π₀.₅ requests. Bitwise action replay passed (`observation ff33e919…`, `actions 38f302fd…`). Warmed server-inference p95 was 459.74 ms; denoise p95 was 302.91 ms. All 50 stage totals reconciled.
+
+Retained S1 candidate `36bbf1a` preserved the same action digest in three 5+50 replays. Server-inference p95 was 373.51, 365.30, then 360.72 ms; the last two runs differ by 1.25% and improve on B0 by at least 20.5%. Their denoise p95 values were 228.01 and 229.55 ms.
 
 ## Fixed constraints
 
@@ -131,6 +133,8 @@ Extend existing atomic buffer replacement; do not add a second controller.
 
 **Decision:** Approved for implementation on 2026-08-29.
 
+**Result:** Retained on `36bbf1a`; exact action parity passed and stable server-inference p95 improved by more than the 3% gate.
+
 1. Replace the CUDA-tensor-controlled `while` with `for _ in range(num_steps)` while preserving the current tensor timestep update sequence. The project default remains `num_steps=10`; do not hard-code it again.
 2. Hoist suffix masks, prefix offsets, position IDs, and attention configuration that are invariant during those iterations.
 3. Serve under `torch.inference_mode()`; `no_grad()` already exists, so measure the incremental value.
@@ -183,7 +187,7 @@ Only if B0 shows material CPU/input-transfer cost, remove redundant `np.array` c
 2. **Mac candidate — complete:** B0 instrumentation and selectable R1/R2 passed local gates and were pushed.
 3. **PC timing baseline — complete:** Exact `8faea85` synced; doctor/setup, captured three-camera observation, and tunneled fixed-noise 5+50 replay passed for π₀.₅.
 4. **Isolated runtime trials — complete:** Short matched baseline, R1, R2, and combined π₀.₅ runs are recorded above; no default is promoted yet.
-5. **Speed A/B:** Apply S1–S6 one at a time. Benchmark π₀.₅ after each; remove losers before continuing. Do not run a 120-second episode per experiment.
+5. **Speed A/B — active:** S1 retained on `36bbf1a`. Apply S2–S6 one at a time; benchmark π₀.₅ after each and remove losers. Do not run a 120-second episode per experiment.
 6. **Combined smoke:** Run the existing four-call π₀.₅ policy smoke plus one 300-step three-camera episode. Verify finite 14D actions, crossfade/buffer metrics, video, trajectory, and cleanup.
 7. **Final hardware run:** Run the same 120-second Scenario 2 seed/profile pair used by the π₀.₅ baseline. Inspect its video and all 14 trajectory series; compare task coverage/time honestly.
 8. **Closeout:** Re-run local gates on the exact pushed SHA, update status/evidence only after the final candidate passes, run `make stop`, confirm the policy port is free, and tell the user the PC can be switched off.
