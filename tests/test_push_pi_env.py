@@ -56,6 +56,26 @@ def test_registered_environment_contract(scenario: str) -> None:
         environment.close()
 
 
+def test_custom_episode_limit_is_applied() -> None:
+    environment = gym.make(
+        SCENARIOS["push_pi_single"].gym_id,
+        obs_type="pixels_agent_pos",
+        episode_steps=2,
+        max_episode_steps=2,
+    )
+    try:
+        environment.reset(seed=0)
+        command = environment.unwrapped.home_joint_positions
+        _, _, terminated, truncated, _ = environment.step(command)
+        assert not terminated
+        assert not truncated
+        _, _, _, truncated, info = environment.step(command)
+        assert truncated
+        assert info["terminal_reason"] == "time_limit"
+    finally:
+        environment.close()
+
+
 @pytest.mark.parametrize(
     ("single", "dual", "expected_nq", "expected_nv"),
     [

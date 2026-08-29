@@ -45,6 +45,7 @@ Do not call a Push-PI result a PushT benchmark result, reuse PushT's 95% score, 
 - Resolve scenario → Gym ID, descriptor, arm mask, and arm-explicit prompt once in `MacSimConfig`. A scenario prompt overrides the profile default and is immutable for an episode.
 - The optional Matplotlib window is display-only. It has no prompt text box, makes no network connection, and never changes policy input.
 - Add `make scenario-matrix` for one fail-closed four-scenario/three-seed batch under the selected profile and `make scenario-metrics` for its rollup. A single `ALOHA_SCENARIO=<id> make run` remains useful for development.
+- Keep 300 steps as the fixed acceptance limit. `ALOHA_EPISODE_STEPS` may extend only a standalone diagnostic to at most 6,000 steps; the matrix rejects that override and extended evidence is never pooled with acceptance results.
 
 ## Minimal implementation and data flow
 

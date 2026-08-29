@@ -43,6 +43,7 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | `ALOHA_ACTION_HORIZON` | `30` | Integer with `1 <= prefetch < horizon <= 50` | 04 |
 | `ALOHA_PREFETCH_STEPS` | `25` | Integer with `1 <= prefetch < horizon`; tune from tunneled end-to-end p95 plus the explicit margin | 04 |
 | `ALOHA_EPISODES` | `3` | Positive integer; default produces explicit seeds 0,1,2 | 04 |
+| `ALOHA_EPISODE_STEPS` | `300` | Integer `1..6000`; 300 remains the acceptance limit, while 6000 permits one bounded 120-second diagnostic | 04,S0827 |
 | `RUN_OUTPUT_DIR` | `outputs` | Nonempty Mac path; created safely and ignored | 04,05 |
 | `GPU_METRICS_INTERVAL_SECONDS` | `1` | Finite positive number; never sampled per control step | 05 |
 | `SSH_CONNECT_TIMEOUT_SECONDS` | `10` | Finite positive total for a batch SSH attempt | 02,03 |

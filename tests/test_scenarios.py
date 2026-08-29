@@ -593,6 +593,16 @@ def test_matrix_interruption_preserves_partial_raw_evidence(tmp_path: Path, monk
     assert not (raw_path.parent / "matrix-summary.json").exists()
 
 
+def test_matrix_rejects_diagnostic_episode_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "tools.remote_aloha.scenario_matrix.load_mac_sim_config",
+        lambda: MacSimConfig(episode_steps=6000),
+    )
+    monkeypatch.setattr("tools.remote_aloha.scenario_matrix.load_remote_config", RemoteConfig)
+    with pytest.raises(RemoteError, match="300-step"):
+        run_matrix()
+
+
 def test_matrix_interruption_remains_primary_when_sampler_stop_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

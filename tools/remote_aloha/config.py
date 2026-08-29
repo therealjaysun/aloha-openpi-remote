@@ -30,6 +30,7 @@ class MacSimConfig:
     display: bool = False
     seed: int = 0
     episodes: int = 3
+    episode_steps: int = 300
     action_horizon: int = 30
     prefetch_steps: int = 25
     output_dir: Path = Path("outputs")
@@ -192,6 +193,7 @@ def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str
         "ALOHA_DISPLAY",
         "ALOHA_SEED",
         "ALOHA_EPISODES",
+        "ALOHA_EPISODE_STEPS",
         "ALOHA_ACTION_HORIZON",
         "ALOHA_PREFETCH_STEPS",
         "RUN_OUTPUT_DIR",
@@ -212,6 +214,9 @@ def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str
         raise ValueError("ALOHA_EPISODES must be positive")
     if seed + episodes - 1 > 2**32 - 1:
         raise ValueError("ALOHA_SEED + ALOHA_EPISODES exceeds the seed range")
+    episode_steps = _uint("ALOHA_EPISODE_STEPS", values.get("ALOHA_EPISODE_STEPS", "300"), maximum=6000)
+    if episode_steps < 1:
+        raise ValueError("ALOHA_EPISODE_STEPS must be positive")
     action_horizon = _uint("ALOHA_ACTION_HORIZON", values.get("ALOHA_ACTION_HORIZON", "30"), maximum=50)
     prefetch_steps = _uint("ALOHA_PREFETCH_STEPS", values.get("ALOHA_PREFETCH_STEPS", "25"), maximum=50)
     if not 1 <= prefetch_steps < action_horizon:
@@ -225,6 +230,7 @@ def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str
         display=display_value == "1",
         seed=seed,
         episodes=episodes,
+        episode_steps=episode_steps,
         action_horizon=action_horizon,
         prefetch_steps=prefetch_steps,
         output_dir=Path(output),

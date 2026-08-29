@@ -50,7 +50,7 @@ from tools.remote_aloha.trajectory import summarize_trajectory
 from tools.remote_aloha.trajectory import validate_joint_vector
 from tools.remote_aloha.trajectory import write_trajectory_plot
 
-_MAX_EPISODE_STEPS = 300
+_DEFAULT_EPISODE_STEPS = 300
 _STEP_SECONDS = 0.02
 _INFERENCE_MARGIN_MS = 100.0
 
@@ -210,7 +210,7 @@ def control_episode(
     scenario: ScenarioSpec = SCENARIOS["transfer_cube"],
     expected_scene_hash: str | None = None,
     display: LiveDisplay | None = None,
-    max_steps: int = _MAX_EPISODE_STEPS,
+    max_steps: int = _DEFAULT_EPISODE_STEPS,
     monotonic=time.monotonic,
     sleep=time.sleep,
     progress: dict[str, object] | None = None,
@@ -488,7 +488,13 @@ def _make_environment(config: MacSimConfig):
     if config.scenario.is_custom:
         import examples.aloha_sim.push_pi_env  # noqa: F401
 
-    return gymnasium.make(config.task, obs_type="pixels_agent_pos")
+    kwargs: dict[str, object] = {
+        "obs_type": "pixels_agent_pos",
+        "max_episode_steps": config.episode_steps,
+    }
+    if config.scenario.is_custom:
+        kwargs["episode_steps"] = config.episode_steps
+    return gymnasium.make(config.task, **kwargs)
 
 
 def _run_seed(
@@ -587,11 +593,11 @@ def _run_seed(
         )
         if (
             environment.spec is None
-            or environment.spec.max_episode_steps != _MAX_EPISODE_STEPS
+            or environment.spec.max_episode_steps != sim_config.episode_steps
             or environment.metadata.get("render_fps") != 50
             or tuple(environment.action_space.shape) != (remote_config.policy_profile.action_dimension,)
         ):
-            raise ValueError("pinned ALOHA environment must expose the 300-step, 50 fps, 14-action contract")
+            raise ValueError("pinned ALOHA environment must expose the configured step limit, 50 fps, and 14 actions")
         result = control_episode(
             environment,
             policy,
@@ -602,6 +608,7 @@ def _run_seed(
             scenario=sim_config.scenario,
             expected_scene_hash=scene_id,
             display=display,
+            max_steps=sim_config.episode_steps,
             progress=result,
             emit=emit,
         )

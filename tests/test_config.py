@@ -17,10 +17,11 @@ def test_defaults_when_env_file_is_missing(tmp_path: Path) -> None:
         config.display,
         config.seed,
         config.episodes,
+        config.episode_steps,
         config.action_horizon,
         config.prefetch_steps,
         config.output_dir,
-    ) == (DEFAULT_TASK, "transfer_cube", False, 0, 3, 30, 25, Path("outputs"))
+    ) == (DEFAULT_TASK, "transfer_cube", False, 0, 3, 300, 30, 25, Path("outputs"))
 
 
 def test_file_values_and_environment_override(tmp_path: Path) -> None:
@@ -41,6 +42,11 @@ def test_fixed_scenario_resolves_task_prompt_and_display(tmp_path: Path) -> None
     assert config.display is True
 
 
+def test_episode_step_override_is_bounded(tmp_path: Path) -> None:
+    config = load_mac_sim_config(tmp_path / "missing", {"ALOHA_EPISODE_STEPS": "6000"})
+    assert config.episode_steps == 6000
+
+
 @pytest.mark.parametrize(
     ("contents", "environment"),
     [
@@ -48,6 +54,8 @@ def test_fixed_scenario_resolves_task_prompt_and_display(tmp_path: Path) -> None
         ("ALOHA_SEED=nan\n", {}),
         ("ALOHA_SEED=4294967296\n", {}),
         ("ALOHA_EPISODES=0\n", {}),
+        ("ALOHA_EPISODE_STEPS=0\n", {}),
+        ("ALOHA_EPISODE_STEPS=6001\n", {}),
         ("ALOHA_SEED=4294967295\nALOHA_EPISODES=2\n", {}),
         ("ALOHA_TASK=other\n", {}),
         ("ALOHA_SCENARIO=\n", {}),

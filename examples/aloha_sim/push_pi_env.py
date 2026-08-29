@@ -325,10 +325,13 @@ class PushPiTask(BimanualViperXTask):
 
 
 class PushPiEnv(AlohaEnv):
-    def __init__(self, scenario: str, **kwargs: object) -> None:
+    def __init__(self, scenario: str, episode_steps: int = 300, **kwargs: object) -> None:
         self.scenario = get_scenario(scenario)
         if not self.scenario.is_custom or self.scenario.object_kind is None:
             raise ValueError("PushPiEnv requires a custom scenario")
+        if isinstance(episode_steps, bool) or not isinstance(episode_steps, int) or not 1 <= episode_steps <= 6000:
+            raise ValueError("episode_steps must be an integer between 1 and 6000")
+        self._episode_steps = episode_steps
         self._scene_xml, self._scene_assets, self.scene_hash = build_scene(self.scenario.object_kind)
         self._push_task: PushPiTask
         self._step_count = 0
@@ -394,7 +397,7 @@ class PushPiEnv(AlohaEnv):
         self._step_count += 1
         info = self._push_task.info()
         terminated = info["terminal_reason"] in {"success", "off_table", "fallen"}
-        truncated = self._step_count >= 300 and not terminated
+        truncated = self._step_count >= self._episode_steps and not terminated
         if truncated:
             info = {**info, "terminal_reason": "time_limit"}
         return self._format_raw_obs(raw_observation), float(reward), bool(terminated), bool(truncated), info

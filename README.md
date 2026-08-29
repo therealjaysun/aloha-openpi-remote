@@ -168,6 +168,8 @@ Repeat after `make stop` with `profile=pi05_aloha_base`. `make server` owns the 
 
 For the exact Push-PI evaluation, replace `make run` with one `make scenario-matrix`, then run `make scenario-metrics` before `make stop`. The matrix fixes seeds to 0–2 and runs all four scenarios once per seed, for 12 episodes under the selected profile. Run it once for π₀ and once for experimental π₀.5; do not add display-on GPU runs.
 
+`ALOHA_EPISODE_STEPS` defaults to the accepted 300-step limit. A single diagnostic run may raise it to at most 6,000 steps (120 simulated seconds at 50 Hz); the acceptance matrix rejects overrides so its results remain comparable.
+
 One automatic, low-frequency RTX sampler covers the whole `make run`. It validates the owned server identity before every bounded `nvidia-smi` query and stops in `finally`; there is no SSH or GPU query per simulation step. Start/end clock probes record the Mac↔WSL UTC offset with a round-trip uncertainty bound. `make metrics` only validates the latest run for the selected `OPENPI_POLICY_PROFILE` and atomically rebuilds derived summaries—it does not contact the PC, change raw evidence, or start a sampler.
 
 Initial client setup retries are also bounded: the default is two retries with a fixed two-second backoff, only for connection/timeout/EOF/WebSocket-close failures while connecting and validating metadata before the simulator resets. Once any inference may have been sent, a timeout or disconnect aborts the episode, closes the transport, discards the buffer, and preserves partial evidence; it is never replayed automatically. Invalid schemas, non-finite actions, and application errors also fail immediately. No stale action is applied.

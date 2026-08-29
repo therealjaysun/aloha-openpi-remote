@@ -537,6 +537,8 @@ def _validate_batch_gpu(root: Path, matrix: Mapping[str, object]) -> None:
 def run_matrix() -> Path:
     base = load_mac_sim_config()
     remote = load_remote_config()
+    if base.episode_steps != 300:
+        raise RemoteError("the Push-PI acceptance matrix requires the fixed 300-step limit")
     if remote.policy_backend != "pytorch":
         raise RemoteError("the Push-PI matrix requires the validated PyTorch backend")
     _, source_sha = verify_ready_tunnel(remote)
