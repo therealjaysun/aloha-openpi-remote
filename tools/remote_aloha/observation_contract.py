@@ -71,6 +71,14 @@ def convert_gym_observation(observation: object, prompt: str | None = None) -> d
 
 
 def convert_gym_artifact_observation(observation: object) -> dict:
-    """Convert the top frame/state for exact partial artifacts after a wrist-capture failure."""
+    """Convert a valid partial-artifact frame after a wrist-capture failure."""
     pixels, state = _validate_gym_observation(observation, ("top",))
-    return {"state": state, "images": {"cam_high": _convert_image(pixels["top"])}}
+    unavailable = np.zeros((3, 224, 224), dtype=np.uint8)
+    return {
+        "state": state,
+        "images": {
+            "cam_high": _convert_image(pixels["top"]),
+            "cam_left_wrist": unavailable,
+            "cam_right_wrist": unavailable.copy(),
+        },
+    }

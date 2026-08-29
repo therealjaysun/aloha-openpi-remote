@@ -17,10 +17,10 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 
 ## Active extension cursor
 
-- S0827 mandatory overhead-plus-both-wrists amendment is complete on `codex/push-pi-scenarios`; prior matrix, coverage, and long-run evidence remains historical top-only.
+- S0827 composite-video/staged-prompt extension is in progress on `codex/push-pi-scenarios`; implementation tests pass, while full gates and one exact-SHA π₀ diagnostic remain. Prior matrix/acceptance evidence is unchanged.
 - Mac state: full CI, exact clean-checkout calibration, stock regression, four three-seed hold runs, four visual smokes, and image inspection pass for the amended prompt descriptor.
 - Identity: custom 3-D ALOHA Push-PI experiment inspired by PushT, not the standard PushT benchmark. The glyph task uses Greek π; the letter task uses uppercase dotless `P` and `I`.
-- Machine gate: **OFF** after exact-SHA validation and verified server/tunnel cleanup; the PC may be powered off.
+- Machine gate: **OFF pending candidate gates**; no PC action is needed until the exact implementation is committed, pushed, and hosted checks pass.
 - PR dependency: PR 8 is based on `codex/06-hardening-docs`; retarget to `main` only after PR 7 merges and verify the incremental diff.
 - Plan: [`SCENARIOS_0827/00-overview.md`](SCENARIOS_0827/00-overview.md).
 
@@ -51,10 +51,10 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 
 ## Execution cursor
 
-- Active subphase: none; S0827 three-view validation and phases 00–06 are complete and open for review.
+- Active subphase: S0827 composite episode video plus staged Scenario 1 diagnostic; phases 00–06 remain complete.
 - Machine gate: OFF after successful cleanup and a final free-port doctor check.
 - Exact user action: none; the PC may be powered off.
-- Release gate: local, exact-commit, hosted, exact-SHA hardware, artifact, and cleanup evidence pass.
+- Release gate: pending local/exact-commit/hosted checks, staged hardware run, artifact inspection, and cleanup.
 - Recovery: camera-only amendments require global contract tests plus the bounded Scenario 1 hardware run; do not claim the historical matrices validate three-view behavior.
 - Three-view implementation `6662a235278f01c6ee08dec976f58359c47181ec`; latest top-only diagnostic `6e6180c85b5ae279966f790ee7e96720b3285a6e`; coverage `4516422a95e3d3572997cace51b6a9b718cb8794`; matrix `7c2ec5927ad200e5aaf30bed0db4ef61cb9e2ba4`; upstream `215abfb217dbac7d5f1273282331b9b1866c0479`.
 - PR state: PRs 1–7 remain open and stacked; PR 8 is the standalone S0827 extension based temporarily on PR 7.

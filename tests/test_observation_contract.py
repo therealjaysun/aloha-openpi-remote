@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from tools.remote_aloha.observation_contract import convert_gym_artifact_observation
 from tools.remote_aloha.observation_contract import convert_gym_observation
 from tools.remote_aloha.observation_contract import validate_policy_observation
 
@@ -61,3 +62,13 @@ def test_missing_wrist_view_is_rejected() -> None:
     del value["pixels"]["left_wrist"]
     with pytest.raises(ValueError, match="left_wrist"):
         convert_gym_observation(value)
+
+
+def test_partial_artifact_uses_real_top_and_black_unavailable_wrists() -> None:
+    raw = _gym_observation()
+    raw["pixels"] = {"top": np.full((480, 640, 3), 7, dtype=np.uint8)}
+    converted = convert_gym_artifact_observation(raw)
+    assert converted["images"]["cam_high"].max() == 7
+    assert converted["images"]["cam_left_wrist"].shape == (3, 224, 224)
+    assert converted["images"]["cam_left_wrist"].max() == 0
+    assert converted["images"]["cam_right_wrist"].max() == 0

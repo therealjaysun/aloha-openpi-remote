@@ -277,6 +277,67 @@ def test_publishable_custom_scenario_keeps_safe_identity_counts_and_omits_privat
     assert "desktop-name" not in encoded
 
 
+def test_publishable_staged_prompt_metadata_keeps_only_fixed_safe_identifiers() -> None:
+    raw = aggregate_events(
+        [
+            _event(
+                "metadata",
+                1,
+                profile="pi0_aloha_sim",
+                task="pi_robotics/PushPiSingleArm-v0",
+                scenario="push_pi_single",
+                scene_hash="d" * 64,
+                target_area_coverage_method="exact-planar-union-v1",
+                prompt_schedule="push_pi_single_left_staged_v1",
+                prompt_stage_count=3,
+                prompt_stage_boundaries=[0, 500, 1500, 6000],
+                prompt="private staged prompt",
+            ),
+            _event("prompt_stage", 2, prompt_stage_id="orient", metrics={"prompt_transition_wait_ms": 1.0}),
+            _event("terminal", 3, status="complete", steps_applied=0),
+        ]
+    )
+    public = publishable_summary(raw)
+    assert public["metadata"]["prompt_schedule"] == "push_pi_single_left_staged_v1"
+    assert public["metadata"]["prompt_stage_boundaries"] == [0, 500, 1500, 6000]
+    assert public["event_counts"]["prompt_stage"] == 1
+    assert "private staged prompt" not in json.dumps(public)
+
+
+@pytest.mark.parametrize(
+    ("profile", "scenario", "schedule", "count", "boundaries"),
+    [
+        ("pi0_aloha_sim", "push_pi_single", "custom", 3, [0, 500, 1500, 6000]),
+        ("pi05_aloha_base", "push_pi_single", "push_pi_single_left_staged_v1", 3, [0, 500, 1500, 6000]),
+        ("pi0_aloha_sim", "push_pi_single", "push_pi_single_left_staged_v1", 2, [0, 500, 1500, 6000]),
+        ("pi0_aloha_sim", "push_pi_single", "push_pi_single_left_staged_v1", 3, [0, 1, 2, 6000]),
+    ],
+)
+def test_publishable_prompt_schedule_rejects_arbitrary_or_mismatched_metadata(
+    profile: str, scenario: str, schedule: str, count: int, boundaries: list[int]
+) -> None:
+    task = "pi_robotics/PushPiSingleArm-v0"
+    raw = aggregate_events(
+        [
+            _event(
+                "metadata",
+                1,
+                profile=profile,
+                task=task,
+                scenario=scenario,
+                scene_hash="d" * 64,
+                target_area_coverage_method="exact-planar-union-v1",
+                prompt_schedule=schedule,
+                prompt_stage_count=count,
+                prompt_stage_boundaries=boundaries,
+            ),
+            _event("terminal", 2, status="failed", steps_applied=0),
+        ]
+    )
+    with pytest.raises(ValueError, match="prompt"):
+        publishable_summary(raw)
+
+
 @pytest.mark.parametrize(
     ("task", "scenario", "scene_hash"),
     [

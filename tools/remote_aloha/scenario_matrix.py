@@ -271,9 +271,11 @@ def _episode_result(
     if (
         video.get("status") != "complete"
         or video.get("frames") != steps
+        or video.get("camera_views") != ["cam_high", "cam_left_wrist", "cam_right_wrist"]
+        or video.get("layout") != "horizontal"
         or validation.get("frames") != steps
         or validation.get("fps") != 50.0
-        or validation.get("shape") != [224, 224, 3]
+        or validation.get("shape") != [224, 672, 3]
         or not isinstance(video_id, str)
         or not _SAFE_ID.fullmatch(video_id)
         or not isinstance(video_path, str)
@@ -292,7 +294,7 @@ def _episode_result(
     if batch_root is not None:
         import imageio.v2 as imageio
 
-        decoded_video = verify_video(video_file, steps)
+        decoded_video = verify_video(video_file, steps, (224, 672, 3))
         decoded_plot = imageio.imread(plot_file)
         if decoded_video != validation or decoded_plot.ndim not in {2, 3} or decoded_plot.size == 0:
             raise ValueError("matrix artifacts do not decode to their recorded validation")

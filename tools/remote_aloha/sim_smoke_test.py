@@ -19,6 +19,8 @@ import numpy as np
 from tools.remote_aloha.config import MacSimConfig
 from tools.remote_aloha.config import load_mac_sim_config
 from tools.remote_aloha.config import validate_output_root
+from tools.remote_aloha.observation_contract import POLICY_CAMERA_VIEWS
+from tools.remote_aloha.observation_contract import convert_gym_observation
 from tools.remote_aloha.scenarios import CALIBRATION_MAX_HEIGHT_ERROR_METERS
 from tools.remote_aloha.scenarios import CALIBRATION_MIN_PUSH_METERS
 from tools.remote_aloha.scenarios import CALIBRATION_SEGMENT_STEPS
@@ -202,7 +204,11 @@ def _git_sha(*, require_clean: bool = False) -> str:
     return result.stdout.strip()
 
 
-def verify_video(path: Path, expected_frames: int) -> dict[str, Any]:
+def verify_video(
+    path: Path,
+    expected_frames: int,
+    expected_shape: tuple[int, int, int] = (224, 224, 3),
+) -> dict[str, Any]:
     import imageio.v2 as imageio
 
     if not path.is_file() or path.stat().st_size == 0:
@@ -217,7 +223,7 @@ def verify_video(path: Path, expected_frames: int) -> dict[str, Any]:
         reader.close()
     if frame_count != expected_frames:
         raise ValueError(f"video has {frame_count} frames; expected {expected_frames}")
-    if first.shape != (224, 224, 3) or last.shape != first.shape:
+    if first.shape != expected_shape or last.shape != first.shape:
         raise ValueError(f"video frames have invalid dimensions: {first.shape}, {last.shape}")
     fps = float(metadata.get("fps", 0.0))
     if abs(fps - EXPECTED_FPS) > 0.1:
@@ -390,7 +396,11 @@ def _run_episode(config: MacSimConfig, seed: int, run_dir: Path, *, record: bool
     saver = None
     from examples.aloha_sim.saver import LiveDisplay
 
-    display = LiveDisplay(enabled=config.display, every_steps=DISPLAY_EVERY_STEPS)
+    display = LiveDisplay(
+        enabled=config.display,
+        every_steps=DISPLAY_EVERY_STEPS,
+        camera_views=POLICY_CAMERA_VIEWS,
+    )
     video_dir = run_dir / f"seed-{seed}"
     latencies_ms: list[float] = []
     result: dict[str, Any] = {
@@ -421,7 +431,7 @@ def _run_episode(config: MacSimConfig, seed: int, run_dir: Path, *, record: bool
 
             video_dir.mkdir(parents=True, exist_ok=True)
             imageio.imwrite(video_dir / "reset.png", image)
-            saver = VideoSaver(video_dir)
+            saver = VideoSaver(video_dir, camera_views=POLICY_CAMERA_VIEWS)
             saver.on_episode_start()
 
         source_success = "is_success" in info
@@ -441,9 +451,21 @@ def _run_episode(config: MacSimConfig, seed: int, run_dir: Path, *, record: bool
                 float(result["right_peak_joint_error"]), float(np.max(np.abs(state[7:13] - home[7:13])))
             )
             latencies_ms.append((time.perf_counter_ns() - started) / 1_000_000)
+            policy_images = {"cam_high": policy_image}
+            if saver is not None or config.display:
+                physics = env.unwrapped._env.physics  # noqa: SLF001 - pinned gym-aloha has no camera API
+                composite_observation = {
+                    **observation,
+                    "pixels": {
+                        "top": image,
+                        "left_wrist": physics.render(height=480, width=640, camera_id="left_wrist"),
+                        "right_wrist": physics.render(height=480, width=640, camera_id="right_wrist"),
+                    },
+                }
+                policy_images = convert_gym_observation(composite_observation)["images"]
             if saver is not None:
-                saver.on_step({"images": {"cam_high": policy_image}}, {"actions": action})
-            display.on_step({"images": {"cam_high": policy_image}}, {"actions": action})
+                saver.on_step({"images": policy_images}, {"actions": action})
+            display.on_step({"images": policy_images}, {"actions": action})
             result["steps"] = step
             result["max_reward"] = max(float(result["max_reward"]), float(reward))
             if "is_success" in info:
@@ -458,7 +480,7 @@ def _run_episode(config: MacSimConfig, seed: int, run_dir: Path, *, record: bool
             result["artifacts"] = {
                 "reset_frame": str((video_dir / "reset.png").relative_to(run_dir)),
                 "video": str(video_path.relative_to(run_dir)),
-                "video_validation": verify_video(video_path, int(result["steps"])),
+                "video_validation": verify_video(video_path, int(result["steps"]), (224, 672, 3)),
             }
         result.update(
             {

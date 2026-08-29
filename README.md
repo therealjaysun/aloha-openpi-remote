@@ -135,7 +135,7 @@ Simulation only—no PC required:
 make smoke-sim
 ```
 
-The optional Push-PI suite uses four fixed prompts and scenario IDs. Each prompt explicitly tells the policy to use only the left arm or both arms. The glyph task uses Greek π; the letter task uses uppercase dotless `P` and `I`. There is no text-prompt box: select the task before launch, and set `ALOHA_DISPLAY=1` for a local view of the same post-step frames saved to video. Each applied step also records exact named-target footprint coverage; episode summaries report initial/final/best coverage, the earliest best step/time, and total elapsed time without changing the existing success rule.
+The optional Push-PI suite uses four fixed prompts and scenario IDs. Each prompt explicitly names the active arm(s). There is no text-prompt box: select the task before launch. Every newly recorded active episode MP4 (and optional `ALOHA_DISPLAY=1` view) places overhead, left-wrist, and right-wrist feeds side-by-side in that order. Each applied step also records exact target coverage and timing.
 
 ```bash
 ALOHA_SCENARIO=push_pi_single ALOHA_DISPLAY=1 ALOHA_EPISODES=1 make smoke-sim
@@ -169,6 +169,14 @@ Repeat after `make stop` with `profile=pi05_aloha_base`. `make server` owns the 
 For the exact Push-PI evaluation, replace `make run` with one `make scenario-matrix`, then run `make scenario-metrics` before `make stop`. The matrix fixes seeds to 0–2 and runs all four scenarios once per seed, for 12 episodes under the selected profile. Run it once for π₀ and once for experimental π₀.5; do not add display-on GPU runs.
 
 `ALOHA_EPISODE_STEPS` defaults to the accepted 300-step limit. A single diagnostic run may raise it to at most 6,000 steps (120 simulated seconds at 50 Hz); the acceptance matrix rejects overrides so its results remain comparable.
+
+Scenario 1 also has one fail-closed π₀-only staged diagnostic. It first asks the left arm to point its wrist down and look, then lower beside the π, then make short pushes toward the target. Boundaries are exact and old queued actions are discarded before each new instruction:
+
+```bash
+ALOHA_SCENARIO=push_pi_single ALOHA_EPISODES=1 ALOHA_EPISODE_STEPS=6000 \
+  ALOHA_PROMPT_SCHEDULE=push_pi_single_left_staged_v1 \
+  OPENPI_POLICY_PROFILE=pi0_aloha_sim OPENPI_POLICY_BACKEND=pytorch make run
+```
 
 One automatic, low-frequency RTX sampler covers the whole `make run`. It validates the owned server identity before every bounded `nvidia-smi` query and stops in `finally`; there is no SSH or GPU query per simulation step. Start/end clock probes record the Mac↔WSL UTC offset with a round-trip uncertainty bound. `make metrics` only validates the latest run for the selected `OPENPI_POLICY_PROFILE` and atomically rebuilds derived summaries—it does not contact the PC, change raw evidence, or start a sampler.
 

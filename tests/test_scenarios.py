@@ -425,7 +425,9 @@ def _synthetic_matrix(tmp_path: Path) -> dict[str, object]:
                         "status": "complete",
                         "path": str(video_path),
                         "frames": 1,
-                        "validation": {"frames": 1, "fps": 50.0, "shape": [224, 224, 3]},
+                        "camera_views": ["cam_high", "cam_left_wrist", "cam_right_wrist"],
+                        "layout": "horizontal",
+                        "validation": {"frames": 1, "fps": 50.0, "shape": [224, 672, 3]},
                     },
                 }
             )

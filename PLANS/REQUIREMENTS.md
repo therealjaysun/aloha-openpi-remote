@@ -44,6 +44,7 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | `ALOHA_PREFETCH_STEPS` | `25` | Integer with `1 <= prefetch < horizon`; tune from tunneled end-to-end p95 plus the explicit margin | 04 |
 | `ALOHA_EPISODES` | `3` | Positive integer; default produces explicit seeds 0,1,2 | 04 |
 | `ALOHA_EPISODE_STEPS` | `300` | Integer `1..6000`; 300 remains the acceptance limit, while 6000 permits one bounded 120-second diagnostic | 04,S0827 |
+| `ALOHA_PROMPT_SCHEDULE` | `fixed` | Enum `fixed` or `push_pi_single_left_staged_v1`; staged mode requires π₀, Scenario 1, one episode, and exactly 6000 steps | S0827 |
 | `RUN_OUTPUT_DIR` | `outputs` | Nonempty Mac path; created safely and ignored | 04,05 |
 | `GPU_METRICS_INTERVAL_SECONDS` | `1` | Finite positive number; never sampled per control step | 05 |
 | `SSH_CONNECT_TIMEOUT_SECONDS` | `10` | Finite positive total for a batch SSH attempt | 02,03 |
@@ -267,6 +268,8 @@ S0827's historical arm-explicit matrix, coverage run, and long diagnostic are co
 | SP16 | Preserve one coverage sample per applied step plus initial/final/best, earliest best step/monotonic time, and total elapsed time in private evidence and safe summaries; rank by coverage then time and validate one exact π₀ Scenario 1 run | S0827 | Mac gates + exact-candidate hardware artifact review | Pass: E-MAC-S0827-COVERAGE, E-PC-S0827-COVERAGE |
 | SP17 | Keep tests and acceptance matrices fixed at 300 steps while allowing one standalone diagnostic to opt into at most 6,000 steps | S0827 | config/environment/matrix tests + exact-candidate diagnostic | Pass: E-MAC-S0827-LONG, E-PC-S0827-LONG |
 | SP18 | Every stock/custom policy request contains exactly real, nonblank, distinct overhead, left-wrist, and right-wrist uint8 CHW `(3,224,224)` views; safe metadata, request bound, representative visual inspection, local/hosted gates, one exact-candidate π₀ Scenario 1 run, artifacts, metrics, and cleanup pass | S0827 | contract/integration tests + hardware evidence | Pass: E-MAC-S0827-VIEWS, E-PC-S0827-VIEWS |
+| SP19 | Every future active episode MP4/display frame composes synchronized overhead, left-wrist, and right-wrist panels left-to-right at `224×672`; exact applied-step coverage, atomic partial/final output, ignored raw files, and safe metadata remain mandatory | S0827 | video/unit/runner tests + artifact inspection | Pending |
+| SP20 | One opt-in π₀ Scenario 1 diagnostic uses exact orient/approach/push prompts at steps `0/500/1500`, drains and discards old-stage actions before boundaries, records safe stage metadata without prompt text, preserves fixed 300-step tests, and completes one exact-SHA 6,000-step run | S0827 | config/buffer/telemetry tests + hardware evidence | Pending |
 
 ## Evidence and recovery ledger
 

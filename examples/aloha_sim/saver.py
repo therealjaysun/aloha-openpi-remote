@@ -9,15 +9,35 @@ from openpi_client.runtime import subscriber as _subscriber
 from typing_extensions import override
 
 
+def _horizontal_camera_strip(observation: dict, camera_views: tuple[str, ...]) -> np.ndarray:
+    images = observation.get("images")
+    if not isinstance(images, dict) or not camera_views:
+        raise ValueError("video observation must contain configured camera images")
+    frames = []
+    for name in camera_views:
+        image = images.get(name)
+        if not isinstance(image, np.ndarray) or image.shape != (3, 224, 224) or image.dtype != np.uint8:
+            raise ValueError(f"video camera {name} must be uint8 CHW with shape (3, 224, 224)")
+        frames.append(np.transpose(image, (1, 2, 0)))
+    return np.concatenate(frames, axis=1)
+
+
 class VideoSaver(_subscriber.Subscriber):
     """Saves episode data."""
 
-    def __init__(self, out_dir: pathlib.Path, subsample: int = 1, filename: str | None = None) -> None:
+    def __init__(
+        self,
+        out_dir: pathlib.Path,
+        subsample: int = 1,
+        filename: str | None = None,
+        camera_views: tuple[str, ...] = ("cam_high",),
+    ) -> None:
         out_dir.mkdir(parents=True, exist_ok=True)
         self._out_dir = out_dir
         self._images: list[np.ndarray] = []
         self._subsample = subsample
         self._filename = filename
+        self._camera_views = camera_views
         self._finalized = False
         self.output_path: pathlib.Path | None = None
 
@@ -33,9 +53,8 @@ class VideoSaver(_subscriber.Subscriber):
 
     @override
     def on_step(self, observation: dict, action: dict) -> None:
-        im = observation["images"]["cam_high"]  # [C, H, W]
-        im = np.transpose(im, (1, 2, 0))  # [H, W, C]
-        self._images.append(im)
+        del action
+        self._images.append(_horizontal_camera_strip(observation, self._camera_views))
 
     @override
     def on_episode_end(self) -> None:
@@ -68,9 +87,16 @@ class VideoSaver(_subscriber.Subscriber):
 class LiveDisplay(_subscriber.Subscriber):
     """Optional local-only view of the same post-step policy frame saved to video."""
 
-    def __init__(self, *, enabled: bool, every_steps: int = 5) -> None:
+    def __init__(
+        self,
+        *,
+        enabled: bool,
+        every_steps: int = 5,
+        camera_views: tuple[str, ...] = ("cam_high",),
+    ) -> None:
         self._enabled = enabled
         self._every_steps = every_steps
+        self._camera_views = camera_views
         self._step = 0
         self._figure = None
         self._axes = None
@@ -98,7 +124,7 @@ class LiveDisplay(_subscriber.Subscriber):
         self._step += 1
         if self._step != 1 and self._step % self._every_steps:
             return
-        frame = np.transpose(np.asarray(observation["images"]["cam_high"]), (1, 2, 0))
+        frame = _horizontal_camera_strip(observation, self._camera_views)
         if self._image is None:
             self._image = self._axes.imshow(frame)
         else:

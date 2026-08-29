@@ -15,6 +15,7 @@ from tools.remote_aloha.config import validate_output_root
 from tools.remote_aloha.run import _connect_with_retry
 from tools.remote_aloha.run import _convert_environment_observation
 from tools.remote_aloha.run import _gpu_events
+from tools.remote_aloha.run import _prompt_stage
 from tools.remote_aloha.run import _run_seed
 from tools.remote_aloha.run import _scenario_step_info
 from tools.remote_aloha.run import _write_performance_summary
@@ -50,6 +51,22 @@ def test_environment_observation_captures_both_wrist_views() -> None:
     assert set(converted["images"]) == {"cam_high", "cam_left_wrist", "cam_right_wrist"}
     assert converted["images"]["cam_left_wrist"].max() == 1
     assert converted["images"]["cam_right_wrist"].max() == 2
+
+
+def test_staged_prompt_schedule_has_exact_contiguous_boundaries_without_changing_fixed_prompt() -> None:
+    assert _prompt_stage("fixed", "unchanged", 0) == (None, None, "unchanged")
+    assert [
+        _prompt_stage("push_pi_single_left_staged_v1", None, step)[:2] for step in (0, 499, 500, 1499, 1500, 5999)
+    ] == [
+        (0, "orient"),
+        (0, "orient"),
+        (1, "approach"),
+        (1, "approach"),
+        (2, "push"),
+        (2, "push"),
+    ]
+    with pytest.raises(ValueError, match="schedule or step"):
+        _prompt_stage("push_pi_single_left_staged_v1", None, 6000)
 
 
 def _custom_info(scenario: str = "push_letters_single") -> dict[str, object]:
@@ -680,18 +697,33 @@ def test_video_saver_publishes_atomically_and_finalizes_once(tmp_path: Path, mon
     writes = []
 
     def write_video(path: Path, frames: list[np.ndarray], fps: int) -> None:
-        writes.append((len(frames), fps))
+        writes.append((np.asarray(frames[0]), fps))
         Path(path).write_bytes(b"video")
 
     monkeypatch.setattr("examples.aloha_sim.saver.imageio.mimwrite", write_video)
-    saver = VideoSaver(tmp_path, filename="episode.mp4")
+    saver = VideoSaver(
+        tmp_path,
+        filename="episode.mp4",
+        camera_views=("cam_high", "cam_left_wrist", "cam_right_wrist"),
+    )
     saver.on_episode_start()
-    saver.on_step({"images": {"cam_high": np.zeros((3, 224, 224), dtype=np.uint8)}}, {})
+    saver.on_step(
+        {
+            "images": {
+                name: np.full((3, 224, 224), value, dtype=np.uint8)
+                for name, value in (("cam_high", 0), ("cam_left_wrist", 1), ("cam_right_wrist", 2))
+            }
+        },
+        {},
+    )
     saver.on_episode_end()
     saver.on_episode_end()
     assert saver.output_path == tmp_path / "episode.mp4"
     assert saver.output_path.read_bytes() == b"video"
-    assert writes == [(1, 50)]
+    frame, fps = writes[0]
+    assert fps == 50
+    assert frame.shape == (224, 672, 3)
+    assert [frame[:, start : start + 224].max() for start in (0, 224, 448)] == [0, 1, 2]
     assert not list(tmp_path.glob("*.tmp"))
 
 
@@ -932,7 +964,7 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
             self.closed = True
 
     class Video:
-        def __init__(self, output_dir: Path, filename: str) -> None:
+        def __init__(self, output_dir: Path, filename: str, **kwargs: object) -> None:
             self.output_path = output_dir / filename
             self.frame_count = 0
 
@@ -952,7 +984,12 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
     monkeypatch.setattr("tools.remote_aloha.run.VideoSaver", Video)
     monkeypatch.setattr(
         "tools.remote_aloha.run.verify_video",
-        lambda path, frames: {"bytes": path.stat().st_size, "fps": 50.0, "frames": frames},
+        lambda path, frames, shape: {
+            "bytes": path.stat().st_size,
+            "fps": 50.0,
+            "frames": frames,
+            "shape": list(shape),
+        },
     )
     monkeypatch.setattr("tools.remote_aloha.run.package_versions", lambda: {"numpy": "1.26.4"})
     if outcome in {"plot-failure", "plot-interrupted"}:
@@ -1081,7 +1118,7 @@ def test_run_seed_publishes_custom_scenario_identity_and_integer_counts(tmp_path
             return None
 
     class Video:
-        def __init__(self, output_dir: Path, filename: str) -> None:
+        def __init__(self, output_dir: Path, filename: str, **kwargs: object) -> None:
             self.output_path = output_dir / filename
             self.frame_count = 0
 
@@ -1099,7 +1136,12 @@ def test_run_seed_publishes_custom_scenario_identity_and_integer_counts(tmp_path
     monkeypatch.setattr("tools.remote_aloha.run.VideoSaver", Video)
     monkeypatch.setattr(
         "tools.remote_aloha.run.verify_video",
-        lambda path, frames: {"bytes": path.stat().st_size, "fps": 50.0, "frames": frames},
+        lambda path, frames, shape: {
+            "bytes": path.stat().st_size,
+            "fps": 50.0,
+            "frames": frames,
+            "shape": list(shape),
+        },
     )
     monkeypatch.setattr("tools.remote_aloha.run.package_versions", lambda: {"numpy": "1.26.4"})
     output_dir = tmp_path / "seed-0"
@@ -1143,3 +1185,27 @@ def test_run_writes_failed_root_summary(tmp_path: Path, monkeypatch) -> None:
     summary = json.loads(summaries[0].read_text(encoding="utf-8"))
     assert summary["status"] == "failed"
     assert summary["error"] == {"type": "RuntimeError", "message": "lost"}
+
+
+def test_run_rejects_staged_prompt_schedule_for_pi05_before_connecting(monkeypatch) -> None:
+    scenario = SCENARIOS["push_pi_single"]
+    monkeypatch.setattr(
+        "tools.remote_aloha.run.load_mac_sim_config",
+        lambda: MacSimConfig(
+            task=scenario.gym_id,
+            scenario=scenario,
+            episodes=1,
+            episode_steps=6000,
+            prompt_schedule="push_pi_single_left_staged_v1",
+        ),
+    )
+    monkeypatch.setattr(
+        "tools.remote_aloha.run.load_remote_config",
+        lambda: RemoteConfig(policy_profile=POLICY_PROFILES["pi05_aloha_base"]),
+    )
+    monkeypatch.setattr(
+        "tools.remote_aloha.run.verify_ready_tunnel",
+        lambda config: pytest.fail("staged profile validation must happen before tunnel access"),
+    )
+    with pytest.raises(ValueError, match="pi0_aloha_sim"):
+        run()
