@@ -1,12 +1,9 @@
-from contextlib import nullcontext
 import logging
 import math
 
 import torch
 from torch import Tensor
 from torch import nn
-from torch.nn.attention import SDPBackend
-from torch.nn.attention import sdpa_kernel
 import torch.nn.functional as F  # noqa: N812
 
 import openpi.models.gemma as _gemma
@@ -455,32 +452,26 @@ class PI0Pytorch(nn.Module):
             denoise_attention_mask = self._prepare_attention_masks_4d(full_att_2d_masks)
             prefix_offsets = torch.sum(prefix_pad_masks, dim=-1)[:, None]
             denoise_position_ids = prefix_offsets + torch.cumsum(suffix_pad_masks, dim=1) - 1
-            if torch.device(device).type == "cuda":
-                self.paligemma_with_expert.gemma_expert.model.config._attn_implementation = "sdpa"  # noqa: SLF001
-                attention_backend = sdpa_kernel(SDPBackend.EFFICIENT_ATTENTION)
-            else:
-                self.paligemma_with_expert.gemma_expert.model.config._attn_implementation = "eager"  # noqa: SLF001
-                attention_backend = nullcontext()
+            self.paligemma_with_expert.gemma_expert.model.config._attn_implementation = "eager"  # noqa: SLF001
 
             dt = -1.0 / num_steps
             dt = torch.tensor(dt, dtype=torch.float32, device=device)
             time = torch.tensor(1.0, dtype=torch.float32, device=device)
-            with attention_backend:
-                for _ in range(num_steps):
-                    expanded_time = time.expand(bsize)
-                    v_t = self.denoise_step(
-                        state,
-                        prefix_pad_masks,
-                        past_key_values,
-                        x_t,
-                        expanded_time,
-                        denoise_attention_mask=denoise_attention_mask,
-                        denoise_position_ids=denoise_position_ids,
-                    )
+            for _ in range(num_steps):
+                expanded_time = time.expand(bsize)
+                v_t = self.denoise_step(
+                    state,
+                    prefix_pad_masks,
+                    past_key_values,
+                    x_t,
+                    expanded_time,
+                    denoise_attention_mask=denoise_attention_mask,
+                    denoise_position_ids=denoise_position_ids,
+                )
 
-                    # Euler step - use new tensor assignment instead of in-place operation
-                    x_t = x_t + dt * v_t
-                    time += dt
+                # Euler step - use new tensor assignment instead of in-place operation
+                x_t = x_t + dt * v_t
+                time += dt
         else:
             dt = -1.0 / num_steps
             dt = torch.tensor(dt, dtype=torch.float32, device=device)

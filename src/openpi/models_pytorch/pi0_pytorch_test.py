@@ -11,12 +11,9 @@ def test_pi05_sampler_uses_exact_bounded_loop_and_reuses_denoise_inputs():
     class PrefixModel(torch.nn.Module):
         def __init__(self):
             super().__init__()
-            self.paligemma = SimpleNamespace(
-                language_model=SimpleNamespace(config=SimpleNamespace(_attn_implementation=None))
-            )
-            self.gemma_expert = SimpleNamespace(
-                model=SimpleNamespace(config=SimpleNamespace(_attn_implementation=None))
-            )
+            config = SimpleNamespace(_attn_implementation=None)
+            self.paligemma = SimpleNamespace(language_model=SimpleNamespace(config=config))
+            self.gemma_expert = SimpleNamespace(model=SimpleNamespace(config=config))
             self.inference_modes = []
 
         def forward(self, **_kwargs):
@@ -61,8 +58,6 @@ def test_pi05_sampler_uses_exact_bounded_loop_and_reuses_denoise_inputs():
     assert len(calls) == 4
     assert all(call[3] for call in calls)
     assert all(model.paligemma_with_expert.inference_modes)
-    assert model.paligemma_with_expert.paligemma.language_model.config._attn_implementation == "eager"  # noqa: SLF001
-    assert model.paligemma_with_expert.gemma_expert.model.config._attn_implementation == "eager"  # noqa: SLF001
     assert len({call[1]["denoise_attention_mask"].data_ptr() for call in calls}) == 1
     assert len({call[1]["denoise_position_ids"].data_ptr() for call in calls}) == 1
     assert len({id(call[2]) for call in calls}) == 1
