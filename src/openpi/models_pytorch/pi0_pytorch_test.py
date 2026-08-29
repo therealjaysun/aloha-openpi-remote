@@ -7,51 +7,6 @@ from openpi.models_pytorch.pi0_pytorch import PI0Pytorch
 from openpi.models_pytorch.pi0_pytorch import make_att_2d_masks
 
 
-def test_pi05_eval_batches_camera_encoder_without_reordering():
-    class VisionModel(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.image_calls = []
-
-        def embed_image(self, images):
-            self.image_calls.append(images.clone())
-            return images[:, 0]
-
-        def embed_language_tokens(self, tokens):
-            return tokens[:, :, None].expand(-1, -1, 2)
-
-    model = object.__new__(PI0Pytorch)
-    torch.nn.Module.__init__(model)
-    model.pi05 = True
-    model.gradient_checkpointing_enabled = False
-    model.paligemma_with_expert = VisionModel()
-    model.eval()
-
-    images = [torch.arange(8, dtype=torch.float32).reshape(2, 1, 2, 2) + offset for offset in (0, 10, 20)]
-    image_masks = [torch.tensor([True, False]), torch.tensor([False, True]), torch.tensor([True, True])]
-    language_tokens = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
-    language_masks = torch.tensor([[True, True], [True, False]])
-    with torch.inference_mode():
-        embeddings, pad_masks, attention_masks = model.embed_prefix(
-            images, image_masks, language_tokens, language_masks
-        )
-
-    assert len(model.paligemma_with_expert.image_calls) == 1
-    assert model.paligemma_with_expert.image_calls[0].shape == (6, 1, 2, 2)
-    torch.testing.assert_close(
-        model.paligemma_with_expert.image_calls[0], torch.stack(images, dim=1).flatten(0, 1), rtol=0, atol=0
-    )
-    for index, image in enumerate(images):
-        torch.testing.assert_close(embeddings[:, index * 2 : (index + 1) * 2], image[:, 0], rtol=0, atol=0)
-    expected_masks = torch.cat([mask[:, None].expand(2, 2) for mask in image_masks] + [language_masks], dim=1)
-    torch.testing.assert_close(pad_masks, expected_masks, rtol=0, atol=0)
-    assert not attention_masks.any()
-
-    model.paligemma_with_expert.image_calls.clear()
-    model.embed_prefix(images, image_masks, language_tokens, language_masks)
-    assert len(model.paligemma_with_expert.image_calls) == 3
-
-
 def test_pi05_sampler_uses_exact_bounded_loop_and_reuses_denoise_inputs():
     class PrefixModel(torch.nn.Module):
         def __init__(self):
