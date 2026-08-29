@@ -2,8 +2,8 @@
 
 ## Handoff
 
-- **Status:** Ready for implementation; P0 repository hygiene is the first required step.
-- **Base candidate:** `42a9e10088650750ac0a940b13fbc324912d497a`.
+- **Status:** P0 is merged; the B0/R1/R2 code candidate passed local validation and awaits PC-local B0/hardware gates.
+- **Base candidate:** main after merged plan PR #9 (`3ebf8b017384e1e38ba97261d65a723966596b45`).
 - **Default profile:** `pi05_aloha_base`; `pi0_aloha_sim` remains an explicit option and must pass the same infrastructure checks.
 - **Order:** P0 clean baseline → implement B0 instrumentation plus disabled R1/R2 switches → B0 measurements → isolated R1/R2 trials → S1–S6 measured speed work → final hardware validation.
 - **Ownership:** One integrating agent owns shared files and final validation. Read-only agents may inspect independent candidates.
@@ -45,7 +45,7 @@ The repeated jolts align with wholesale chunk replacement, not dropped video fra
 - Trial `ALOHA_CHUNK_CROSSFADE_STEPS=5` and horizon/prefetch `45/40` independently before combining them. Promote them to defaults only after their hardware gates pass; `0` keeps raw replacement for A/B diagnosis.
 - Crossfade reduces replacement-step normalized command-jump p95 to at most 5% for π0.5 and does not regress π0.
 - The selected buffer configuration records zero underruns and no stale, repeated, or out-of-order action.
-- Buffer qualification uses observed depth at request submission, not `prefetch_steps × 20 ms`: elapsed-prefix removal often leaves fewer than 40 usable actions.
+- Buffer qualification uses each completed warm request's observed submission depth, not `prefetch_steps × 20 ms`: elapsed-prefix removal often leaves fewer than 40 usable actions.
 - Initial requests, empty/late slices, failures, Ctrl+C, and prompt transitions preserve existing fail-closed behavior.
 - Telemetry records the exact crossfaded command applied at every successful simulation step.
 
@@ -71,6 +71,8 @@ The runtime work may complete even if no speed candidate survives measurement; r
 **Exit:** The plan move is reviewable, Markdown links resolve, `.Rhistory` cannot enter a candidate, and `git status --short` is empty.
 
 ### B0 — Correct baseline and timing
+
+**Current boundary:** Local code records synchronized PyTorch stages and supports an explicit 5-warmup/50-measurement timing smoke. Its synthetic observation and model-generated noise are timing-only; captured-observation/fixed-noise replay remains a PC-local B0 exit gate.
 
 1. Reuse existing request telemetry; add only enough CUDA-event timing to separate input transfer, three-camera SigLIP, Gemma prefix/KV, ten-step denoising, and device-to-host output.
 2. Include the final CUDA-to-CPU synchronization that the current `Policy.infer` timer misses.

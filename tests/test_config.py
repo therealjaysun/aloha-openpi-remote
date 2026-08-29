@@ -20,9 +20,10 @@ def test_defaults_when_env_file_is_missing(tmp_path: Path) -> None:
         config.episode_steps,
         config.action_horizon,
         config.prefetch_steps,
+        config.chunk_crossfade_steps,
         config.prompt_schedule,
         config.output_dir,
-    ) == (DEFAULT_TASK, "transfer_cube", False, 0, 3, 300, 30, 25, "fixed", Path("outputs"))
+    ) == (DEFAULT_TASK, "transfer_cube", False, 0, 3, 300, 30, 25, 0, "fixed", Path("outputs"))
 
 
 def test_file_values_and_environment_override(tmp_path: Path) -> None:
@@ -46,6 +47,18 @@ def test_fixed_scenario_resolves_task_prompt_and_display(tmp_path: Path) -> None
 def test_episode_step_override_is_bounded(tmp_path: Path) -> None:
     config = load_mac_sim_config(tmp_path / "missing", {"ALOHA_EPISODE_STEPS": "6000"})
     assert config.episode_steps == 6000
+
+
+def test_tuned_buffering_and_crossfade_are_valid(tmp_path: Path) -> None:
+    config = load_mac_sim_config(
+        tmp_path / "missing",
+        {
+            "ALOHA_ACTION_HORIZON": "45",
+            "ALOHA_PREFETCH_STEPS": "40",
+            "ALOHA_CHUNK_CROSSFADE_STEPS": "5",
+        },
+    )
+    assert (config.action_horizon, config.prefetch_steps, config.chunk_crossfade_steps) == (45, 40, 5)
 
 
 def test_staged_prompt_schedule_is_one_exact_scenario_one_episode_diagnostic(tmp_path: Path) -> None:
@@ -79,6 +92,9 @@ def test_staged_prompt_schedule_is_one_exact_scenario_one_episode_diagnostic(tmp
         ("ALOHA_ACTION_HORIZON=10\nALOHA_PREFETCH_STEPS=10\n", {}),
         ("ALOHA_ACTION_HORIZON=51\n", {}),
         ("ALOHA_PREFETCH_STEPS=0\n", {}),
+        ("ALOHA_CHUNK_CROSSFADE_STEPS=1\n", {}),
+        ("ALOHA_CHUNK_CROSSFADE_STEPS=6\n", {}),
+        ("ALOHA_CHUNK_CROSSFADE_STEPS=-1\n", {}),
         ("ALOHA_PROMPT_SCHEDULE=custom\n", {}),
         ("ALOHA_PROMPT_SCHEDULE=push_pi_single_left_staged_v1\n", {}),
         (

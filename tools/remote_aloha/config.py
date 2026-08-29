@@ -36,6 +36,7 @@ class MacSimConfig:
     episode_steps: int = 300
     action_horizon: int = 30
     prefetch_steps: int = 25
+    chunk_crossfade_steps: int = 0
     prompt_schedule: str = FIXED_PROMPT_SCHEDULE
     output_dir: Path = Path("outputs")
 
@@ -200,6 +201,7 @@ def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str
         "ALOHA_EPISODE_STEPS",
         "ALOHA_ACTION_HORIZON",
         "ALOHA_PREFETCH_STEPS",
+        "ALOHA_CHUNK_CROSSFADE_STEPS",
         "ALOHA_PROMPT_SCHEDULE",
         "RUN_OUTPUT_DIR",
     ):
@@ -226,6 +228,9 @@ def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str
     prefetch_steps = _uint("ALOHA_PREFETCH_STEPS", values.get("ALOHA_PREFETCH_STEPS", "25"), maximum=50)
     if not 1 <= prefetch_steps < action_horizon:
         raise ValueError("ALOHA buffering must satisfy 1 <= ALOHA_PREFETCH_STEPS < ALOHA_ACTION_HORIZON <= 50")
+    chunk_crossfade_steps = _uint("ALOHA_CHUNK_CROSSFADE_STEPS", values.get("ALOHA_CHUNK_CROSSFADE_STEPS", "0"))
+    if chunk_crossfade_steps not in {0, 5}:
+        raise ValueError("ALOHA_CHUNK_CROSSFADE_STEPS must be exactly 0 or 5")
     prompt_schedule = values.get("ALOHA_PROMPT_SCHEDULE", FIXED_PROMPT_SCHEDULE)
     if prompt_schedule not in {FIXED_PROMPT_SCHEDULE, STAGED_PROMPT_SCHEDULE}:
         raise ValueError("ALOHA_PROMPT_SCHEDULE must be exactly fixed or push_pi_single_left_staged_v1")
@@ -247,6 +252,7 @@ def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str
         episode_steps=episode_steps,
         action_horizon=action_horizon,
         prefetch_steps=prefetch_steps,
+        chunk_crossfade_steps=chunk_crossfade_steps,
         prompt_schedule=prompt_schedule,
         output_dir=Path(output),
     )

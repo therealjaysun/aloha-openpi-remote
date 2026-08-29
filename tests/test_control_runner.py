@@ -15,6 +15,7 @@ from tools.remote_aloha.config import validate_output_root
 from tools.remote_aloha.run import _connect_with_retry
 from tools.remote_aloha.run import _convert_environment_observation
 from tools.remote_aloha.run import _gpu_events
+from tools.remote_aloha.run import _prefetch_evidence
 from tools.remote_aloha.run import _prompt_stage
 from tools.remote_aloha.run import _run_seed
 from tools.remote_aloha.run import _scenario_step_info
@@ -150,6 +151,45 @@ def test_gpu_events_require_exact_identity_sequence_and_cadence(tmp_path: Path) 
     assert result["gpu_span_ms"] == result["gpu_max_gap_ms"] == 1000
 
 
+def test_prefetch_gate_uses_only_completed_warm_request_submission_depths() -> None:
+    with pytest.raises(ValueError, match="qualification evidence"):
+        _prefetch_evidence(
+            {
+                "request_latencies_ms": [900.0, 200.0],
+                "completed_request_buffer_depths": [0],
+                "underrun_count": 0,
+            }
+        )
+    for invalid in (
+        {"request_latencies_ms": [1.0], "completed_request_buffer_depths": [51], "underrun_count": 0},
+        {"request_latencies_ms": [1.0], "completed_request_buffer_depths": [0], "underrun_count": False},
+    ):
+        with pytest.raises(ValueError, match="qualification evidence"):
+            _prefetch_evidence(invalid)
+
+    pending_only = _prefetch_evidence(
+        {
+            "request_latencies_ms": [900.0],
+            "request_buffer_depths": [0, 40],
+            "completed_request_buffer_depths": [0],
+            "underrun_count": 0,
+        }
+    )
+    assert pending_only["budget_ms"] is None
+    assert pending_only["qualified"] is False
+
+    completed = _prefetch_evidence(
+        {
+            "request_latencies_ms": [900.0, 200.0],
+            "completed_request_buffer_depths": [0, 20],
+            "underrun_count": 0,
+        }
+    )
+    assert completed["request_depth_min"] == completed["request_depth_p5"] == 20
+    assert completed["budget_ms"] == 400.0
+    assert completed["qualified"] is True
+
+
 @pytest.mark.parametrize(
     ("row", "field", "value"),
     [
@@ -238,7 +278,15 @@ def test_performance_summary_rejects_gpu_samples_that_do_not_span_the_mac_run(tm
                     "plot_status": "passed",
                     "plot_id": "run-seed-0-joint-trajectory",
                 },
-                "buffer": {},
+                "buffer": {
+                    "request_count": 3,
+                    "request_buffer_depths": [0, 7, 9],
+                    "completed_request_buffer_depths": [0, 7, 9],
+                    "replacement_count": 2,
+                    "crossfade_replacement_count": 1,
+                    "crossfade_action_count": 5,
+                    "zero_overlap_replacements": 1,
+                },
                 "connection": {},
             }
         ],
@@ -257,6 +305,10 @@ def test_performance_summary_rejects_gpu_samples_that_do_not_span_the_mac_run(tm
     }
     for key, value in expected_trajectory.items():
         assert local_performance["result"][key] == value
+    assert local_performance["result"]["replacement_count"] == 2
+    assert local_performance["result"]["crossfade_action_count"] == 5
+    assert local_performance["result"]["request_buffer_depth_min"] == 7
+    assert local_performance["result"]["request_buffer_depth_p5"] == pytest.approx(7.1)
     encoded = json.dumps(local_performance)
     assert str(tmp_path) not in encoded
     assert "trajectory.path" not in encoded

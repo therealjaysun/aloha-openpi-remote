@@ -29,7 +29,7 @@ GPU coverage passed for both runs (31 and 24 samples respectively), with no requ
 
 The pre-trajectory hardening candidate `90b0fed` also passed exact-SHA WSL setup and a fresh four-call tunneled smoke for each profile, then verified cleanup and a free policy port. Phase 5 candidate `2065dd9` remains the newer hardware proof and the source of the full-episode figures above.
 
-Both profiles return the same finite floating `(50, 14)` wire chunk. The default runner executes at most 30 actions from a chunk and starts one background prefetch with 25 actions remaining. It never clips the absolute joint commands, appends a late chunk, or repeats the last action on underrun.
+Both profiles return the same finite floating `(50, 14)` wire chunk. The default runner executes at most 30 actions from a chunk and starts one background prefetch with 25 actions remaining. `ALOHA_CHUNK_CROSSFADE_STEPS=5` and horizon/prefetch `45/40` are isolated experiment overrides; the unvalidated defaults remain `0` and `30/25`. The runner never clips the absolute joint commands, appends a late chunk, or repeats the last action on underrun.
 
 ## Prerequisites
 

@@ -114,6 +114,7 @@ class PI0Pytorch(nn.Module):
 
         # Initialize gradient checkpointing flag
         self.gradient_checkpointing_enabled = False
+        self._last_inference_timing_events = None
 
         msg = "transformers_replace is not installed correctly. Please install it with `uv pip install transformers==4.53.2` and `cp -r ./src/openpi/models_pytorch/transformers_replace/* .venv/lib/python3.11/site-packages/transformers/`."
         try:
@@ -187,7 +188,7 @@ class PI0Pytorch(nn.Module):
         return time.to(dtype=torch.float32, device=device)
 
     def embed_prefix(
-        self, images, img_masks, lang_tokens, lang_masks
+        self, images, img_masks, lang_tokens, lang_masks, timing_events=None
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Embed images with SigLIP and language tokens with embedding layer to prepare
         for PaliGemma transformer processing.
@@ -212,6 +213,9 @@ class PI0Pytorch(nn.Module):
             # Create attention masks so that image tokens attend to each other
             att_masks += [0] * num_img_embs
 
+        if timing_events is not None:
+            timing_events["vision_end"].record()
+
         # Process language tokens
         def lang_embed_func(lang_tokens):
             lang_emb = self.paligemma_with_expert.embed_language_tokens(lang_tokens)
@@ -219,6 +223,8 @@ class PI0Pytorch(nn.Module):
             return lang_emb * math.sqrt(lang_emb_dim)
 
         lang_emb = self._apply_checkpoint(lang_embed_func, lang_tokens)
+        if timing_events is not None:
+            timing_events["language_end"].record()
 
         embs.append(lang_emb)
         pad_masks.append(lang_masks)
@@ -385,7 +391,17 @@ class PI0Pytorch(nn.Module):
 
         images, img_masks, lang_tokens, lang_masks, state = self._preprocess_observation(observation, train=False)
 
-        prefix_embs, prefix_pad_masks, prefix_att_masks = self.embed_prefix(images, img_masks, lang_tokens, lang_masks)
+        timing_events = None
+        if torch.device(device).type == "cuda":
+            timing_events = {
+                name: torch.cuda.Event(enable_timing=True)
+                for name in ("start", "vision_end", "language_end", "prefix_end", "denoise_end")
+            }
+            timing_events["start"].record()
+
+        prefix_embs, prefix_pad_masks, prefix_att_masks = self.embed_prefix(
+            images, img_masks, lang_tokens, lang_masks, timing_events
+        )
         prefix_att_2d_masks = make_att_2d_masks(prefix_pad_masks, prefix_att_masks)
         prefix_position_ids = torch.cumsum(prefix_pad_masks, dim=1) - 1
 
@@ -400,6 +416,8 @@ class PI0Pytorch(nn.Module):
             inputs_embeds=[prefix_embs, None],
             use_cache=True,
         )
+        if timing_events is not None:
+            timing_events["prefix_end"].record()
 
         dt = -1.0 / num_steps
         dt = torch.tensor(dt, dtype=torch.float32, device=device)
@@ -419,7 +437,22 @@ class PI0Pytorch(nn.Module):
             # Euler step - use new tensor assignment instead of in-place operation
             x_t = x_t + dt * v_t
             time += dt
+        if timing_events is not None:
+            timing_events["denoise_end"].record()
+        self._last_inference_timing_events = timing_events
         return x_t
+
+    def last_inference_cuda_timing(self) -> dict[str, float]:
+        events = self._last_inference_timing_events
+        if events is None:
+            return {}
+        return {
+            "vision_ms": events["start"].elapsed_time(events["vision_end"]),
+            "language_embed_ms": events["vision_end"].elapsed_time(events["language_end"]),
+            "prefix_kv_ms": events["language_end"].elapsed_time(events["prefix_end"]),
+            "denoise_ms": events["prefix_end"].elapsed_time(events["denoise_end"]),
+            "model_stages_ms": events["start"].elapsed_time(events["denoise_end"]),
+        }
 
     def denoise_step(
         self,

@@ -83,6 +83,7 @@ class Policy(BasePolicy):
             inputs = jax.tree.map(lambda x: jnp.asarray(x)[np.newaxis, ...], inputs)
             self._rng, sample_rng_or_pytorch_device = jax.random.split(self._rng)
         else:
+            policy_started = time.monotonic()
             # Convert inputs to PyTorch tensors and move to correct device
             inputs = jax.tree.map(lambda x: torch.from_numpy(np.array(x)).to(self._pytorch_device)[None, ...], inputs)
             sample_rng_or_pytorch_device = self._pytorch_device
@@ -96,22 +97,42 @@ class Policy(BasePolicy):
                 noise = noise[None, ...]  # Make it (1, action_horizon, action_dim)
             sample_kwargs["noise"] = noise
 
+        if self._is_pytorch_model:
+            pytorch_device = torch.device(self._pytorch_device)
+            if pytorch_device.type == "cuda":
+                torch.cuda.synchronize(pytorch_device)
+            input_transfer_ms = (time.monotonic() - policy_started) * 1000
+
         observation = _model.Observation.from_dict(inputs)
         start_time = time.monotonic()
         outputs = {
             "state": inputs["state"],
             "actions": self._sample_actions(sample_rng_or_pytorch_device, observation, **sample_kwargs),
         }
-        model_time = time.monotonic() - start_time
         if self._is_pytorch_model:
+            if pytorch_device.type == "cuda":
+                torch.cuda.synchronize(pytorch_device)
+            model_ms = (time.monotonic() - start_time) * 1000
+            cuda_timing = getattr(self._model, "last_inference_cuda_timing", dict)()
+            output_started = time.monotonic()
             outputs = jax.tree.map(lambda x: np.asarray(x[0, ...].detach().cpu()), outputs)
+            output_transfer_ms = (time.monotonic() - output_started) * 1000
         else:
             outputs = jax.tree.map(lambda x: np.asarray(x[0, ...]), outputs)
+            model_ms = (time.monotonic() - start_time) * 1000
 
         outputs = self._output_transform(outputs)
-        outputs["policy_timing"] = {
-            "infer_ms": model_time * 1000,
-        }
+        outputs["policy_timing"] = (
+            {
+                "infer_ms": (time.monotonic() - policy_started) * 1000,
+                "input_transfer_ms": input_transfer_ms,
+                "model_ms": model_ms,
+                "output_transfer_ms": output_transfer_ms,
+                **cuda_timing,
+            }
+            if self._is_pytorch_model
+            else {"infer_ms": model_ms}
+        )
         return outputs
 
     @property
