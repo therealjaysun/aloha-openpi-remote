@@ -27,6 +27,8 @@ from tools.remote_aloha.config import load_mac_sim_config
 from tools.remote_aloha.config import load_remote_config
 from tools.remote_aloha.config import validate_output_root
 from tools.remote_aloha.connection_check import verify_ready_tunnel
+from tools.remote_aloha.observation_contract import POLICY_CAMERA_VIEWS
+from tools.remote_aloha.observation_contract import convert_gym_artifact_observation
 from tools.remote_aloha.observation_contract import convert_gym_observation
 from tools.remote_aloha.policy_contract import validate_policy_action
 from tools.remote_aloha.policy_contract import validate_server_metadata
@@ -199,6 +201,22 @@ def _percentile(values: list[float], percentile: float) -> float | None:
     return float(np.percentile(values, percentile)) if values else None
 
 
+def _convert_environment_observation(environment, raw_observation: object, prompt: str | None) -> dict:
+    pixels = raw_observation.get("pixels") if isinstance(raw_observation, Mapping) else None
+    if isinstance(pixels, Mapping) and set(pixels) == {"top"}:
+        physics = environment.unwrapped._env.physics  # noqa: SLF001 - pinned gym-aloha exposes no camera API
+        # ponytail: two extra renders are simplest; replace the task's unused angle/vis renders only if measured costly.
+        raw_observation = {
+            **raw_observation,
+            "pixels": {
+                **pixels,
+                "left_wrist": physics.render(height=480, width=640, camera_id="left_wrist"),
+                "right_wrist": physics.render(height=480, width=640, camera_id="right_wrist"),
+            },
+        }
+    return convert_gym_observation(raw_observation, prompt)
+
+
 def control_episode(
     environment,
     policy: BufferedPolicy,
@@ -220,7 +238,7 @@ def control_episode(
     home_joint_positions = validate_joint_vector(
         np.asarray(raw_observation["agent_pos"]).tolist(), "home_joint_positions"
     )
-    observation = convert_gym_observation(raw_observation, prompt)
+    observation = _convert_environment_observation(environment, raw_observation, prompt)
     video.on_episode_start()
     display_error = None
     if display is not None:
@@ -336,7 +354,12 @@ def control_episode(
                 "rate_limit_sleep_ms": rate_limit_sleep_ms,
             }
         )
-        next_observation = convert_gym_observation(raw_observation, prompt)
+        camera_error = None
+        try:
+            next_observation = _convert_environment_observation(environment, raw_observation, prompt)
+        except BaseException as error:
+            camera_error = error
+            next_observation = convert_gym_artifact_observation(raw_observation)
         try:
             reward_value = float(reward)
         except (TypeError, ValueError):
@@ -394,6 +417,8 @@ def control_episode(
                 with suppress(Exception):
                     display.on_episode_end()
                 display = None
+        if camera_error is not None:
+            raise camera_error
         if video_step_error is not None:
             raise video_step_error
         if step_info_error is not None:
@@ -577,6 +602,7 @@ def _run_seed(
             scenario=sim_config.scenario.key,
             scene_hash=scene_id,
             target_area_coverage_method=(TARGET_AREA_COVERAGE_METHOD if sim_config.scenario.is_custom else None),
+            camera_views=list(POLICY_CAMERA_VIEWS),
             action_horizon=sim_config.action_horizon,
             model_action_horizon=remote_config.policy_profile.action_horizon,
             prefetch_steps=sim_config.prefetch_steps,

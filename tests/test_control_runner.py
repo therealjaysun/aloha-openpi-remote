@@ -13,6 +13,7 @@ from tools.remote_aloha.config import MacSimConfig
 from tools.remote_aloha.config import RemoteConfig
 from tools.remote_aloha.config import validate_output_root
 from tools.remote_aloha.run import _connect_with_retry
+from tools.remote_aloha.run import _convert_environment_observation
 from tools.remote_aloha.run import _gpu_events
 from tools.remote_aloha.run import _run_seed
 from tools.remote_aloha.run import _scenario_step_info
@@ -25,9 +26,30 @@ from tools.remote_aloha.telemetry import JsonlWriter
 
 def _raw_observation() -> dict:
     return {
-        "pixels": {"top": np.zeros((480, 640, 3), dtype=np.uint8)},
+        "pixels": {name: np.zeros((480, 640, 3), dtype=np.uint8) for name in ("top", "left_wrist", "right_wrist")},
         "agent_pos": np.zeros(14, dtype=np.float64),
     }
+
+
+def test_environment_observation_captures_both_wrist_views() -> None:
+    class Physics:
+        def __init__(self) -> None:
+            self.cameras = []
+
+        def render(self, *, height: int, width: int, camera_id: str) -> np.ndarray:
+            self.cameras.append((height, width, camera_id))
+            value = 1 if camera_id == "left_wrist" else 2
+            return np.full((height, width, 3), value, dtype=np.uint8)
+
+    physics = Physics()
+    environment = SimpleNamespace(unwrapped=SimpleNamespace(_env=SimpleNamespace(physics=physics)))
+    raw = _raw_observation()
+    raw["pixels"] = {"top": raw["pixels"]["top"]}
+    converted = _convert_environment_observation(environment, raw, "prompt")
+    assert physics.cameras == [(480, 640, "left_wrist"), (480, 640, "right_wrist")]
+    assert set(converted["images"]) == {"cam_high", "cam_left_wrist", "cam_right_wrist"}
+    assert converted["images"]["cam_left_wrist"].max() == 1
+    assert converted["images"]["cam_right_wrist"].max() == 2
 
 
 def _custom_info(scenario: str = "push_letters_single") -> dict[str, object]:
@@ -849,6 +871,8 @@ def test_output_root_inside_repository_must_be_ignored(monkeypatch) -> None:
         "policy-close-failure",
         "plot-failure",
         "plot-interrupted",
+        "camera-failure",
+        "camera-interrupted",
     ],
 )
 def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, outcome: str) -> None:
@@ -871,15 +895,38 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
             self.spec = SimpleNamespace(max_episode_steps=300)
             self.metadata = {"render_fps": 50}
             self.action_space = SimpleNamespace(shape=(14,))
+            self._env = SimpleNamespace(physics=self.Physics())
+
+        @property
+        def unwrapped(self):
+            return self
+
+        class Physics:
+            def __init__(self) -> None:
+                self.renders = 0
+
+            def render(self, *, height: int, width: int, camera_id: str) -> np.ndarray:
+                self.renders += 1
+                if self.renders > 2 and outcome in {"camera-failure", "camera-interrupted"}:
+                    if outcome == "camera-interrupted":
+                        raise KeyboardInterrupt
+                    raise OSError("wrist render failed")
+                return np.zeros((height, width, 3), dtype=np.uint8)
 
         def reset(self, *, seed: int):
-            return _raw_observation(), {}
+            observation = _raw_observation()
+            if outcome in {"camera-failure", "camera-interrupted"}:
+                observation["pixels"] = {"top": observation["pixels"]["top"]}
+            return observation, {}
 
         def step(self, action: np.ndarray):
             self.steps += 1
             if outcome == "interrupted" and self.steps == 2:
                 raise KeyboardInterrupt
-            return _raw_observation(), 0.0, outcome != "interrupted", False, {}
+            observation = _raw_observation()
+            if outcome in {"camera-failure", "camera-interrupted"}:
+                observation["pixels"] = {"top": observation["pixels"]["top"]}
+            return observation, 0.0, outcome != "interrupted", False, {}
 
         def close(self) -> None:
             self.closed = True
@@ -932,14 +979,15 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
         output_dir,
         "c" * 32,
     )
-    if outcome in {"interrupted", "plot-interrupted"}:
+    if outcome in {"interrupted", "plot-interrupted", "camera-interrupted"}:
         with pytest.raises(KeyboardInterrupt):
             _run_seed(*arguments)
-    elif outcome in {"telemetry-close-failure", "policy-close-failure", "plot-failure"}:
+    elif outcome in {"telemetry-close-failure", "policy-close-failure", "plot-failure", "camera-failure"}:
         expected = {
             "telemetry-close-failure": "telemetry close failed",
             "policy-close-failure": "policy cleanup remains pending",
             "plot-failure": "plot failed",
+            "camera-failure": "wrist render failed",
         }[outcome]
         with pytest.raises((OSError, TimeoutError), match=expected):
             _run_seed(*arguments)
@@ -953,6 +1001,8 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
         "policy-close-failure": "failed",
         "plot-failure": "failed",
         "plot-interrupted": "interrupted",
+        "camera-failure": "failed",
+        "camera-interrupted": "interrupted",
     }.get(outcome, outcome)
     assert manifest["status"] == expected_status
     assert transport.closed
@@ -978,7 +1028,9 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
         assert trajectory["plot_status"] == "passed"
         assert Path(trajectory["path"]).is_file()
     assert manifest["video"]["frames"] == manifest["episode"]["steps_applied"]
-    expected_video_status = "partial" if outcome == "interrupted" else "complete"
+    expected_video_status = (
+        "partial" if outcome in {"interrupted", "camera-failure", "camera-interrupted"} else "complete"
+    )
     assert manifest["video"]["status"] == expected_video_status
 
 

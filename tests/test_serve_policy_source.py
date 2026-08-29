@@ -71,7 +71,7 @@ def test_wsl_start_wrapper_has_exact_two_profile_routes_and_loopback() -> None:
     assert "torch_model_device" in Path("scripts/serve_policy.py").read_text(encoding="utf-8")
 
     client = Path("tools/remote_aloha/policy_smoke.py").read_text(encoding="utf-8")
-    assert '"images": {"cam_high": image}' in client
+    assert '"images": {name: image for name in POLICY_CAMERA_VIEWS}' in client
     assert 'observation["prompt"] = profile.default_prompt' in client
     assert "policy.close()" in client
 

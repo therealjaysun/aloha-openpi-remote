@@ -6,6 +6,7 @@ pytest.importorskip("gym_aloha")
 pytest.importorskip("dm_control")
 
 import examples.aloha_sim.push_pi_env  # noqa: E402,F401
+from tools.remote_aloha.run import _convert_environment_observation  # noqa: E402
 from tools.remote_aloha.run import _scenario_info_fields  # noqa: E402
 from tools.remote_aloha.scenarios import CUSTOM_SCENARIOS  # noqa: E402
 from tools.remote_aloha.scenarios import SCENARIOS  # noqa: E402
@@ -13,6 +14,15 @@ from tools.remote_aloha.scenarios import TABLETOP_SHA256  # noqa: E402
 from tools.remote_aloha.scenarios import descriptor_sha256  # noqa: E402
 from tools.remote_aloha.scenarios import effective_layout_seed  # noqa: E402
 from tools.remote_aloha.scenarios import sample_layout  # noqa: E402
+
+
+def _assert_policy_views(environment, raw: dict, prompt: str) -> None:
+    images = _convert_environment_observation(environment, raw, prompt)["images"]
+    assert tuple(images) == ("cam_high", "cam_left_wrist", "cam_right_wrist")
+    assert all(image.shape == (3, 224, 224) and image.dtype == np.uint8 for image in images.values())
+    assert all(np.ptp(image) > 0 for image in images.values())
+    assert not np.array_equal(images["cam_high"], images["cam_left_wrist"])
+    assert not np.array_equal(images["cam_left_wrist"], images["cam_right_wrist"])
 
 
 @pytest.mark.parametrize("scenario", CUSTOM_SCENARIOS)
@@ -29,6 +39,10 @@ def test_registered_environment_contract(scenario: str) -> None:
         assert observation["agent_pos"].shape == (14,)
         assert observation["agent_pos"].dtype == np.float64
         assert np.isfinite(observation["agent_pos"]).all()
+        model = environment.unwrapped._env.physics.model  # noqa: SLF001
+        camera_names = {model.id2name(index, "camera") for index in range(model.ncam)}
+        assert {"top", "left_wrist", "right_wrist"} <= camera_names
+        _assert_policy_views(environment, observation, spec.prompt)
         assert info["scenario"] == scenario
         assert info["is_success"] is False
         assert info["held_steps"] == 0
@@ -52,6 +66,18 @@ def test_registered_environment_contract(scenario: str) -> None:
         assert isinstance(terminated, bool)
         assert isinstance(truncated, bool)
         assert isinstance(info["is_success"], bool)
+        _assert_policy_views(environment, observation, spec.prompt)
+    finally:
+        environment.close()
+
+
+def test_stock_policy_wrist_renders_reset_and_step() -> None:
+    environment = gym.make("gym_aloha/AlohaTransferCube-v0", obs_type="pixels_agent_pos")
+    try:
+        raw, _ = environment.reset(seed=0)
+        _assert_policy_views(environment, raw, "Transfer cube")
+        raw, *_ = environment.step(np.zeros(14, dtype=np.float64))
+        _assert_policy_views(environment, raw, "Transfer cube")
     finally:
         environment.close()
 

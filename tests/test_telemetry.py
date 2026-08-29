@@ -234,6 +234,7 @@ def test_publishable_custom_scenario_keeps_safe_identity_counts_and_omits_privat
                 scenario="push_letters_single",
                 scene_hash="d" * 64,
                 target_area_coverage_method="exact-planar-union-v1",
+                camera_views=["cam_high", "cam_left_wrist", "cam_right_wrist"],
                 prompt="private run prompt",
                 absolute_path="/private/output",
             ),
@@ -264,6 +265,7 @@ def test_publishable_custom_scenario_keeps_safe_identity_counts_and_omits_privat
     encoded = json.dumps(public, sort_keys=True)
     assert public["metadata"]["scenario"] == "push_letters_single"
     assert public["metadata"]["scene_hash"] == "d" * 64
+    assert public["metadata"]["camera_views"] == ["cam_high", "cam_left_wrist", "cam_right_wrist"]
     assert public["result"]["push_success"] == 1
     assert public["result"]["lifted_count"] == public["result"]["both_arms_count"] == 0
     assert public["result"]["time_limit_count"] == 2
@@ -322,6 +324,7 @@ def test_publishable_per_episode_counts_are_bounded_without_aggregate_episode_fi
     [
         ("metadata", "package_versions", {"numpy": "/" + "Users/name"}),
         ("metadata", "package_versions", {"numpy": "DESKTOP-" + "EXAMPLE"}),
+        ("metadata", "camera_views", ["cam_high"]),
         ("result", "request_count", "192" + ".168.1.2"),
         ("result", "trajectory_plot_id", "/" + "Users/private/plot.png"),
         ("result", "trajectory_joint_count", 13),

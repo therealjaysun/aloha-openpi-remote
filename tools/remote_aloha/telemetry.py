@@ -37,6 +37,7 @@ _PACKAGE_NAMES = {
 
 _PUBLISHABLE_METADATA = {
     "action_horizon",
+    "camera_views",
     "checkpoint_label",
     "model_action_horizon",
     "package_versions",
@@ -410,6 +411,8 @@ def _valid_publishable_metadata(metadata: Mapping[str, object]) -> dict[str, obj
         value = result.get(key)
         if value is not None and (isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 50):
             raise ValueError(f"publishable telemetry {key} is invalid")
+    if "camera_views" in result and result["camera_views"] != ["cam_high", "cam_left_wrist", "cam_right_wrist"]:
+        raise ValueError("publishable telemetry camera views are invalid")
     seeds = result.get("seeds")
     if seeds is not None and (
         not isinstance(seeds, list)

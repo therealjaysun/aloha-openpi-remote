@@ -16,9 +16,14 @@ def _actions(offset: float = 0.0) -> np.ndarray:
 
 
 def _observation() -> dict:
+    image = np.zeros((3, 224, 224), dtype=np.uint8)
     return {
         "state": np.zeros(14, dtype=np.float64),
-        "images": {"cam_high": np.zeros((3, 224, 224), dtype=np.uint8)},
+        "images": {
+            "cam_high": image,
+            "cam_left_wrist": image,
+            "cam_right_wrist": image,
+        },
     }
 
 
