@@ -1,7 +1,9 @@
 import numpy as np
 import pytest
 
+from tools.remote_aloha.config import MacSimConfig
 from tools.remote_aloha.sim_smoke_test import percentile_ms
+from tools.remote_aloha.sim_smoke_test import run
 from tools.remote_aloha.sim_smoke_test import validate_action
 from tools.remote_aloha.sim_smoke_test import validate_observation
 
@@ -39,3 +41,12 @@ def test_invalid_action_and_empty_latency_are_rejected() -> None:
 
 def test_percentile_is_reported_in_milliseconds() -> None:
     assert percentile_ms([1.0, 2.0, 3.0], 50) == 2.0
+
+
+def test_smoke_validates_output_root_before_writing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "tools.remote_aloha.sim_smoke_test.validate_output_root",
+        lambda path: (_ for _ in ()).throw(ValueError("unsafe output")),
+    )
+    with pytest.raises(ValueError, match="unsafe output"):
+        run(MacSimConfig(), enforce_budget=False)

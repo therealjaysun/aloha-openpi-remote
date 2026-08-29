@@ -23,7 +23,7 @@ main
 | 6/7 | `codex/05-observability` | `codex/04-end-to-end-control` | `feat(telemetry): record control and GPU metrics` |
 | 7/7 | `codex/06-hardening-docs` | `codex/05-observability` | `docs: harden and document the complete workflow` |
 
-PR 6 is [open](https://github.com/therealjaysun/pi-robotics/pull/6) at the completed Phase 05 branch. PR 7 remains to be created after Phase 06 validation.
+All seven PRs are open, ready, green, and correctly stacked for human review. [PR 7](https://github.com/therealjaysun/pi-robotics/pull/7) contains final implementation candidate `a8a3ca1`; none is configured for auto-merge.
 
 ## Per-phase procedure
 
@@ -42,3 +42,7 @@ PR 6 is [open](https://github.com/therealjaysun/pi-robotics/pull/6) at the compl
 Every PR includes: Summary; Phase plan; Stack position; Base PR dependency; Scope; Non-goals; Implementation details; Files changed; Tests executed; Test results; Evidence; Known limitations; Security considerations; Review guide; Rollback procedure; Checklist.
 
 Include exactly: `This is PR X of 7 in a stacked series. Review and merge the stack in numerical order.`
+
+## Post-stack experiment
+
+S0827 Push-π is not PR 8 of this series. Prefer `codex/push-pi-scenarios` from post-merge `main` with one standalone PR. If the user explicitly schedules it before merge, branch from `codex/06-hardening-docs`, base the temporary PR there, retain the seven-PR merge order, and retarget only after PR 7 lands.

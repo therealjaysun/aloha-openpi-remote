@@ -7,6 +7,6 @@
 - **Validation:** `make test`; targeted test files; upstream `uv run pytest --strict-markers -m "not manual"` where environment permits; mutation spot-check each nontrivial branch by forcing one failure.
 - **Acceptance:** `REQUIREMENTS.md` T01–T12 are covered; root `tests/` is discovered; tests are deterministic and need no GPU/network/secrets; feature and test stay in the same phase commit; no framework beyond pytest already upstream.
 - **Planned commit:** `test(runtime): cover contracts and lifecycle edges`.
-- **Actual findings:** Project-specific configuration, routing, process, server, smoke, and security-gate tests now run in the lightweight Mac environment and hosted Linux. Later phase interfaces still need their focused tests.
-- **Remaining blockers:** Phases 03–05 interfaces do not exist yet; upstream GPU-heavy/private-runner lanes remain infeasible here.
-- **Completion status:** Planned.
+- **Actual findings:** `make test` discovers 319 project tests: 318 passed and the Linux-only PIDfd test skipped on macOS. The suite covers T01–T14, including strict trajectory schema/shape/finite/coverage/plot behavior and the combined trajectory plus cleanup/writer-close finalizer. Twenty-one feasible upstream `openpi-client` image/msgpack tests also passed. Ruff, formatting, Bash syntax, and both hosted pure-check jobs passed.
+- **Remaining blockers:** None. The full upstream model/training/GPU suite is deliberately recorded as infeasible in the lightweight Mac/public-CI lane because it requires the heavyweight Linux/CUDA/data environment; exact project contract and real RTX evidence cover the modified integration.
+- **Completion status:** Complete.

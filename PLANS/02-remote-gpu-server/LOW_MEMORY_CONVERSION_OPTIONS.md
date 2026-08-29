@@ -51,8 +51,8 @@ Option C passed on the current PC for both profiles. π₀ and π₀.₅ each pa
 
 ## AI continuation capsule
 
-- Active phase/subphase: `02.04` complete; continue at `03.01`.
+- Historical recovery note: phases 00–06 are complete; current execution state lives only in [`../STATUS.md`](../STATUS.md).
 - Recovery command after an artifact is removed or the pin changes: `OPENPI_POLICY_PROFILE=pi0_aloha_sim make convert-pc` after `make ci`, `make secret-scan`, push, `make doctor-pc`, and `make setup-pc`.
-- Success next step: completed for both profiles; retain the converted PC-local artifacts and continue with Phase 03 secure connectivity.
+- Success state: completed for both profiles; retain the converted PC-local artifacts. No phase continuation is pending here.
 - Every outcome records `E-PC-BF16`: machine, UTC, exact command/exit, project and upstream SHAs, profile, sanitized proof/conversion/load/inference result, RSS/GPU peaks, ignored artifact paths and hashes, produced checkpoint hash when applicable, and exact recovery. On failure, request an Ubuntu 22.04 conversion process with ≥32 GiB available RAM and ≥60 GiB disk.
 - Never infer Phase 02 completion from conversion, checkpoint loading, or server health alone; require finite `(50,14)` actions for both profiles.

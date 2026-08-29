@@ -11,10 +11,10 @@ from examples.aloha_sim.saver import VideoSaver
 from tools.remote_aloha.config import POLICY_PROFILES
 from tools.remote_aloha.config import MacSimConfig
 from tools.remote_aloha.config import RemoteConfig
+from tools.remote_aloha.config import validate_output_root
 from tools.remote_aloha.run import _connect_with_retry
 from tools.remote_aloha.run import _gpu_events
 from tools.remote_aloha.run import _run_seed
-from tools.remote_aloha.run import _validated_output_root
 from tools.remote_aloha.run import _write_performance_summary
 from tools.remote_aloha.run import control_episode
 from tools.remote_aloha.run import run
@@ -511,16 +511,23 @@ def test_invalid_action_never_reaches_environment() -> None:
 
 def test_output_root_inside_repository_must_be_ignored(monkeypatch) -> None:
     monkeypatch.setattr(
-        "tools.remote_aloha.run.subprocess.run",
+        "tools.remote_aloha.config.subprocess.run",
         lambda *args, **kwargs: SimpleNamespace(returncode=1),
     )
     with pytest.raises(ValueError, match="must be ignored"):
-        _validated_output_root(Path("unignored-phase-output"))
+        validate_output_root(Path("unignored-phase-output"))
 
 
 @pytest.mark.parametrize(
     "outcome",
-    ["complete", "interrupted", "telemetry-close-failure", "plot-failure", "plot-interrupted"],
+    [
+        "complete",
+        "interrupted",
+        "telemetry-close-failure",
+        "policy-close-failure",
+        "plot-failure",
+        "plot-interrupted",
+    ],
 )
 def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, outcome: str) -> None:
     class Transport:
@@ -532,6 +539,8 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
 
         def close(self) -> None:
             self.closed = True
+            if outcome == "policy-close-failure":
+                raise TimeoutError("policy cleanup remains pending")
 
     class Environment:
         def __init__(self) -> None:
@@ -604,17 +613,22 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
     if outcome in {"interrupted", "plot-interrupted"}:
         with pytest.raises(KeyboardInterrupt):
             _run_seed(*arguments)
-    elif outcome in {"telemetry-close-failure", "plot-failure"}:
-        message = "telemetry close failed" if outcome == "telemetry-close-failure" else "plot failed"
-        with pytest.raises(OSError, match=message):
+    elif outcome in {"telemetry-close-failure", "policy-close-failure", "plot-failure"}:
+        expected = {
+            "telemetry-close-failure": "telemetry close failed",
+            "policy-close-failure": "policy cleanup remains pending",
+            "plot-failure": "plot failed",
+        }[outcome]
+        with pytest.raises((OSError, TimeoutError), match=expected):
             _run_seed(*arguments)
     else:
         result = _run_seed(*arguments)
         assert result["infrastructure_pass"] is True
     manifest = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["cleanup_pending"] is False
+    assert manifest["cleanup_pending"] is (outcome == "policy-close-failure")
     expected_status = {
         "telemetry-close-failure": "failed",
+        "policy-close-failure": "failed",
         "plot-failure": "failed",
         "plot-interrupted": "interrupted",
     }.get(outcome, outcome)
@@ -624,8 +638,13 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
     telemetry = (output_dir / "telemetry.jsonl").read_text(encoding="utf-8").splitlines()
     assert json.loads(telemetry[0])["event"] == "metadata"
     assert json.loads(telemetry[-1])["event"] == "terminal"
-    assert (output_dir / "telemetry-summary.json").exists()
-    assert (output_dir / "telemetry-summary.md").exists()
+    telemetry_summary_paths = (output_dir / "telemetry-summary.json", output_dir / "telemetry-summary.md")
+    if outcome == "telemetry-close-failure":
+        assert not any(path.exists() for path in telemetry_summary_paths)
+        assert manifest["telemetry"]["writer_closed"] is False
+    else:
+        assert all(path.exists() for path in telemetry_summary_paths)
+        assert manifest["telemetry"]["writer_closed"] is True
     trajectory = manifest["trajectory"]
     assert trajectory["sample_count"] == manifest["episode"]["steps_applied"] == 1
     assert trajectory["step_coverage"] == 1.0
@@ -649,6 +668,7 @@ def test_run_seed_finalizes_manifest_when_telemetry_cannot_start(tmp_path: Path,
     manifest = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["status"] == "failed"
     assert manifest["cleanup_pending"] is False
+    assert manifest["telemetry"]["writer_closed"] is False
 
 
 def test_run_writes_failed_root_summary(tmp_path: Path, monkeypatch) -> None:

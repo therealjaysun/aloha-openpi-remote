@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from pathlib import PurePosixPath
 import re
+import subprocess
 
 DEFAULT_TASK = "gym_aloha/AlohaTransferCube-v0"
 DEFAULT_POLICY_PROFILE = "pi0_aloha_sim"
@@ -161,6 +162,19 @@ def get_policy_profile(name: str) -> PolicyProfile:
     except KeyError as error:
         choices = ", ".join(POLICY_PROFILES)
         raise ValueError(f"OPENPI_POLICY_PROFILE must be one of: {choices}") from error
+
+
+def validate_output_root(path: Path) -> Path:
+    repository = Path.cwd().resolve()
+    resolved = path.resolve()
+    if resolved == repository or repository in resolved.parents:
+        relative = resolved.relative_to(repository)
+        ignored = subprocess.run(["git", "check-ignore", "--quiet", "--", str(relative)], timeout=10, check=False)
+        if ignored.returncode:
+            raise ValueError("RUN_OUTPUT_DIR inside the repository must be ignored by Git")
+    elif not path.is_absolute():
+        raise ValueError("RUN_OUTPUT_DIR outside the repository must be absolute")
+    return path
 
 
 def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str] | None = None) -> MacSimConfig:

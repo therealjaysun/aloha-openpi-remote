@@ -8,7 +8,6 @@ import json
 import math
 import os
 from pathlib import Path
-import subprocess
 import tempfile
 import time
 import uuid
@@ -24,6 +23,7 @@ from tools.remote_aloha.config import PolicyProfile
 from tools.remote_aloha.config import RemoteConfig
 from tools.remote_aloha.config import load_mac_sim_config
 from tools.remote_aloha.config import load_remote_config
+from tools.remote_aloha.config import validate_output_root
 from tools.remote_aloha.connection_check import verify_ready_tunnel
 from tools.remote_aloha.observation_contract import convert_gym_observation
 from tools.remote_aloha.policy_contract import validate_policy_action
@@ -87,19 +87,6 @@ def _json_safe(value: object, depth: int = 0) -> object:
 
 def _percentile(values: list[float], percentile: float) -> float | None:
     return float(np.percentile(values, percentile)) if values else None
-
-
-def _validated_output_root(path: Path) -> Path:
-    repository = Path.cwd().resolve()
-    resolved = path.resolve()
-    if resolved == repository or repository in resolved.parents:
-        relative = resolved.relative_to(repository)
-        ignored = subprocess.run(["git", "check-ignore", "--quiet", "--", str(relative)], timeout=10, check=False)
-        if ignored.returncode:
-            raise ValueError("RUN_OUTPUT_DIR inside the repository must be ignored by Git")
-    elif not path.is_absolute():
-        raise ValueError("RUN_OUTPUT_DIR outside the repository must be absolute")
-    return path
 
 
 def control_episode(
@@ -437,6 +424,7 @@ def _run_seed(
             },
         )
     finally:
+        cleanup_pending = False
         resources = (
             ("policy_close", policy if policy is not None else transport),
             ("environment_close", environment),
@@ -447,6 +435,7 @@ def _run_seed(
             try:
                 resource.close()
             except BaseException as error:
+                cleanup_pending = True
                 errors.append({"stage": stage, "type": type(error).__name__, "message": str(error)[:500]})
                 if primary is None:
                     primary = error
@@ -520,6 +509,7 @@ def _run_seed(
             if primary is None:
                 primary = error
         telemetry_summary = None
+        telemetry_writer_closed = False
         try:
             wait_metrics = {
                 "dropped_leading_actions": int(stats.get("dropped_leading_actions", 0)),
@@ -563,6 +553,7 @@ def _run_seed(
             if telemetry_writer is not None:
                 try:
                     telemetry_writer.close()
+                    telemetry_writer_closed = True
                 except BaseException as error:
                     errors.append(
                         {"stage": "telemetry_close", "type": type(error).__name__, "message": str(error)[:500]}
@@ -571,21 +562,22 @@ def _run_seed(
                     status = "failed" if status == "complete" else status
                     if primary is None:
                         primary = error
-        try:
-            telemetry_summary = aggregate_jsonl(telemetry_path)
-            write_summary(output_dir / "telemetry-summary.json", telemetry_summary, publishable=True)
-            write_markdown_summary(output_dir / "telemetry-summary.md", telemetry_summary)
-        except BaseException as error:
-            errors.append({"stage": "telemetry_summary", "type": type(error).__name__, "message": str(error)[:500]})
-            infrastructure_pass = False
-            status = "failed" if status == "complete" else status
-            if primary is None:
-                primary = error
+        if telemetry_writer_closed:
+            try:
+                telemetry_summary = aggregate_jsonl(telemetry_path)
+                write_summary(output_dir / "telemetry-summary.json", telemetry_summary, publishable=True)
+                write_markdown_summary(output_dir / "telemetry-summary.md", telemetry_summary)
+            except BaseException as error:
+                errors.append({"stage": "telemetry_summary", "type": type(error).__name__, "message": str(error)[:500]})
+                infrastructure_pass = False
+                status = "failed" if status == "complete" else status
+                if primary is None:
+                    primary = error
 
         manifest = {
             "schema": 1,
             "status": status,
-            "cleanup_pending": False,
+            "cleanup_pending": cleanup_pending,
             "infrastructure_pass": infrastructure_pass,
             "profile": remote_config.policy_profile.name,
             "experimental_profile": remote_config.policy_profile.experimental,
@@ -612,6 +604,7 @@ def _run_seed(
             "telemetry": {
                 "path": str(telemetry_path),
                 "summary": telemetry_summary,
+                "writer_closed": telemetry_writer_closed,
                 "write_p95_ms": _percentile(telemetry_overheads_ms, 95),
             },
             "trajectory": {
@@ -912,7 +905,7 @@ def run() -> dict[str, object]:
     upstream_sha = UPSTREAM_SHA
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")  # noqa: UP017 (Python 3.10)
     run_id = uuid.uuid4().hex
-    root = _validated_output_root(sim_config.output_dir) / "phase05" / timestamp / remote_config.policy_profile.name
+    root = validate_output_root(sim_config.output_dir) / "phase05" / timestamp / remote_config.policy_profile.name
     summary = {
         "status": "running",
         "run_id": run_id,

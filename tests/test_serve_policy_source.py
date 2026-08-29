@@ -54,6 +54,7 @@ def test_wsl_start_wrapper_has_exact_two_profile_routes_and_loopback() -> None:
     assert '"--policy-backend=$backend"' in source
     assert "jax_platform=cpu" in source
     assert "${checkpoint_label}_pytorch" in source
+    assert '-f "$checkpoint/model.safetensors" || -f "$checkpoint/model.safetensors.index.json"' in source
     assert "--compact-masked-images" in source
     assert '"XLA_PYTHON_CLIENT_MEM_FRACTION=$jax_mem_fraction"' in source
     assert "0.75|0.80|0.85|0.90|0.95" in source

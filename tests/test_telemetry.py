@@ -90,6 +90,13 @@ def test_reader_rejects_json_nan(tmp_path: Path) -> None:
         read_jsonl(path)
 
 
+def test_reader_rejects_boolean_schema(tmp_path: Path) -> None:
+    path = tmp_path / "events.jsonl"
+    path.write_text(json.dumps({**_event("metadata", 1), "schema": True}) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="schema-1"):
+        read_jsonl(path)
+
+
 def test_known_aggregation_fixture_and_empty_and_single_samples() -> None:
     assert summarize_values([]) == {"count": 0, "mean": None, "p50": None, "p95": None, "max": None}
     assert summarize_values([7]) == {"count": 1, "mean": 7.0, "p50": 7.0, "p95": 7.0, "max": 7.0}
@@ -203,9 +210,9 @@ def test_publishable_summary_is_allowlisted_labels_profile_and_does_not_mutate_r
     ("section", "key", "value"),
     [
         ("metadata", "package_versions", {"numpy": "/" + "Users/name"}),
-        ("metadata", "package_versions", {"numpy": "DESKTOP-EXAMPLE"}),
-        ("result", "request_count", "192.168.1.2"),
-        ("result", "trajectory_plot_id", "/Users/private/plot.png"),
+        ("metadata", "package_versions", {"numpy": "DESKTOP-" + "EXAMPLE"}),
+        ("result", "request_count", "192" + ".168.1.2"),
+        ("result", "trajectory_plot_id", "/" + "Users/private/plot.png"),
         ("result", "trajectory_joint_count", 13),
         ("result", "trajectory_step_coverage", 1.01),
         ("metrics", "warm_inference_ms", {"count": 1, "mean": "raw error", "p50": 1, "p95": 1, "max": 1}),

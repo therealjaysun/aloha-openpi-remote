@@ -11,6 +11,8 @@ Codex remains in the Mac project workspace. PC-side work runs remotely over the 
 | P2 — Remote setup/conversion | 02 remote validation–03 | Codex runs bounded diagnostics, the partial-BF16 recovery experiment, and SSH commands here | On; WSL/OpenPI/converter/server run the exact candidate SHA; no PC-side CI | Stay at Mac unless Codex reports a Windows-admin blocker |
 | B1 — Both machines | 04–05 | MuJoCo, client, tunnel, video, local telemetry | Policy server and GPU telemetry | Keep PC on/awake; no routine console work |
 | P3 — Final validation | 06 | Tests, docs, security scan, PR work | On only for final GPU/inference checks | Turn on if it was powered down; reply `PC ready` |
+| S0 — Push-π Mac gate | S0827 implementation through calibration | Config/environment/projection, pure tests, MuJoCo calibration, videos/display, exact candidate, hosted checks | Off | No action; PC remains off until the committed descriptor and Mac gates pass |
+| S1 — Push-π matrix | S0827 exact-candidate evaluation | MuJoCo, client, private artifacts, summaries | On; one warmed profile server at a time, 12 scored episodes per profile; no PC-side CI or display smokes | Turn on/sign in/keep awake only after `PC ACTION REQUIRED — POWER ON` |
 | OFF — Shutdown | After final validation or a durable blocker | Stop tunnel/runtime | Stop server/GPU sampler, then PC may power off | Wait for `PC SAFE TO POWER OFF` |
 
 ## Notifications Codex will send
@@ -64,3 +66,5 @@ At gate P1, Codex validates steps 1–8 for Phase 02 and stops at the first real
 - Raw server/sampler logs stay ignored on their originating machine. Copy them to the ignored run directory when required; only an allowlisted sanitized summary may be published.
 
 Machine-specific values live only in local SSH configuration, ignored `.env`, or ignored raw evidence; plans, commits, PRs, published summaries, and example telemetry use placeholders.
+
+For S0827, reuse converted weights only after profile/runtime identity checks pass. Run the 12-episode π₀ matrix, stop, then the 12-episode experimental π₀.₅ matrix, stop again, and verify no owned listener/tunnel/sampler remains. Mac display smokes happen before the PC gate and are not repeated on GPU.

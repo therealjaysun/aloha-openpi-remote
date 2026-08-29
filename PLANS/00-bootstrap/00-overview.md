@@ -17,7 +17,7 @@
 - **Actual results:** Official history/submodules are preserved; `upstream` is fetch-only with push disabled; public `origin` is `https://github.com/therealjaysun/pi-robotics`; `main` is pinned to upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`. Gitleaks 8.30.1 passed the project range, staged changes, and all non-ignored candidates. Actions permits only selected immutable-SHA actions, requires SHA pinning, and grants read-only default workflow permissions. Hosted `secret-scan` passed; derivative-inapplicable upstream private-runner jobs skipped explicitly.
 - **Deviations:** GitHub authentication delayed publication but did not block local Phase 01. The validated Phase 01 commit was preserved by merging this parent branch instead of rewriting it.
 - **PR:** [#1](https://github.com/therealjaysun/pi-robotics/pull/1), open for human review, base `main`, head `codex/00-bootstrap`, not draft.
-- **Final commit SHA:** Publication safeguard `076becccc075f44ad79f33044e0d7f205861cf20`; repository evidence `27d7cabe394ea56db80c0b99871bc43b8abe0ccb`; this final evidence update is branch HEAD.
+- **Final commit SHA:** Publication safeguard `076becccc075f44ad79f33044e0d7f205861cf20`; repository evidence `27d7cabe394ea56db80c0b99871bc43b8abe0ccb`; final branch tip `62083a5289f72d00aa0e0baaaa7f3c1097383c89`.
 
 ## Machine handoff
 

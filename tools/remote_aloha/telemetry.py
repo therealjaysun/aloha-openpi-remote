@@ -201,7 +201,8 @@ def _reject_json_constant(value: str) -> None:
 
 
 def _validate_event(value: object, line_number: int) -> dict[str, object]:
-    if not isinstance(value, dict) or value.get("schema") != 1:
+    schema = value.get("schema") if isinstance(value, dict) else None
+    if not isinstance(value, dict) or isinstance(schema, bool) or not isinstance(schema, int) or schema != 1:
         raise ValueError(f"telemetry line {line_number} must be a schema-1 object")
     event = value.get("event")
     timestamp = value.get("timestamp_utc")

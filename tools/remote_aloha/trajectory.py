@@ -45,7 +45,8 @@ def _trajectory_rows(events: Iterable[Mapping[str, object]], steps_applied: int)
     for event in events:
         if not isinstance(event, Mapping) or event.get("event") != "step":
             continue
-        if event.get("schema") != 1:
+        schema = event.get("schema")
+        if isinstance(schema, bool) or not isinstance(schema, int) or schema != 1:
             raise ValueError("trajectory rows must be schema-1 step events")
         applied_step = event.get("applied_step")
         if isinstance(applied_step, bool) or not isinstance(applied_step, int) or applied_step != len(rows) + 1:

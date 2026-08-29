@@ -60,6 +60,7 @@ def test_joint_vector_rejects_wrong_shape_and_nonfinite_values(value: list[float
         ([_step(1, -0.1)], 1, "nonnegative"),
         ([_step(1, 0.0)], 2, "samples"),
         ([{**_step(1, 0.0), "schema": 2}], 1, "schema-1"),
+        ([{**_step(1, 0.0), "schema": True}], 1, "schema-1"),
         ([{key: value for key, value in _step(1, 0.0).items() if key != "actual_joint_positions"}], 1, "exactly"),
         ([_step(1, 0.0), _step(2, 0.1, commanded=False)], 2, "every trajectory row"),
     ],

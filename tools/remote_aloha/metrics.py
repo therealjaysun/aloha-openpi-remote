@@ -5,13 +5,13 @@ from pathlib import Path
 
 from tools.remote_aloha.config import load_mac_sim_config
 from tools.remote_aloha.config import load_remote_config
+from tools.remote_aloha.config import validate_output_root
 from tools.remote_aloha.remote import RemoteError
-from tools.remote_aloha.run import _validated_output_root
 from tools.remote_aloha.run import _write_performance_summary
 
 
 def summarize_latest() -> Path:
-    output = _validated_output_root(load_mac_sim_config().output_dir)
+    output = validate_output_root(load_mac_sim_config().output_dir)
     profile = load_remote_config().policy_profile.name
     candidates = sorted((output / "phase05").glob(f"*/{profile}/summary.json"))
     if not candidates:

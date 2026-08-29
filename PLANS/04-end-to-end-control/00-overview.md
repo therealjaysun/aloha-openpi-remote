@@ -17,7 +17,7 @@
 - **Actual results:** Hardware implementation `0fca61f` passed 205 tests plus lint/format/shell/secret gates; the native Mac simulator completed seeds 0–2 for 900 total steps at 13.76 ms aggregate p95 with a decoded 300-frame, 50 fps video. Through the private tunnel, π₀ completed seeds 0/1/2 in 201/218/293 steps and reported task success 3/3; experimental π₀.₅ completed all three 300-step limits and reported task success 0/3. All six infrastructure results and decoded videos passed. Active control measured 45.44–47.09 Hz, warmed request p95 measured 451.71–612.38 ms, and 0–2 underruns occurred per episode, so no uninterrupted 50 Hz claim is made.
 - **Deviations:** Both π₀ and experimental π₀.₅ profiles are first-class runtime selections; evaluation labels remain distinct. A direct fresh-per-episode loop replaces planned patches to the generic upstream Runtime, eliminating unrelated shared-runtime behavior and cross-episode state from this demo path.
 - **PR:** [PR 5](https://github.com/therealjaysun/pi-robotics/pull/5).
-- **Final commit SHA:** Hardware implementation `0fca61f796f018706d1af51d00ab562b68509eef`; final evidence at branch head.
+- **Final commit SHA:** Hardware implementation `0fca61f796f018706d1af51d00ab562b68509eef`; final branch tip `d7e9714b3448eed6ba523eac62ef24db7b41f51e`.
 
 ## Minimal runtime design
 

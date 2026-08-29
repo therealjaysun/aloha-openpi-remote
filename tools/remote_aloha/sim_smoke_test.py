@@ -16,6 +16,7 @@ import numpy as np
 
 from tools.remote_aloha.config import MacSimConfig
 from tools.remote_aloha.config import load_mac_sim_config
+from tools.remote_aloha.config import validate_output_root
 
 EXPECTED_RAW_IMAGE_SHAPE = (480, 640, 3)
 EXPECTED_POLICY_IMAGE_SHAPE = (3, 224, 224)
@@ -180,7 +181,7 @@ def _run_episode(config: MacSimConfig, seed: int, run_dir: Path, *, record: bool
 
 def run(config: MacSimConfig, *, enforce_budget: bool = True) -> Path:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")  # noqa: UP017 (Python 3.10)
-    run_dir = config.output_dir / "phase01" / timestamp
+    run_dir = validate_output_root(config.output_dir) / "phase01" / timestamp
     run_dir.mkdir(parents=True, exist_ok=False)
     manifest_path = run_dir / "manifest.json"
     manifest: dict[str, Any] = {
