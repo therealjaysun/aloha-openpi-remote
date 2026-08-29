@@ -1,5 +1,6 @@
 import base64
 import io
+import json
 from pathlib import Path
 import subprocess
 from types import SimpleNamespace
@@ -162,9 +163,42 @@ def test_setup_migrates_only_the_known_pre_rename_origin() -> None:
     script = _setup_script(RemoteConfig(), "a" * 40, "codex/06-hardening-docs")
     assert "legacy_repo_url" in script
     assert 'remote set-url origin "$repo_url"' in script
+    assert [line for line in script.splitlines() if line.startswith("progress '")] == [
+        "progress 'validating workspace and storage'",
+        "progress 'syncing the exact source candidate'",
+        "progress 'synchronizing pinned submodules'",
+        "progress 'synchronizing the locked Python environment'",
+        "progress 'validating the RTX 3090 runtime'",
+        "progress 'setup complete'",
+    ]
 
 
-def test_doctor_accepts_selected_ubuntu_2404_and_requires_uv(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_setup_streams_the_exact_candidate(monkeypatch: pytest.MonkeyPatch) -> None:
+    candidate = "a" * 40
+    session = RemoteSession(RemoteConfig())
+    target = RemoteTarget("powershell", "Ubuntu-24.04")
+    captured = {}
+    monkeypatch.setattr(remote_module, "_read_launch_receipt", lambda: None)
+    monkeypatch.setattr(remote_module, "_candidate", lambda: (candidate, "codex/push-pi-scenarios"))
+    monkeypatch.setattr(remote_module, "doctor", lambda actual_session: target)
+
+    def run_wsl(*args: object, **kwargs: object) -> str:
+        captured.update(kwargs)
+        return f"__ALOHA_PROJECT_SHA__={candidate}\n__ALOHA_SETUP__=passed"
+
+    monkeypatch.setattr(session, "run_wsl", run_wsl)
+    remote_module.setup(session)
+    assert captured == {
+        "timeout": session.config.server_startup_timeout_seconds + 45,
+        "label": "setup-pc",
+        "command_timeout": session.config.server_startup_timeout_seconds,
+        "stream": True,
+    }
+
+
+def test_doctor_accepts_selected_ubuntu_2404_and_requires_uv(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     uv = "uv 0.8.13"
 
     def run_wsl(*args: object, **kwargs: object) -> str:
@@ -175,7 +209,8 @@ def test_doctor_accepts_selected_ubuntu_2404_and_requires_uv(monkeypatch: pytest
                 "__ALOHA_WSL2__=yes",
                 "__ALOHA_ARCH__=x86_64",
                 "__ALOHA_GPU_NAME__=NVIDIA GeForce RTX 3090",
-                "__ALOHA_RAM_AVAILABLE_KIB__=12000000",
+                "__ALOHA_RAM_TOTAL_KIB__=32866932",
+                "__ALOHA_RAM_AVAILABLE_KIB__=31981904",
                 "__ALOHA_TOOLS__=ready",
                 f"__ALOHA_UV__={uv}",
             ]
@@ -185,10 +220,42 @@ def test_doctor_accepts_selected_ubuntu_2404_and_requires_uv(monkeypatch: pytest
     session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04"))
     target = RemoteTarget("powershell", "Ubuntu-24.04")
     assert remote_module.doctor(session, target) == target
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["ram_total_kib"] == 32866932
+    assert summary["ram_available_kib"] == 31981904
+    assert summary["automatic_conversion_restore_mode"] == "full-float32"
     with pytest.raises(RemoteError, match="select it explicitly"):
         remote_module.doctor(RemoteSession(RemoteConfig()), target)
     uv = "missing"
     with pytest.raises(RemoteError, match="curl -LsSf https://astral.sh/uv/install.sh"):
+        remote_module.doctor(session, target)
+
+
+def test_doctor_rejects_invalid_wsl_ram(monkeypatch: pytest.MonkeyPatch) -> None:
+    values = {"total": "", "available": "12000000"}
+
+    def run_wsl(*args: object, **kwargs: object) -> str:
+        return "\n".join(
+            [
+                "__ALOHA_OS_ID__=ubuntu",
+                "__ALOHA_OS_VERSION__=24.04",
+                "__ALOHA_WSL2__=yes",
+                "__ALOHA_ARCH__=x86_64",
+                "__ALOHA_GPU_NAME__=NVIDIA GeForce RTX 3090",
+                f"__ALOHA_RAM_TOTAL_KIB__={values['total']}",
+                f"__ALOHA_RAM_AVAILABLE_KIB__={values['available']}",
+                "__ALOHA_TOOLS__=ready",
+                "__ALOHA_UV__=uv 0.12.6",
+            ]
+        )
+
+    session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04"))
+    target = RemoteTarget("powershell", "Ubuntu-24.04")
+    monkeypatch.setattr(session, "run_wsl", run_wsl)
+    with pytest.raises(RemoteError, match="could not be measured"):
+        remote_module.doctor(session, target)
+    values.update(total="12000000", available="12000001")
+    with pytest.raises(RemoteError, match="could not be measured"):
         remote_module.doctor(session, target)
 
 
@@ -302,6 +369,114 @@ def test_remote_session_uses_argv_stdin_and_total_timeout(monkeypatch: pytest.Mo
     assert captured["timeout"] == 17
     assert "shell" not in captured
     assert (tmp_path / "01-test.log").stat().st_mode & 0o777 == 0o600
+
+
+def test_remote_session_streams_once_and_keeps_private_evidence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(remote_module, "ssh_argv", lambda config: ["bash", "-c"])
+    session = RemoteSession(RemoteConfig())
+    session.evidence_dir = tmp_path
+    status, output = session.ssh(
+        r"printf '[setup] validating workspace and storage\n[setup] \342'; "
+        r"sleep 0.35; printf '\202\254 private-path token\nprivate-out\n'; "
+        r"printf '[server] warning\nprivate-err\n' >&2",
+        timeout=5,
+        label="setup-pc",
+        stream=True,
+    )
+    captured = capsys.readouterr()
+    assert status == 0
+    assert output == "[setup] validating workspace and storage\n[setup] € private-path token\nprivate-out"
+    assert captured.out == ""
+    assert captured.err == "[setup] validating workspace and storage\n"
+    evidence = tmp_path / "01-setup-pc.log"
+    assert evidence.stat().st_mode & 0o777 == 0o600
+    assert "[setup] € private-path token" in evidence.read_text(encoding="utf-8")
+
+
+def test_remote_server_stream_reconstructs_only_valid_status(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    monkeypatch.setattr(remote_module, "ssh_argv", lambda config: ["bash", "-c"])
+    session = RemoteSession(RemoteConfig())
+    session.evidence_dir = tmp_path
+    command = "\n".join(
+        [
+            "printf '[server] loading profile=pi05_aloha_base backend=pytorch; a temporary RAM increase is expected\\n'",
+            "printf '[server] still loading; elapsed=10s\\n'",
+            "printf '[server] still loading; elapsed=999999s\\n'",
+            f"printf '[server] still loading; elapsed={'9' * 5000}s\\n'",
+            "printf '[server] warning\\n'",
+            "printf '[setup] setup complete\\n'",
+        ]
+    )
+    session.ssh(command, timeout=5, label="server-start", stream=True)
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.splitlines() == [
+        "[server] loading profile=pi05_aloha_base backend=pytorch; a temporary RAM increase is expected",
+        "[server] still loading; elapsed=10s",
+    ]
+    assert "999999" in (tmp_path / "01-server-start.log").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("mode", ["timeout", "interrupted-communicate", "interrupted-clock"])
+def test_remote_stream_failure_kills_child_and_preserves_private_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    mode: str,
+) -> None:
+    class Process:
+        def __init__(self) -> None:
+            self.args = ["ssh"]
+            self.returncode = None
+            self.killed = False
+            self.first = True
+
+        def kill(self) -> None:
+            self.killed = True
+            self.returncode = -9
+
+        def communicate(self, **kwargs: object) -> tuple[bytes, bytes]:
+            if mode == "interrupted-communicate" and self.first:
+                self.first = False
+                raise KeyboardInterrupt
+            return b"private-out", b"private-err"
+
+    process = Process()
+    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: process)
+    session = RemoteSession(RemoteConfig())
+    session.evidence_dir = tmp_path
+    if mode.startswith("interrupted"):
+        if mode == "interrupted-clock":
+            times = iter((0.0,))
+
+            def monotonic() -> float:
+                try:
+                    return next(times)
+                except StopIteration as error:
+                    raise KeyboardInterrupt from error
+
+            monkeypatch.setattr(remote_module.time, "monotonic", monotonic)
+        with pytest.raises(KeyboardInterrupt):
+            session.ssh("probe", timeout=1, label="interrupted", stream=True)
+        label = "interrupted"
+    else:
+        times = iter((0.0, 2.0))
+        monkeypatch.setattr(remote_module.time, "monotonic", lambda: next(times))
+        with pytest.raises(RemoteError, match="total deadline") as error:
+            session.ssh("probe", timeout=1, label="timeout", stream=True)
+        assert "private" not in str(error.value)
+        label = "timeout"
+    assert process.killed
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+    evidence = tmp_path / f"01-{label}.log"
+    assert evidence.stat().st_mode & 0o777 == 0o600
+    assert evidence.read_text(encoding="utf-8").count("private") == 2
 
 
 def test_remote_session_maps_outer_timeout_without_leaking_output(
@@ -418,9 +593,11 @@ def test_server_passes_jax_memory_fraction_to_wsl(monkeypatch: pytest.MonkeyPatc
     target = RemoteTarget("powershell", "Ubuntu-24.04")
     monkeypatch.setattr(session, "discover_target", lambda: target)
     events = []
+    streamed = []
 
     def fake_run_wsl(*args: object, **kwargs: object) -> str:
         events.append(("server", str(args[1])))
+        streamed.append(kwargs.get("stream"))
         return ""
 
     monkeypatch.setattr(session, "run_wsl", fake_run_wsl)
@@ -437,6 +614,7 @@ def test_server_passes_jax_memory_fraction_to_wsl(monkeypatch: pytest.MonkeyPatc
     assert f'arg6="$(printf %s {fraction} | base64 -d)"' in script
     assert f'arg7="$(printf %s {candidate} | base64 -d)"' in script
     assert [event[0] for event in events] == ["server", "holder", "route"]
+    assert streamed == [True]
 
 
 def test_server_failure_stops_remote_before_tunnel(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

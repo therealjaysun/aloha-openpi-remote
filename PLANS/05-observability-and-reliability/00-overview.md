@@ -1,7 +1,7 @@
 # Phase 05 — Observability and reliability
 
 - **Objective:** Preserve actionable, low-overhead evidence for every run and fail safely across expected network/process problems.
-- **Scope:** Local JSONL/summary, post-step 14-joint trajectories and atomic plots, ordered overhead/left-wrist/right-wrist episode MP4s, remote low-frequency GPU metrics, bounded reconnect/retry, partial-result reporting, and performance/profile comparison.
+- **Scope:** Local JSONL/summary, bounded stderr episode/stage/10% progress status, post-step 14-joint trajectories and atomic plots, ordered overhead/left-wrist/right-wrist episode MP4s, remote low-frequency GPU metrics, bounded reconnect/retry, partial-result reporting, and performance/profile comparison.
 - **Non-goals:** A second logger, hosted telemetry, databases, dashboards, per-step persistence/network/SSH/`nvidia-smi`, silent exception swallowing, infinite retry.
 - **Dependencies:** Phase 04 local runtime interfaces for pure implementation; live phase 04 runtime and remote lifecycle only for hardware evidence; ignored output directories.
 - **Planned files:** `tools/remote_aloha/telemetry.py`, a small trajectory plot helper and focused test, `tools/remote_aloha/run.py`, `tests/test_telemetry.py`, `scripts/collect_gpu_metrics.sh`, buffered-policy reconnect/run/lifecycle integration, docs/plans.
@@ -9,7 +9,7 @@
 - **Branch:** `codex/05-observability`.
 - **PR base:** `codex/04-end-to-end-control`.
 - **PR title:** `feat(telemetry): record control and GPU metrics`.
-- **Acceptance criteria:** Existing criteria plus one private atomic plot and one atomic horizontal three-camera MP4 per active episode; exact applied-step coverage; authoritative trajectory normalization; safe publishable IDs/metadata; all 14 actual series and all three ordered video panels visually verified.
+- **Acceptance criteria:** Existing criteria plus safe live terminal status without changing JSON stdout or private evidence; one private atomic plot and one atomic horizontal three-camera MP4 per active episode; exact applied-step coverage; authoritative trajectory normalization; safe publishable IDs/metadata; all 14 actual series and all three ordered video panels visually verified.
 - **Test commands:** `make test`; `make lint`; `make secret-scan`; focused synthetic/interrupt/plot/overhead tests; `make metrics`; the existing three-episode π₀ and π₀.₅ `make run` sequence; inspect six plots and confirm outputs remain untracked.
 - **Risks:** Larger rows or composite frames exceed telemetry/RAM budgets, plots obscure series, interrupted artifacts diverge from applied steps, metadata leaks paths, or staged prompt boundaries reuse stale buffered actions.
 - **Rollback:** Disable subscribers/sampler while retaining core control loop; stop validated metrics PID; revert phase; keep partial ignored artifacts.

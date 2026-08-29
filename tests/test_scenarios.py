@@ -562,7 +562,9 @@ def test_matrix_rejects_incomplete_mixed_or_corrupt_evidence(tmp_path: Path, mut
         validate_matrix(copy.deepcopy(raw), require_gpu=False)
 
 
-def test_matrix_interruption_preserves_partial_raw_evidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_matrix_interruption_preserves_partial_raw_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     class Sampler:
         def check(self) -> None:
             return None
@@ -593,6 +595,10 @@ def test_matrix_interruption_preserves_partial_raw_evidence(tmp_path: Path, monk
     assert raw["status"] == "interrupted"
     assert len(raw["scenario_runs"]["push_pi_single"]["episodes"]) == 1
     assert not (raw_path.parent / "matrix-summary.json").exists()
+    progress = capsys.readouterr()
+    assert progress.out == ""
+    assert "matrix start profile=pi05_aloha_base" in progress.err
+    assert "matrix end status=interrupted episodes=1/12" in progress.err
 
 
 def test_matrix_rejects_diagnostic_episode_limit(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -635,7 +641,7 @@ def test_matrix_interruption_remains_primary_when_sampler_stop_fails(
 
 
 def test_matrix_uses_one_sampler_and_checks_before_and_after_all_episodes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     lifecycle = []
 
@@ -669,6 +675,10 @@ def test_matrix_uses_one_sampler_and_checks_before_and_after_all_episodes(
     summary = run_matrix()
     assert summary.is_file()
     assert lifecycle == ["start", *(["check"] * 24), "stop"]
+    progress = capsys.readouterr()
+    assert progress.out == ""
+    assert "matrix validating evidence" in progress.err
+    assert "matrix end status=passed episodes=12/12" in progress.err
 
 
 def test_scenario_metrics_rejects_stale_candidate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

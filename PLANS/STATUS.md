@@ -17,10 +17,10 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 
 ## Active extension cursor
 
-- S0827 composite-video/staged-prompt extension is in progress on `codex/push-pi-scenarios`; π₀.₅ is now the project/experiment default, while π₀ remains explicit. Full gates and one exact-SHA π₀.₅ diagnostic remain.
+- S0827 composite-video/staged-prompt extension is in progress on `codex/push-pi-scenarios`; π₀.₅ is the default and π₀ remains explicit. Safe live Mac-terminal setup/server and bounded simulation progress are being added before the exact-SHA π₀.₅ diagnostic.
 - Mac state: full CI, exact clean-checkout calibration, stock regression, four three-seed hold runs, four visual smokes, and image inspection pass for the amended prompt descriptor.
 - Identity: custom 3-D ALOHA Push-PI experiment inspired by PushT, not the standard PushT benchmark. The glyph task uses Greek π; the letter task uses uppercase dotless `P` and `I`.
-- Machine gate: **OFF pending candidate gates**; no PC action is needed until the exact implementation is committed, pushed, and hosted checks pass.
+- Machine gate: PC online; the 32 GB WSL ceiling and updated read-only doctor pass. Exact-candidate setup/server/run remain gated on commit, push, secret scan, and hosted checks.
 - PR dependency: PR 8 is based on `codex/06-hardening-docs`; retarget to `main` only after PR 7 merges and verify the incremental diff.
 - Plan: [`SCENARIOS_0827/00-overview.md`](SCENARIOS_0827/00-overview.md).
 
@@ -29,7 +29,7 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 - Volatile snapshot at `2026-08-27T03:09:59Z`: Apple Silicon arm64, macOS 26.6.1, 18 GB RAM, 58 GiB workspace disk free. Rerun `make doctor-mac` before capacity decisions.
 - Tools: Python 3.14.5 default, `uv 0.12.1`, `gh 2.89.0`, Docker 28.0.4.
 - Native arm64 Python 3.10.20 now exists only in ignored `examples/aloha_sim/.venv`; the default Python remains untouched and no model/JAX/CUDA stack is installed on Mac.
-- PC capacity observed: RTX 3090 with 24,576 MiB VRAM, about 16 GB physical RAM, about 11.7 GiB visible to WSL, and 8 GiB swap. Source inspection supports ≥32 GiB available RAM as a practical converter target, not a measured upstream minimum.
+- PC capacity observed: RTX 3090 with 24,576 MiB VRAM and 48 GB installed system RAM. On 2026-08-29 the user-owned WSL2 ceiling was changed from 12 to 32 GB with 8 GB swap preserved; the updated doctor reported 32,866,932 KiB total, 31,981,904 KiB available, and automatic `full-float32`. Exact-candidate setup/runtime revalidation remains pending; partial BF16 remains the validated fallback below 16 GiB available.
 - Source baseline remains upstream `215abfb217dbac7d5f1273282331b9b1866c0479`. Baseline commit is `13426ca`; validated Phase 01 implementation is `44e1d5f229c787d7d1af24bf323a968bce33dfcf`.
 - Remotes: official OpenPI is fetch-only `upstream` with push disabled; public project `origin` is `https://github.com/therealjaysun/pi-robotics`.
 - Submodules: ALOHA `d1dc83afd89ded4379851257fe5d85632d31d5ec`; LIBERO `f78abd68ee283de9f9be3c8f7e2a9ad60246e95c`.

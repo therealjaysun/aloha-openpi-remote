@@ -60,7 +60,7 @@ This design avoids the stock synchronous chunk broker, which pauses between chun
 
 `pi0_aloha_sim` uses the task-specific π₀ checkpoint. `pi05_aloha_base` uses the π₀.₅ base checkpoint with ALOHA transforms and is labeled experimental; task scores are never pooled.
 
-Both JAX and PyTorch are explicit server backends, with no silent fallback. On the prepared RTX 3090, JAX loaded but every measured first π₀ request OOMed. The normal demo backend is therefore PyTorch with converted BF16 weights. Below 16 GiB Linux `MemAvailable`, conversion mode `auto` restores one stored leaf at a time, maps and copies it into a GPU-resident model, releases the source leaf, and writes bounded SafeTensors shards. At or above the threshold it retains the full-FP32 restore. Partially failed outputs are not published.
+Both JAX and PyTorch are explicit server backends, with no silent fallback. On the prepared RTX 3090, JAX loaded but every measured first π₀ request OOMed. The normal demo backend is therefore PyTorch with converted BF16 weights. The Windows `.wslconfig` value is only a global WSL2 RAM ceiling; the doctor reports Linux `MemTotal` and instantaneous `MemAvailable`, while conversion selection uses only `MemAvailable`. Below 16 GiB, mode `auto` restores one stored leaf at a time and writes bounded SafeTensors shards; at or above the threshold it retains the full-FP32 restore. Neither the host ceiling nor system RAM changes the fixed 24 GiB GPU VRAM. Partially failed outputs are not published.
 
 ## Ownership and cleanup
 

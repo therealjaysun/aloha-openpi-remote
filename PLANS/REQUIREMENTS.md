@@ -106,6 +106,7 @@ The original combined doctor concept is deliberately split: `make doctor` valida
 | DR17 | Configured local/remote port conflicts | 02,03 | listener checks | Pass through Phase 03: E-PC-SETUP, E-PC-TUNNEL |
 | DR18 | WSL project installation and exact SHA | 02 | E-PC-SETUP | Pass: E-PC-SETUP |
 | DR19 | Public-repository secret hygiene | 00,06 | fail-closed scan | Pass through Phase 05: E-GH, E-MAC05, E-PC-OBS |
+| DR20 | Measure and consistency-check WSL `MemTotal`/`MemAvailable`; derive conversion mode from actual `MemAvailable` without editing Windows configuration | 02 | doctor output + focused tests | Pending exact-candidate doctor; 48 GB demo host's 32 GB cap applied 2026-08-29 |
 
 Every failed doctor row names the failed check and one exact next command; it does not silently fall back.
 
@@ -270,6 +271,7 @@ S0827's historical arm-explicit matrix, coverage run, and long diagnostic are co
 | SP18 | Every stock/custom policy request contains exactly real, nonblank, distinct overhead, left-wrist, and right-wrist uint8 CHW `(3,224,224)` views; safe metadata, request bound, representative visual inspection, local/hosted gates, one exact-candidate π₀ Scenario 1 run, artifacts, metrics, and cleanup pass | S0827 | contract/integration tests + hardware evidence | Pass: E-MAC-S0827-VIEWS, E-PC-S0827-VIEWS |
 | SP19 | Every future active episode MP4/display frame composes synchronized overhead, left-wrist, and right-wrist panels left-to-right at `224×672`; exact applied-step coverage, atomic partial/final output, ignored raw files, and safe metadata remain mandatory | S0827 | video/unit/runner tests + artifact inspection | Pending |
 | SP20 | One opt-in π₀.₅ Scenario 1 diagnostic uses exact orient/approach/push prompts at steps `0/500/1500`, drains and discards old-stage actions before boundaries, records safe stage metadata without prompt text, preserves fixed 300-step tests, and completes one exact-SHA 6,000-step run | S0827 | config/buffer/telemetry tests + hardware evidence | Pending |
+| SP21 | PC setup/server stages stream to the Mac terminal while mode-600 evidence and exact markers remain intact; simulations keep stdout machine-readable and emit only bounded safe stderr lifecycle/stage/10% progress without per-step spam or identifiers/paths | 02,05,S0827 | transport/status tests + exact-candidate terminal observation | Pending |
 
 ## Evidence and recovery ledger
 

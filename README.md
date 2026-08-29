@@ -110,6 +110,16 @@ make secret-scan
 
 Then switch on the PC, sign in, start the selected WSL distro, and confirm Windows OpenSSH is running. Back on the Mac, verify the private alias and run the PC gates:
 
+The 48 GB demo PC uses this Windows-side WSL2 ceiling in `%UserProfile%\.wslconfig` (merge it with any existing settings), preserving 8 GB swap:
+
+```ini
+[wsl2]
+memory=32GB
+swap=8GB
+```
+
+Run `wsl --shutdown` once after editing and before starting project services; it stops every WSL distro. `make doctor-pc` reports the effective Linux total/available RAM. Project scripts never edit the Windows file or require this PC-specific ceiling on other hosts.
+
 ```bash
 ssh -o BatchMode=yes -o StrictHostKeyChecking=yes robot-gpu exit
 OPENPI_WSL_DISTRO=Ubuntu-24.04 make doctor-pc
@@ -118,6 +128,8 @@ OPENPI_WSL_DISTRO=Ubuntu-24.04 make setup-pc
 
 `make doctor-pc` discovers WSL, architecture, disk, RAM, NVIDIA/CUDA visibility, ports, and tools before setup changes the WSL project environment. It must identify an RTX 3090; CPU fallback is rejected. The PC must remain awake only for conversion, policy smoke tests, and full runs; after `make stop` succeeds, it is safe to switch off.
 
+`make setup-pc` and `make server` stream only exact allowlisted setup/model-loading stages to the Mac terminal, including a bounded server-loading heartbeat. `make run` keeps final JSON on stdout and writes safe episode, staged-prompt, 10% progress, coverage, and terminal status lines to stderr; `make scenario-matrix` keeps its summary-path stdout contract and adds matrix lifecycle status. Private raw evidence remains in ignored outputs.
+
 Converted weights are PC-local and ignored. Convert each desired profile once, or again after its artifact is removed or the source/runtime pin changes:
 
 ```bash
@@ -125,7 +137,7 @@ OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE=pi0_aloha_sim make convert-
 OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE=pi05_aloha_base make convert-pc
 ```
 
-Conversion mode `auto` uses the one-layer-at-a-time partial-BF16 restore when Linux `MemAvailable` is below 16 GiB; otherwise it preserves the full-FP32 restore. The bounded path passed for both profiles on the prepared 16 GB PC. The original JAX server remains an explicit diagnostic option, but its first inference repeatedly exhausted GPU memory on this machine. The demo therefore defaults to the matching converted PyTorch checkpoint and never falls back silently.
+Conversion mode `auto` uses the one-layer-at-a-time partial-BF16 restore when Linux `MemAvailable` is below 16 GiB; otherwise it preserves the full-FP32 restore. The bounded path passed for both profiles before the PC RAM upgrade and remains the low-memory fallback; the 32 GB WSL configuration selects the normal full-memory path. The original JAX server remains an explicit diagnostic option, but its first inference repeatedly exhausted GPU memory on the RTX 3090. The demo therefore defaults to the matching converted PyTorch checkpoint and never falls back silently.
 
 ## Run modes
 

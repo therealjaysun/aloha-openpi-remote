@@ -18,6 +18,7 @@ from tools.remote_aloha.run import _gpu_events
 from tools.remote_aloha.run import _prompt_stage
 from tools.remote_aloha.run import _run_seed
 from tools.remote_aloha.run import _scenario_step_info
+from tools.remote_aloha.run import _status
 from tools.remote_aloha.run import _write_performance_summary
 from tools.remote_aloha.run import control_episode
 from tools.remote_aloha.run import run
@@ -907,7 +908,7 @@ def test_output_root_inside_repository_must_be_ignored(monkeypatch) -> None:
         "camera-interrupted",
     ],
 )
-def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, outcome: str) -> None:
+def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, outcome: str, capsys) -> None:
     class Transport:
         def __init__(self) -> None:
             self.closed = False
@@ -1069,6 +1070,29 @@ def test_run_seed_finalizes_manifest_and_resources(tmp_path: Path, monkeypatch, 
         "partial" if outcome in {"interrupted", "camera-failure", "camera-interrupted"} else "complete"
     )
     assert manifest["video"]["status"] == expected_video_status
+    progress = capsys.readouterr()
+    assert progress.out == ""
+    assert "[simulation] episode seed=0 preparing" in progress.err
+    assert "[simulation] seed=0 progress=1/300" in progress.err
+    assert f"[simulation] episode seed=0 end status={expected_status}" in progress.err
+    assert len([line for line in progress.err.splitlines() if "seed=0 progress=" in line]) <= 11
+    assert str(tmp_path) not in progress.err
+
+
+@pytest.mark.parametrize("stderr_mode", ["closed", "missing"])
+def test_status_output_never_changes_the_run_outcome(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], stderr_mode: str
+) -> None:
+    class ClosedStderr:
+        def write(self, value: str) -> int:
+            raise BrokenPipeError
+
+        def flush(self) -> None:
+            raise BrokenPipeError
+
+    monkeypatch.setattr("tools.remote_aloha.run.sys.stderr", ClosedStderr() if stderr_mode == "closed" else None)
+    _status("safe bounded progress")
+    assert capsys.readouterr().out == ""
 
 
 def test_run_seed_finalizes_manifest_when_telemetry_cannot_start(tmp_path: Path, monkeypatch) -> None:
@@ -1166,7 +1190,7 @@ def test_run_seed_publishes_custom_scenario_identity_and_integer_counts(tmp_path
     assert isinstance(public["result"]["push_success"], int)
 
 
-def test_run_writes_failed_root_summary(tmp_path: Path, monkeypatch) -> None:
+def test_run_writes_failed_root_summary(tmp_path: Path, monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         "tools.remote_aloha.run.load_mac_sim_config",
         lambda: MacSimConfig(episodes=1, output_dir=tmp_path),
@@ -1185,9 +1209,15 @@ def test_run_writes_failed_root_summary(tmp_path: Path, monkeypatch) -> None:
     summary = json.loads(summaries[0].read_text(encoding="utf-8"))
     assert summary["status"] == "failed"
     assert summary["error"] == {"type": "RuntimeError", "message": "lost"}
+    progress = capsys.readouterr()
+    assert progress.out == ""
+    assert "run start profile=pi05_aloha_base" in progress.err
+    assert "run validating evidence" in progress.err
+    assert "run end status=failed episodes=0/1" in progress.err
+    assert str(tmp_path) not in progress.err
 
 
-def test_run_rejects_staged_prompt_schedule_for_pi0_before_connecting(monkeypatch) -> None:
+def test_run_rejects_staged_prompt_schedule_for_pi0_before_connecting(monkeypatch, capsys) -> None:
     scenario = SCENARIOS["push_pi_single"]
     monkeypatch.setattr(
         "tools.remote_aloha.run.load_mac_sim_config",
@@ -1209,3 +1239,4 @@ def test_run_rejects_staged_prompt_schedule_for_pi0_before_connecting(monkeypatc
     )
     with pytest.raises(ValueError, match="pi05_aloha_base"):
         run()
+    assert capsys.readouterr().err == ""

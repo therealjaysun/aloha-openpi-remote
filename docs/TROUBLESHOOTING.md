@@ -52,6 +52,17 @@ OPENPI_WSL_DISTRO=Ubuntu-24.04 make doctor-pc
 
 The validated project setup uses `Ubuntu-24.04` after the complete doctor and locked setup pass. Do not delete an accidental distro through this project; manage it separately after confirming it has no needed data.
 
+## WSL does not see the configured PC memory
+
+On the 48 GB demo PC, merge this into `%UserProfile%\.wslconfig` on Windows; do not commit that global host file:
+
+```ini
+[wsl2]
+memory=32GB
+```
+
+Stop owned project services and any other WSL/Docker work first, then run `wsl.exe --shutdown`, relaunch `Ubuntu-24.04`, and verify with `free -h` plus `make doctor-pc`. The setting is a ceiling shared by all WSL2 distros, not a 32 GiB reservation; actual `MemAvailable` is lower. Preserve unrelated `.wslconfig` entries. More host RAM does not increase RTX VRAM, and existing converted artifacts do not need reconversion.
+
 ## RTX 3090 or CUDA is not visible in WSL
 
 Run the bounded doctor from the Mac:
@@ -103,7 +114,7 @@ The original converter is estimated to need a host with roughly 32 GiB available
 
 ## JAX loads but inference OOMs
 
-This is the measured result on the prepared RTX 3090, not a reason to add undocumented allocator flags. Use the converted backend:
+This is the measured result on the prepared RTX 3090, not a reason to add undocumented allocator flags. If the matching converted artifact already exists, start PyTorch directly. Run conversion only when that artifact is absent or the source/runtime pin changed:
 
 ```bash
 OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE=<profile> make convert-pc

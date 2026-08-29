@@ -28,6 +28,7 @@ from tools.remote_aloha.run import _gpu_events
 from tools.remote_aloha.run import _run_seed
 from tools.remote_aloha.run import _scenario_info_fields
 from tools.remote_aloha.run import _scenario_step_info
+from tools.remote_aloha.run import _status
 from tools.remote_aloha.run import _write_performance_summary
 from tools.remote_aloha.scenarios import CUSTOM_SCENARIOS
 from tools.remote_aloha.scenarios import PUSHER_POSITION
@@ -567,6 +568,10 @@ def run_matrix() -> Path:
         "cleanup_error": None,
     }
     _atomic_json(raw_path, raw)
+    _status(
+        f"matrix start profile={remote.policy_profile.name} scenarios={len(CUSTOM_SCENARIOS)} "
+        f"seeds={len(_SEEDS)} episodes={len(CUSTOM_SCENARIOS) * len(_SEEDS)}"
+    )
     sampler = None
     primary: BaseException | None = None
     try:
@@ -620,8 +625,11 @@ def run_matrix() -> Path:
                     raw["cleanup_error"] = {"type": type(error).__name__, "message": str(error)[:500]}
         _atomic_json(raw_path, raw)
     if primary is not None:
+        episodes = sum(len(run.get("episodes", [])) for run in raw["scenario_runs"].values() if isinstance(run, dict))
+        _status(f"matrix end status={raw['status']} episodes={episodes}/{len(CUSTOM_SCENARIOS) * len(_SEEDS)}")
         raise primary
 
+    _status("matrix validating evidence")
     try:
         runs = _mapping(raw["scenario_runs"], "matrix scenario runs")
         _validate_batch_gpu(root, raw)
@@ -644,7 +652,14 @@ def run_matrix() -> Path:
         raw["status"] = "failed"
         raw["error"] = {"type": type(error).__name__, "message": str(error)[:500]}
         _atomic_json(raw_path, raw)
+        _status(
+            f"matrix end status=failed episodes={len(CUSTOM_SCENARIOS) * len(_SEEDS)}/{len(CUSTOM_SCENARIOS) * len(_SEEDS)}"
+        )
         raise
+    _status(
+        f"matrix end status=passed episodes={len(CUSTOM_SCENARIOS) * len(_SEEDS)}/"
+        f"{len(CUSTOM_SCENARIOS) * len(_SEEDS)}"
+    )
     return root / "matrix-summary.json"
 
 

@@ -60,6 +60,8 @@ def test_wsl_start_wrapper_has_exact_two_profile_routes_and_loopback() -> None:
     assert "0.75|0.80|0.85|0.90|0.95" in source
     assert "process_record launch" in source
     assert 'kill -TERM "$pid"' not in source
+    assert "[server] loading profile=$profile backend=$backend" in source
+    assert "[server] still loading; elapsed=${SECONDS}s" in source
 
     smoke = Path("scripts/smoke_policy.sh").read_text(encoding="utf-8")
     assert "timeout --signal=TERM --kill-after=10s" in smoke

@@ -7,7 +7,7 @@ Codex remains in the Mac project workspace. PC-side work runs remotely over the 
 | Gate | Phases | Mac | RTX PC | What you do |
 | --- | --- | --- | --- | --- |
 | M0 — Mac only | 00–01 + 02 local staging | On; development, pure tests, and remote-test candidate commit happen here | May remain off | Repair GitHub login when convenient; otherwise no PC action |
-| P1 — Power/SSH trust | 02 after candidate SHA is ready | On | Turn on, sign in to Windows, connect to the same LAN, keep awake; complete one-time SSH trust if requested | Reply `PC ready`, then follow only the fingerprint-verification prompt if needed |
+| P1 — Power/SSH trust | 02 after candidate SHA is ready | On | Turn on, sign in to Windows, connect to the same LAN, keep awake; complete one-time SSH trust if requested | Reply `PC ready`; on the 48 GB demo PC, keep the user-owned WSL2 ceiling at 32 GB |
 | P2 — Remote setup/conversion | 02 remote validation–03 | Codex runs bounded diagnostics, the partial-BF16 recovery experiment, and SSH commands here | On; WSL/OpenPI/converter/server run the exact candidate SHA; no PC-side CI | Stay at Mac unless Codex reports a Windows-admin blocker |
 | B1 — Both machines | 04–05 | MuJoCo, client, tunnel, video, local telemetry | Policy server and GPU telemetry | Keep PC on/awake; no routine console work |
 | P3 — Final validation | 06 | Tests, docs, security scan, PR work | On only for final GPU/inference checks | Turn on if it was powered down; reply `PC ready` |
@@ -52,11 +52,12 @@ At gate P1, Codex validates steps 1–8 for Phase 02 and stops at the first real
 2. Bounded batch SSH connects with host-key checking intact.
 3. Remote shell is detected as Windows PowerShell, Windows `cmd.exe`, or direct WSL Bash.
 4. The WSL distro is detected, never guessed.
-5. `nvidia-smi` sees the RTX 3090 inside WSL.
-6. An absolute WSL POSIX project path is resolved inside WSL. A fixed `~/` default may be expanded against WSL `$HOME`; all other relative paths are rejected, with no `eval`.
-7. The project branch is fetched from public `origin`, or from a secret-scanned Git bundle if GitHub remains blocked; its exact SHA equals the Mac remote-test candidate and contains the audited upstream pin.
-8. A WSL-local request proves the selected policy binds loopback, passes `/healthz`, and performs GPU inference.
-9. In Phase 03, the Mac reaches it only through the local SSH tunnel.
+5. On the 48 GB demo PC, `%UserProfile%\.wslconfig` has `[wsl2] memory=32GB` and the existing 8 GB swap; apply a change only after owned services stop because `wsl --shutdown` stops every distro. The doctor reports effective Linux RAM and project scripts never mutate this Windows file.
+6. `nvidia-smi` sees the RTX 3090 inside WSL.
+7. An absolute WSL POSIX project path is resolved inside WSL. A fixed `~/` default may be expanded against WSL `$HOME`; all other relative paths are rejected, with no `eval`.
+8. The project branch is fetched from public `origin`, or from a secret-scanned Git bundle if GitHub remains blocked; its exact SHA equals the Mac remote-test candidate and contains the audited upstream pin.
+9. A WSL-local request proves the selected policy binds loopback, passes `/healthz`, and performs GPU inference.
+10. In Phase 03, the Mac reaches it only through the local SSH tunnel.
 
 ## Source and process ownership contract
 

@@ -9,6 +9,7 @@ import json
 import math
 import os
 from pathlib import Path
+import sys
 import tempfile
 import time
 import uuid
@@ -75,6 +76,12 @@ _STAGED_PROMPTS = (
         "after each push; do not lift the pi-shaped block.",
     ),
 )
+
+
+def _status(message: str) -> None:
+    if sys.stderr is not None:
+        with suppress(OSError, ValueError):
+            print(f"[simulation] {message}", file=sys.stderr, flush=True)
 
 
 def _atomic_json(path: Path, payload: object) -> None:
@@ -638,12 +645,29 @@ def _run_seed(
         },
     )
     telemetry_path = output_dir / "telemetry.jsonl"
+    progress_steps = {1, *(math.ceil(sim_config.episode_steps * index / 10) for index in range(1, 11))}
 
     def emit(event: str, **fields: object) -> None:
         if telemetry_writer is None:
             raise RuntimeError("telemetry writer is unavailable")
         telemetry_overheads_ms.append(telemetry_writer.write(event, **fields))
+        if event == "prompt_stage":
+            _status(f"seed={seed} prompt-stage={fields['prompt_stage_id']} start-step={fields['start_step']}")
+        elif event == "step":
+            applied_step = int(fields["applied_step"])
+            if applied_step in progress_steps:
+                line = (
+                    f"seed={seed} progress={applied_step}/{sim_config.episode_steps} "
+                    f"elapsed={float(fields['elapsed_seconds']):.1f}s"
+                )
+                scenario_info = fields.get("scenario_info")
+                if isinstance(scenario_info, Mapping):
+                    coverage = scenario_info.get("target_area_coverage")
+                    if isinstance(coverage, int | float) and not isinstance(coverage, bool):
+                        line += f" coverage={float(coverage) * 100:.1f}%"
+                _status(line)
 
+    _status(f"episode seed={seed} preparing")
     try:
         if (
             sim_config.prompt_schedule == STAGED_PROMPT_SCHEDULE
@@ -699,6 +723,7 @@ def _run_seed(
             or tuple(environment.action_space.shape) != (remote_config.policy_profile.action_dimension,)
         ):
             raise ValueError("pinned ALOHA environment must expose the configured step limit, 50 fps, and 14 actions")
+        _status(f"episode seed={seed} control-start")
         result = control_episode(
             environment,
             policy,
@@ -1011,6 +1036,12 @@ def _run_seed(
             "errors": errors,
         }
         _atomic_json(manifest_path, manifest)
+        task_success = result.get("task_success")
+        task_status = "true" if task_success is True else "false" if task_success is False else "unavailable"
+        _status(
+            f"episode seed={seed} end status={status} steps={int(result.get('steps_applied', 0))} "
+            f"infrastructure={'pass' if infrastructure_pass else 'fail'} task-success={task_status}"
+        )
     if primary is not None:
         raise primary
     return {**manifest, "manifest": str(manifest_path)}
@@ -1358,10 +1389,10 @@ def run() -> dict[str, object]:
     if remote_config.policy_backend != "pytorch":
         raise RemoteError("Phase 5 requires OPENPI_POLICY_BACKEND=pytorch on the validated 24 GiB PC")
     _, source_sha = verify_ready_tunnel(remote_config)
+    output = validate_output_root(sim_config.output_dir)
     upstream_sha = UPSTREAM_SHA
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")  # noqa: UP017 (Python 3.10)
     run_id = uuid.uuid4().hex
-    output = validate_output_root(sim_config.output_dir)
     root = (
         output / "scenarios_0827" / timestamp / remote_config.policy_profile.name / sim_config.scenario.key
         if sim_config.scenario.is_custom
@@ -1379,6 +1410,10 @@ def run() -> dict[str, object]:
     }
     summary_path = root / "summary.json"
     _atomic_json(summary_path, summary)
+    _status(
+        f"run start profile={remote_config.policy_profile.name} scenario={sim_config.scenario.key} "
+        f"episodes={sim_config.episodes} steps={sim_config.episode_steps} cameras={len(POLICY_CAMERA_VIEWS)}"
+    )
     sampler = None
     gpu_path = None
     primary: BaseException | None = None
@@ -1424,6 +1459,7 @@ def run() -> dict[str, object]:
     if primary is None:
         summary["status"] = "passed" if all(item["infrastructure_pass"] for item in summary["episodes"]) else "failed"
     _atomic_json(summary_path, summary)
+    _status("run validating evidence")
     try:
         _write_performance_summary(root, summary, gpu_path)
     except BaseException as error:
@@ -1433,7 +1469,9 @@ def run() -> dict[str, object]:
         if primary is None:
             primary = error
     if primary is not None:
+        _status(f"run end status={summary['status']} episodes={len(summary['episodes'])}/{sim_config.episodes}")
         raise primary
+    _status(f"run end status={summary['status']} episodes={len(summary['episodes'])}/{sim_config.episodes}")
     return {**summary, "summary": str(summary_path)}
 
 
