@@ -13,14 +13,14 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 | 04 End-to-end | Complete; open for review | `codex/04-end-to-end-control` | 5 | [PR 5](https://github.com/therealjaysun/pi-robotics/pull/5) | `codex/03-secure-connectivity` | `codex/04-end-to-end-control` | 205 local and isolated-lock tests plus lint/format/shell/secret scan pass; hosted `pure-checks`/`secret-scan` pass; Mac 900-step smoke and six exact-candidate policy episodes/videos pass with clean stops | None; sustained 50 Hz was not claimed (45.44–47.09 Hz measured) | `d7e9714` |
 | 05 Observability | Complete; open for review | `codex/05-observability` | 6 | [PR 6](https://github.com/therealjaysun/pi-robotics/pull/6) | `codex/04-end-to-end-control` | `codex/05-observability` | 297 passed + 1 platform skip; lint/format/Bash/secret and hosted checks pass; exact π₀/π₀.₅ hardware runs produced 1,661/1,661 samples and six verified 14-joint plots | None | Hardware implementation `2065dd9`; completion evidence at branch HEAD |
 | 06 Hardening/docs | Complete; open for review | `codex/06-hardening-docs` | 7 | [PR 7](https://github.com/therealjaysun/pi-robotics/pull/7) | `codex/05-observability` | `codex/06-hardening-docs` | 318 passed + 1 platform skip; 21 feasible upstream tests, lint/format/Bash, doctors, public/secret audits, plan/link/ancestry validators, hosted checks, and seven-PR status pass | None; final hardware proof remains Phase 5 `2065dd9`, with Phase 6 `90b0fed` smokes retained as historical evidence | Implementation `a8a3ca1`; final evidence at branch HEAD |
-| S0827 Push-PI | Coverage/timing amendment active | `codex/push-pi-scenarios` | 8 | [PR 8](https://github.com/therealjaysun/pi-robotics/pull/8) | `codex/06-hardening-docs` | `codex/push-pi-scenarios` | Historical 24/24 matrix remains valid for its SHA; focused coverage tests pass; full/hosted/exact Scenario 1 validation pending | Exact amended candidate and one π₀ seed-0 run pending | Prior prompt evidence `5989452`; coverage candidate uncommitted |
+| S0827 Push-PI | Complete; review-ready while live checks are green | `codex/push-pi-scenarios` | 8 | [PR 8](https://github.com/therealjaysun/pi-robotics/pull/8) | `codex/06-hardening-docs` | `codex/push-pi-scenarios` | 402 passed + 1 platform skip; local/hosted gates; historical 24/24 matrix; exact 300-step π₀ Scenario 1 coverage run, artifacts, GPU span, and cleanup pass | None; measured coverage was 0.0% and no near-100%/optimality claim is made | Evaluator `4516422`; final evidence at branch HEAD |
 
 ## Active extension cursor
 
-- S0827 Push-PI has an active exact footprint-coverage/timing amendment on `codex/push-pi-scenarios`; the prior arm-explicit matrix remains historical.
+- S0827 Push-PI and its exact footprint-coverage/timing amendment are complete on `codex/push-pi-scenarios`; the prior arm-explicit matrix remains historical.
 - Mac state: full CI, exact clean-checkout calibration, stock regression, four three-seed hold runs, four visual smokes, and image inspection pass for the amended prompt descriptor.
 - Identity: custom 3-D ALOHA Push-PI experiment inspired by PushT, not the standard PushT benchmark. The glyph task uses Greek π; the letter task uses uppercase dotless `P` and `I`.
-- Machine gate: **OFF until the amended Mac candidate and hosted gates pass**, then ON only for one π₀ seed-0 `push_pi_single` run and cleanup.
+- Machine gate: **OFF**. The bounded π₀ Scenario 1 run and cleanup passed; the PC is safe to power off.
 - PR dependency: PR 8 is based on `codex/06-hardening-docs`; retarget to `main` only after PR 7 merges and verify the incremental diff.
 - Plan: [`SCENARIOS_0827/00-overview.md`](SCENARIOS_0827/00-overview.md).
 
@@ -51,12 +51,12 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 
 ## Execution cursor
 
-- Active subphase: S0827 exact coverage/timing evaluator implementation and Scenario 1 measurement; phases 00–06 remain complete.
-- Machine gate: OFF until local/hosted amended-candidate validation passes; then one bounded π₀ run is authorized.
-- Exact user action: none while Mac gates run.
-- Release gate: PR 8 remains draft until the exact Scenario 1 evidence, cleanup, final local gates, and hosted checks pass.
+- Active subphase: S0827 complete; exact coverage/timing implementation, Scenario 1 evidence, and cleanup are locked; phases 00–06 remain complete.
+- Machine gate: OFF; no further PC work is required for this amendment.
+- Exact user action: none; the PC may be powered off.
+- Release gate: PR 8 is review-ready while final local and hosted checks remain green.
 - Recovery: evaluator-only changes require the one Scenario 1 run; any descriptor/physics/reset/prompt/action/controller/server change requires both 12-episode matrices.
-- Last historical Mac/WSL S0827 hardware candidate SHA: `7c2ec5927ad200e5aaf30bed0db4ef61cb9e2ba4`; amended candidate pending; upstream SHA: `215abfb217dbac7d5f1273282331b9b1866c0479`.
+- Last amended Mac/WSL S0827 hardware candidate SHA: `4516422a95e3d3572997cace51b6a9b718cb8794`; historical matrix SHA: `7c2ec5927ad200e5aaf30bed0db4ef61cb9e2ba4`; upstream SHA: `215abfb217dbac7d5f1273282331b9b1866c0479`.
 - PR state: PRs 1–7 remain open and stacked; PR 8 is the standalone S0827 extension based temporarily on PR 7.
 
 Update this cursor immediately before pausing for GitHub login, `conversion host ready`, `PC ready`, PC console work, or power-off.
@@ -69,4 +69,5 @@ Update this cursor immediately before pausing for GitHub login, `conversion host
 - Phase 05 hardware coordination is complete: both existing profile runs include exact trajectory capture and plot verification, with no redundant GPU campaign.
 - Phase 06's prior exact-SHA smokes passed at historical candidate `90b0fed`; final descendant `a8a3ca1` passed local/hosted revalidation. No redundant GPU run was added.
 - S0827 hardware coordination is complete at `7c2ec592`: π₀ and experimental π₀.₅ each passed one four-scenario/three-seed matrix; all 24 videos and plots were inspected; no PC CI or display smoke was run; final cleanup passed.
+- S0827 coverage coordination is complete at `4516422`: one π₀ seed-0 Scenario 1 run produced 300 exact coverage/joint/video samples, measured 0.0% best coverage, passed artifact/GPU/sanitizer inspection, and left the policy port free.
 - Full procedure: [`EXECUTION_LOGISTICS.md`](EXECUTION_LOGISTICS.md).

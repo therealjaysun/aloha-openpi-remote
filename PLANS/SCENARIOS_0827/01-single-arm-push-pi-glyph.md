@@ -8,8 +8,8 @@
 - **Acceptance:** Report `(best coverage descending, time-to-best ascending)`, initial/final coverage, total elapsed time, and existing success/safety fields. The measured value may be 0%; one episode measures this candidate but does not prove optimality.
 - **Planned commit:** Included in `feat(sim): add shared Push-PI environment` and `feat(runtime): integrate Push-PI scenarios and display`.
 - **Actual findings:** The current ALOHA policy ABI cannot accept a literal 7-D state/action. Holding the inactive half is the minimal compatible experiment.
-- **Actual validation:** Six exact-SHA hardware episodes completed 1,800 applied steps and matching trajectory rows with six valid videos and six inspected 14-joint plots. All reached the time limit with no contact, lift, fall, off-table event, or task success.
+- **Actual validation:** The historical six episodes remain unchanged. The exact coverage candidate's additional π₀ seed-0 run completed 300/300 coverage/joint/video rows with a valid inspected plot/video and clean stop. Initial/final/best coverage were `0.0%`; step 1 at `0.604606 s` is only the earliest all-zero tie; total time was `6.968412 s`. The arm moved but never contacted or displaced the π meaningfully.
 - **Remaining blockers:** None. PR 7 ancestry remains a merge-order dependency, not a technical blocker.
-- **Completion status:** Coverage amendment pending E-MAC-S0827-COVERAGE and E-PC-S0827-COVERAGE; prior six episodes remain historical.
+- **Completion status:** Complete; E-MAC-S0827-COVERAGE and E-PC-S0827-COVERAGE. Prior six episodes remain historical.
 
 `ponytail:` the visible right robot remains in the scene; remove it only if measured occlusion or contact changes the experiment.
