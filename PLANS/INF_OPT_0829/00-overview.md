@@ -147,7 +147,7 @@ Stack the ordered overhead/left-wrist/right-wrist tensors, call the existing Sig
 
 **Keep only if:** Pixels, masks, order, output shape, and declared parity hold; peak VRAM remains safe; vision-stage and warmed p95 improve.
 
-**Result:** Rejected and reverted. Candidate `547bd0c` reduced vision p95 to 26.18 ms and server p95 to 350.26 ms, but changed the fixed-input action digest (`38f302fd…` to `7bc3aefa…`).
+**Result:** Rejected and reverted. Candidate `547bd0c` reduced vision p95 to 26.18 ms and server p95 to 350.26 ms, but changed the fixed-input action digest. Against S1, action error was max 0.003765, p95 0.003030, and at most 0.112% of a joint range: below 0.01-scale change but above the declared numerical-equivalence band.
 
 ### S3 — Trim masked language padding
 
