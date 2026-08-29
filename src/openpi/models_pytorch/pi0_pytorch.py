@@ -456,6 +456,8 @@ class PI0Pytorch(nn.Module):
             prefix_offsets = torch.sum(prefix_pad_masks, dim=-1)[:, None]
             denoise_position_ids = prefix_offsets + torch.cumsum(suffix_pad_masks, dim=1) - 1
             if torch.device(device).type == "cuda":
+                expert_dtype = self.paligemma_with_expert.gemma_expert.model.layers[0].self_attn.q_proj.weight.dtype
+                denoise_attention_mask = denoise_attention_mask.to(dtype=expert_dtype)
                 self.paligemma_with_expert.gemma_expert.model.config._attn_implementation = "sdpa"  # noqa: SLF001
                 attention_backend = sdpa_kernel(SDPBackend.EFFICIENT_ATTENTION)
             else:
