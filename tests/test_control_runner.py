@@ -384,7 +384,9 @@ def test_connection_retry_exhaustion_reports_exact_bounded_counts(monkeypatch: p
     assert progress == {"failures": 3, "retries": 2}
 
 
-def test_control_episode_uses_exact_seed_steps_and_non_catchup_cadence() -> None:
+def test_control_episode_uses_exact_seed_steps_and_non_catchup_cadence(tmp_path: Path) -> None:
+    from openpi_client import msgpack_numpy
+
     class Clock:
         def __init__(self) -> None:
             self.now = 0.0
@@ -432,17 +434,19 @@ def test_control_episode_uses_exact_seed_steps_and_non_catchup_cadence() -> None
     environment = Environment(clock)
     video = Video()
     events = []
+    capture_path = tmp_path / "policy-observation.msgpack"
     result = control_episode(
         environment,
         Policy(),
         video,
         seed=2,
         prompt=None,
-        profile=POLICY_PROFILES["pi0_aloha_sim"],
+        profile=POLICY_PROFILES["pi05_aloha_base"],
         max_steps=10,
         monotonic=clock.monotonic,
         sleep=clock.sleep,
         emit=lambda event, **fields: events.append({"event": event, **fields}),
+        capture_path=capture_path,
     )
     assert environment.seed == 2
     assert environment.steps == result["steps_applied"] == video.frames == 3
@@ -457,6 +461,10 @@ def test_control_episode_uses_exact_seed_steps_and_non_catchup_cadence() -> None
     assert [event["elapsed_seconds"] for event in steps] == pytest.approx([0.01, 0.03, 0.05])
     assert [event["actual_joint_positions"] for event in steps] == [[float(value)] * 14 for value in (1, 2, 3)]
     assert all(event["commanded_joint_positions"] == [0.0] * 14 for event in steps)
+    captured = msgpack_numpy.unpackb(capture_path.read_bytes())
+    assert capture_path.stat().st_mode & 0o077 == 0
+    assert captured["state"].shape == (14,)
+    assert set(captured["images"]) == {"cam_high", "cam_left_wrist", "cam_right_wrist"}
 
 
 def test_custom_episode_passes_all_model_joints_into_sim_video_and_telemetry() -> None:
@@ -524,7 +532,7 @@ def test_custom_episode_passes_all_model_joints_into_sim_video_and_telemetry() -
     assert result["best_target_area_coverage_step"] == 1
 
 
-def test_custom_episode_tracks_earliest_best_coverage_time_and_preserves_failure_progress() -> None:
+def test_custom_episode_tracks_earliest_best_coverage_time_and_preserves_failure_progress(tmp_path: Path) -> None:
     scenario = SCENARIOS["push_pi_single"]
 
     class Clock:
@@ -587,6 +595,7 @@ def test_custom_episode_tracks_earliest_best_coverage_time_and_preserves_failure
         def on_step(self, observation: dict, action: dict) -> None:
             raise KeyboardInterrupt
 
+    capture_path = tmp_path / "partial-policy-observation.msgpack"
     with pytest.raises(KeyboardInterrupt):
         control_episode(
             Environment(Clock()),
@@ -594,12 +603,14 @@ def test_custom_episode_tracks_earliest_best_coverage_time_and_preserves_failure
             FailingVideo(),
             seed=0,
             prompt=scenario.prompt,
-            profile=POLICY_PROFILES["pi0_aloha_sim"],
+            profile=POLICY_PROFILES["pi05_aloha_base"],
             scenario=scenario,
             progress=progress,
+            capture_path=capture_path,
         )
     assert progress["coverage_sample_count"] == progress["steps_applied"] == 1
     assert progress["best_target_area_coverage_step"] == 1
+    assert capture_path.is_file()
 
 
 @pytest.mark.parametrize(

@@ -2,12 +2,12 @@
 
 ## Handoff
 
-- **Status:** P0 is merged; the B0/R1/R2 code candidate passed local validation and awaits PC-local B0/hardware gates.
+- **Status:** P0 is merged. Candidate `e00768e` passed local gates, the normal and 5+50 tunneled π₀.₅ timing smokes, and four short R1/R2 trials; fixed-observation/fixed-noise B0 parity remains open.
 - **Base candidate:** main after merged plan PR #9 (`3ebf8b017384e1e38ba97261d65a723966596b45`).
-- **Default profile:** `pi05_aloha_base`; `pi0_aloha_sim` remains an explicit option and must pass the same infrastructure checks.
+- **Optimization scope:** `pi05_aloha_base` only. By user decision on 2026-08-29, do not run, benchmark, optimize, or qualify π₀. Keep existing π₀ support unchanged for compatibility.
 - **Order:** P0 clean baseline → implement B0 instrumentation plus disabled R1/R2 switches → B0 measurements → isolated R1/R2 trials → S1–S6 measured speed work → final hardware validation.
 - **Ownership:** One integrating agent owns shared files and final validation. Read-only agents may inspect independent candidates.
-- **PC boundary:** Finish Mac B0/R1/R2 code and tests, with baseline settings `crossfade=0` and `30/25`, then push the exact candidate. Ask the user to start the PC before B0 and stop it after final evidence is copied back.
+- **PC boundary:** The PC is live with `e00768e`. Next close π₀.₅ fixed-observation/fixed-noise B0 replay, then implement and A/B S1. Do not rerun completed short R1/R2 trials.
 
 ## Objective
 
@@ -24,13 +24,23 @@ The latest comparable 120-second Scenario 2 runs used three cameras, one fixed p
 | Profile | Warm tunneled p95 | Server infer p95 | Underruns | Replacement command-jump p95 |
 | --- | ---: | ---: | ---: | ---: |
 | `pi05_aloha_base` | 649.82 ms | 398.25 ms | 5 | 23.208% of joint range |
-| `pi0_aloha_sim` | 621.02 ms | 362.86 ms | 2 | 7.655% of joint range |
 
 The repeated jolts align with wholesale chunk replacement, not dropped video frames. Fixed 50 fps playback makes them look more abrupt because the runs advanced at about 33–34 wall-clock steps/s, but every applied step still has one recorded frame.
 
+Exact candidate `e00768e` adds a timing-only π₀.₅ smoke result of 659.85 ms warmed tunnel p95 and 448.19 ms server-inference p95 over 50 measured requests. Its matched 300-step seed-0 runtime trials were:
+
+| Horizon/prefetch | Crossfade | Underruns | Receipt depth p50 | Command-jump p95 |
+| --- | ---: | ---: | ---: | ---: |
+| `30/25` | 0 | 1 | 5 | 31.299% |
+| `30/25` | 5 | 1 | 6 | 6.052% |
+| `45/40` | 0 | 0 | 12 | 22.347% |
+| `45/40` | 5 | 0 | 13 | 6.554% |
+
+All four preserved 300/300 step/trajectory/video coverage. `45/40 + 5` addresses both observed failure modes, but its jump p95 still misses the 5% gate; no runtime default is promoted yet.
+
 ## Fixed constraints
 
-- Keep BF16 weights, both checkpoints, all three `224×224` camera inputs, 14 unlocked controls, the 50-action model output, one in-flight request, WebSocket over SSH, and existing telemetry/output systems.
+- Keep BF16 weights, the π₀.₅ checkpoint, all three `224×224` camera inputs, 14 unlocked controls, the 50-action model output, one in-flight request, WebSocket over SSH, and existing telemetry/output systems.
 - A fixed scenario sends one prompt once. Crossfade only time-aligned chunks produced by the same checkpoint and prompt stage.
 - Never crossfade across a prompt-stage transition; clear the old buffer first.
 - Every applied command must contain exactly 14 finite values and remain attributable to model output.
@@ -43,7 +53,7 @@ The repeated jolts align with wholesale chunk replacement, not dropped video fra
 ### Runtime continuity
 
 - Trial `ALOHA_CHUNK_CROSSFADE_STEPS=5` and horizon/prefetch `45/40` independently before combining them. Promote them to defaults only after their hardware gates pass; `0` keeps raw replacement for A/B diagnosis.
-- Crossfade reduces replacement-step normalized command-jump p95 to at most 5% for π0.5 and does not regress π0.
+- Crossfade reduces replacement-step normalized command-jump p95 to at most 5% for π₀.₅.
 - The selected buffer configuration records zero underruns and no stale, repeated, or out-of-order action.
 - Buffer qualification uses each completed warm request's observed submission depth, not `prefetch_steps × 20 ms`: elapsed-prefix removal often leaves fewer than 40 usable actions.
 - Initial requests, empty/late slices, failures, Ctrl+C, and prompt transitions preserve existing fail-closed behavior.
@@ -51,9 +61,9 @@ The repeated jolts align with wholesale chunk replacement, not dropped video fra
 
 ### Inference speed
 
-- Use 5 warmups plus 50 synchronized measured requests per profile on a captured three-camera observation and fixed noise.
-- Keep a speed candidate only if warmed server-inference p95 improves by at least 3% on one profile and regresses by no more than 2% on the other. Repeat results within that noise band.
-- Combined target: at least 10% lower warmed server-inference p95 for both profiles versus B0.
+- Use 5 warmups plus 50 synchronized measured π₀.₅ requests on a captured three-camera observation and fixed noise.
+- Keep a speed candidate only if warmed server-inference p95 improves by at least 3% versus B0 and a repeat remains within 2% of that result.
+- Combined target: at least 10% lower warmed π₀.₅ server-inference p95 versus B0.
 - Preserve fixed-input/fixed-noise actions exactly when operation order is unchanged; otherwise declare a tight numeric tolerance before the A/B run.
 - No OOM, process exit, steady-state recompile, silent kernel/backend fallback, or checkpoint/task-contract change.
 
@@ -77,7 +87,7 @@ The runtime work may complete even if no speed candidate survives measurement; r
 1. Reuse existing request telemetry; add only enough CUDA-event timing to separate input transfer, three-camera SigLIP, Gemma prefix/KV, ten-step denoising, and device-to-host output.
 2. Include the final CUDA-to-CPU synchronization that the current `Policy.infer` timer misses.
 3. Record buffer depth at request submission and at result receipt, usable fresh actions, elapsed-prefix count, and replacement-step command delta.
-4. Capture one valid observation per profile and run the acceptance benchmark locally in WSL and through the Mac tunnel.
+4. Capture one valid π₀.₅ observation and run the acceptance benchmark locally in WSL and through the Mac tunnel.
 5. Record cold load/warmup separately from warmed requests.
 
 **Exit:** Stage totals reconcile with synchronized request time, fixed-noise replay is stable, and evidence names the exact source SHA and active profile.
@@ -133,7 +143,7 @@ Stack the ordered overhead/left-wrist/right-wrist tensors, call the existing Sig
 
 Crop only trailing language positions whose masks are false for the whole batch. Never truncate a valid token. If compilation later needs stable shapes, derive the smallest buckets from observed valid lengths.
 
-**Keep only if:** Retained tokens/masks match baseline, no prompt truncation occurs, and warmed p95 improves without bucket churn. Measure π0 and π0.5 separately.
+**Keep only if:** Retained tokens/masks match baseline, no prompt truncation occurs, and warmed π₀.₅ p95 improves without bucket churn.
 
 ### S4 — Test native fused attention
 
@@ -165,13 +175,13 @@ Only if B0 shows material CPU/input-transfer cost, remove redundant `np.array` c
 
 ## Validation and evidence sequence
 
-1. **Clean baseline:** Complete P0 and verify the pushed documentation-only SHA.
-2. **Mac before PC:** Implement B0 instrumentation and R1/R2 as selectable settings, keeping `crossfade=0` and `30/25` for exact baseline behavior. Run focused CPU tests, `make test`, `make lint`, `make secret-scan`, `make public-audit`, and `git diff --check`; commit/push the exact candidate.
-3. **PC baseline:** User starts the PC. Sync the exact SHA, run doctor/setup/smoke, then B0 for both profiles.
-4. **Isolate runtime changes:** Compare `30/25 + crossfade 0`, `30/25 + 5`, and `45/40 + 0` with short identical episodes. Test combined `45/40 + 5` only after both independent candidates pass.
-5. **Speed A/B:** Apply S1–S6 one at a time. Benchmark both profiles after each; remove losers before continuing. Do not run a 120-second episode per experiment.
-6. **Combined smoke:** Run the existing four-call policy smoke plus one 300-step three-camera episode per profile. Verify finite 14D actions, crossfade/buffer metrics, videos, trajectories, and cleanup.
-7. **Final hardware run:** Run the same 120-second Scenario 2 seed/profile pair used by the baseline, once for π0.5 and once for π0. Inspect both videos and all 14 trajectory series; compare task coverage/time honestly.
+1. **Clean baseline — complete:** P0 and documentation-only SHA merged.
+2. **Mac candidate — complete:** B0 instrumentation and selectable R1/R2 passed local gates and were pushed.
+3. **PC timing baseline — partial:** Exact SHA synced; doctor/setup, normal smoke, and tunneled 5+50 timing smoke passed for π₀.₅. Fixed-observation/fixed-noise replay remains.
+4. **Isolated runtime trials — complete:** Short matched baseline, R1, R2, and combined π₀.₅ runs are recorded above; no default is promoted yet.
+5. **Speed A/B:** Apply S1–S6 one at a time. Benchmark π₀.₅ after each; remove losers before continuing. Do not run a 120-second episode per experiment.
+6. **Combined smoke:** Run the existing four-call π₀.₅ policy smoke plus one 300-step three-camera episode. Verify finite 14D actions, crossfade/buffer metrics, video, trajectory, and cleanup.
+7. **Final hardware run:** Run the same 120-second Scenario 2 seed/profile pair used by the π₀.₅ baseline. Inspect its video and all 14 trajectory series; compare task coverage/time honestly.
 8. **Closeout:** Re-run local gates on the exact pushed SHA, update status/evidence only after the final candidate passes, run `make stop`, confirm the policy port is free, and tell the user the PC can be switched off.
 
 ## Minimal file ownership

@@ -15,6 +15,7 @@ import time
 import uuid
 
 import numpy as np
+from openpi_client import msgpack_numpy
 from openpi_client import websocket_client_policy
 from websockets.exceptions import ConnectionClosed
 
@@ -34,6 +35,7 @@ from tools.remote_aloha.connection_check import verify_ready_tunnel
 from tools.remote_aloha.observation_contract import POLICY_CAMERA_VIEWS
 from tools.remote_aloha.observation_contract import convert_gym_artifact_observation
 from tools.remote_aloha.observation_contract import convert_gym_observation
+from tools.remote_aloha.observation_contract import validate_policy_observation
 from tools.remote_aloha.policy_contract import validate_policy_action
 from tools.remote_aloha.policy_contract import validate_server_metadata
 from tools.remote_aloha.remote import UPSTREAM_SHA
@@ -93,6 +95,23 @@ def _atomic_json(path: Path, payload: object) -> None:
             os.chmod(temporary, 0o600)
             json.dump(payload, stream, allow_nan=False, sort_keys=True)
             stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def _atomic_policy_observation(path: Path, observation: dict) -> None:
+    validate_policy_observation(observation)
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile("wb", dir=path.parent, delete=False) as stream:
+            temporary = Path(stream.name)
+            os.chmod(temporary, 0o600)
+            stream.write(msgpack_numpy.Packer().pack(observation))
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
@@ -313,6 +332,7 @@ def control_episode(
     sleep=time.sleep,
     progress: dict[str, object] | None = None,
     emit: Callable[..., None] | None = None,
+    capture_path: Path | None = None,
 ) -> dict[str, object]:
     raw_observation, reset_info = environment.reset(seed=seed)
     home_joint_positions = validate_joint_vector(
@@ -320,6 +340,8 @@ def control_episode(
     )
     _, _, initial_prompt = _prompt_stage(prompt_schedule, prompt, 0)
     observation = _convert_environment_observation(environment, raw_observation, initial_prompt)
+    if capture_path is not None:
+        _atomic_policy_observation(capture_path, observation)
     video.on_episode_start()
     display_error = None
     if display is not None:
@@ -777,6 +799,11 @@ def _run_seed(
             max_steps=sim_config.episode_steps,
             progress=result,
             emit=emit,
+            capture_path=(
+                output_dir / "policy-observation.msgpack"
+                if remote_config.policy_profile.name == "pi05_aloha_base"
+                else None
+            ),
         )
         control_finished = True
         status = "complete"

@@ -129,10 +129,9 @@ OPENPI_WSL_DISTRO=Ubuntu-24.04 make setup-pc
 
 `make setup-pc` and `make server` stream only exact allowlisted setup/model-loading stages to the Mac terminal, including a bounded server-loading heartbeat. `make run` keeps final JSON on stdout and writes safe episode, staged-prompt, 10% progress, coverage, and terminal status lines to stderr; `make scenario-matrix` keeps its summary-path stdout contract and adds matrix lifecycle status. Private raw evidence remains in ignored outputs.
 
-Converted weights are PC-local and ignored. Convert each desired profile once, or again after its artifact is removed or the source/runtime pin changes:
+Converted weights are PC-local and ignored. Current work uses only π₀.₅; convert it once, or again after its artifact is removed or the source/runtime pin changes:
 
 ```bash
-OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE=pi0_aloha_sim make convert-pc
 OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE=pi05_aloha_base make convert-pc
 ```
 
@@ -175,20 +174,20 @@ ALOHA_SEED=0 ALOHA_EPISODES=3 OPENPI_WSL_DISTRO=Ubuntu-24.04 \
 OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make stop
 ```
 
-Repeat after `make stop` with `profile=pi05_aloha_base`. `make server` owns the server, synchronous WSL lifetime holder, and loopback SSH tunnel together; `make tunnel` only revalidates them. Do not close the tunnel before the server. `make stop` is idempotent and refuses to signal an unverified PID.
+`make server` owns the server, synchronous WSL lifetime holder, and loopback SSH tunnel together; `make tunnel` only revalidates them. Do not close the tunnel before the server. `make stop` is idempotent and refuses to signal an unverified PID.
 
-For the exact Push-PI evaluation, replace `make run` with one `make scenario-matrix`, then run `make scenario-metrics` before `make stop`. The matrix fixes seeds to 0–2 and runs all four scenarios once per seed, for 12 episodes under the selected profile. Run it once for π₀ and once for experimental π₀.5; do not add display-on GPU runs.
+For the exact Push-PI evaluation, replace `make run` with one `make scenario-matrix`, then run `make scenario-metrics` before `make stop`. The matrix fixes seeds to 0–2 and runs all four scenarios once per seed, for 12 episodes under the selected profile. Current optimization and qualification runs use only the default experimental π₀.₅ profile; do not add π₀ or display-on GPU runs.
 
 `ALOHA_EPISODE_STEPS` defaults to the accepted 300-step limit. A single diagnostic run may raise it to at most 6,000 steps (120 simulated seconds at 50 Hz); the acceptance matrix rejects overrides so its results remain comparable.
 
-Scenario 1 sends this complete instruction once and works with either validated profile: `Using only the left arm, first tilt the wrist down to see the pi-shaped block and its matching outline, then lower the gripper close to the table beside the block and make short incremental pushes that move the block into the outline; recheck alignment after each push and do not lift the block.`
+Scenario 1 sends this complete instruction once to π₀.₅: `Using only the left arm, first tilt the wrist down to see the pi-shaped block and its matching outline, then lower the gripper close to the table beside the block and make short incremental pushes that move the block into the outline; recheck alignment after each push and do not lift the block.`
 
 Scenario 2 likewise sends all three stages once: `Using both arms, first tilt both wrists down to see the pi-shaped block and its matching outline; then lower both grippers close to the table on opposite sides of the block without lifting it; finally make short coordinated incremental pushes that move the block into the outline, rechecking alignment after each push.`
 
 All scenarios pass the model's complete finite 14-joint action to MuJoCo unchanged. “Single arm” is prompt intent and an observed behavior label only; the project does not park either arm or override either gripper. Reset positions and MuJoCo's native joint/actuator limits still apply.
 
 ```bash
-profile=pi0_aloha_sim  # or pi05_aloha_base
+profile=pi05_aloha_base
 ALOHA_SCENARIO=push_pi_single ALOHA_EPISODES=1 ALOHA_EPISODE_STEPS=6000 \
   ALOHA_PROMPT_SCHEDULE=fixed \
   OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make run

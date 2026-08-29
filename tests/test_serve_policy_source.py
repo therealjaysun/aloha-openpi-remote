@@ -79,6 +79,9 @@ def test_wsl_start_wrapper_has_exact_two_profile_routes_and_loopback() -> None:
 
     policy = Path("src/openpi/policies/policy.py").read_text(encoding="utf-8")
     assert "if self._compact_masked_images:" in policy
+    assert '"__openpi_benchmark_noise_seed"' in policy
+    assert "torch.Generator(device=self._pytorch_device).manual_seed" in policy
+    assert "generator=generator" in policy
     model = Path("src/openpi/models/pi0.py").read_text(encoding="utf-8")
     assert "image_keys=tuple(observation.images)" in model
 
