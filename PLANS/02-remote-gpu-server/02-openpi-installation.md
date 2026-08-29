@@ -1,0 +1,12 @@
+# 02.02 — OpenPI installation
+
+- **Objective:** Install the audited OpenPI source and GPU runtime in the detected WSL distro.
+- **Inputs/prerequisites:** Passing WSL/GPU diagnostics; secret-scanned local candidate commit; absolute WSL project/cache paths resolved inside WSL; network/disk access.
+- **Implementation tasks:** Resolve `OPENPI_REMOTE_DIR` to an absolute WSL POSIX path (expand only a fixed `~/` prefix against WSL `$HOME`; reject other relative paths and never `eval`); safely clone/fetch the user's project origin with submodules, or fetch a secret-scanned Git bundle transferred over SSH when GitHub is blocked; check out the exact candidate SHA in a clean detached worktree without overwriting changes; verify that the audited upstream commit is its recorded base and submodule SHAs match; verify Mac SHA = WSL SHA; pass only fixed allowlisted settings from the Mac rather than copying its `.env` (any necessary remote env file is ignored and mode 600); require a configurable conservative free-space gate (initially at least 40 GiB on relevant filesystems) for the currently observed 22.78 GiB combined checkpoints plus venv/caches/logs/partial-download margin; detect/report partial downloads; run official `GIT_LFS_SKIP_SMUDGE=1 uv sync` and editable install; preserve cache under configured `OPENPI_DATA_HOME`; validate JAX CUDA device; make setup idempotent; report local changes instead of resetting them.
+- **Files expected to change:** `scripts/setup_pc.sh`, config/remote-command tests, `Makefile`, docs.
+- **Validation:** Remote `git status`, remotes, SHA, submodules; `uv run python` imports OpenPI/JAX; `jax.devices()` contains GPU; disk/cache checks.
+- **Acceptance:** Exact secret-scanned project SHA runs in an isolated WSL env and contains the audited upstream base; no CPU-only fallback; sufficient disk and no unexplained partial download; no driver/system security changes; rerun is safe.
+- **Planned commit:** `feat(remote): install pinned OpenPI in WSL`.
+- **Actual findings:** Upstream root requires Python ≥3.11 and officially supports Ubuntu 22.04; root lock includes JAX CUDA 12 and torch 2.7.1. Public object sizes observed 2026-08-26 were 11.19 GiB for π₀ ALOHA Sim and 11.59 GiB for π₀.₅ base (22.78 GiB combined), before venv/cache/JAX/log/partial margin; re-measure at implementation. No remote install attempted.
+- **Remaining blockers:** Phase 02.01.
+- **Completion status:** Planned.

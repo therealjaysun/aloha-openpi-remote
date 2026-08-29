@@ -1,5 +1,7 @@
 # openpi
 
+> Independent Mac ALOHA + remote RTX 3090 integration. The [project repository](https://github.com/therealjaysun/aloha-openpi-remote) and [`PLANS/`](PLANS/README.md) are pinned to upstream OpenPI commit `215abfb217dbac7d5f1273282331b9b1866c0479`. No endorsement by Physical Intelligence is implied.
+
 openpi holds open-source models and packages for robotics, published by the [Physical Intelligence team](https://www.physicalintelligence.company/).
 
 Currently, this repo contains three types of models:
