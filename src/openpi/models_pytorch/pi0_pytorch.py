@@ -198,13 +198,18 @@ class PI0Pytorch(nn.Module):
         att_masks = []
 
         # Process images
-        for img, img_mask in zip(images, img_masks, strict=True):
+        def image_embed_func(img):
+            return self.paligemma_with_expert.embed_image(img)
 
-            def image_embed_func(img):
-                return self.paligemma_with_expert.embed_image(img)
+        if self.pi05 and torch.is_inference_mode_enabled() and len(images) > 1:
+            stacked_images = torch.stack(images, dim=1)
+            bsize, num_images = stacked_images.shape[:2]
+            stacked_embs = self._apply_checkpoint(image_embed_func, stacked_images.flatten(0, 1))
+            image_embs = stacked_embs.reshape(bsize, num_images, *stacked_embs.shape[1:]).unbind(dim=1)
+        else:
+            image_embs = [self._apply_checkpoint(image_embed_func, img) for img in images]
 
-            img_emb = self._apply_checkpoint(image_embed_func, img)
-
+        for img_emb, img_mask in zip(image_embs, img_masks, strict=True):
             bsize, num_img_embs = img_emb.shape[:2]
 
             embs.append(img_emb)
