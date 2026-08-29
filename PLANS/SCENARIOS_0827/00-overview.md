@@ -36,13 +36,13 @@ Do not call a Push-PI result a PushT benchmark result, reuse PushT's 95% score, 
 | `ALOHA_SCENARIO` | Gymnasium ID | Bodies | Active joints | Prompt |
 | --- | --- | --- | --- | --- |
 | `transfer_cube` (default) | `gym_aloha/AlohaTransferCube-v0` | Stock cube | Stock behavior | Existing profile behavior |
-| `push_pi_single` | `pi_robotics/PushPiSingleArm-v0` | One rigid π | Left six | `Push the pi-shaped block onto its matching target.` |
-| `push_pi_dual` | `pi_robotics/PushPiBimanual-v0` | One rigid π | Left and right six | Same as single |
-| `push_letters_single` | `pi_robotics/PushLettersSingleArm-v0` | Separate rigid uppercase `P` and `I` | Left six | `Push the P and I blocks onto their matching targets.` |
-| `push_letters_dual` | `pi_robotics/PushLettersBimanual-v0` | Separate rigid uppercase `P` and `I` | Left and right six | Same as single |
+| `push_pi_single` | `pi_robotics/PushPiSingleArm-v0` | One rigid π | Left six | `Using only the left arm, push the pi-shaped block onto its matching target.` |
+| `push_pi_dual` | `pi_robotics/PushPiBimanual-v0` | One rigid π | Left and right six | `Using both arms, push the pi-shaped block onto its matching target.` |
+| `push_letters_single` | `pi_robotics/PushLettersSingleArm-v0` | Separate rigid uppercase `P` and `I` | Left six | `Using only the left arm, push the P and I blocks onto their matching targets.` |
+| `push_letters_dual` | `pi_robotics/PushLettersBimanual-v0` | Separate rigid uppercase `P` and `I` | Left and right six | `Using both arms, push the P and I blocks onto their matching targets.` |
 
 - Add `ALOHA_SCENARIO` as exactly the enum above and `ALOHA_DISPLAY=0|1`; unknown, blank-explicit, boolean-like, import-path, XML-path, or prompt values fail closed. Keep `ALOHA_TASK` pinned and backward compatible.
-- Resolve scenario → Gym ID, descriptor, arm mask, and prompt once in `MacSimConfig`. A scenario prompt overrides the profile default and is immutable for an episode.
+- Resolve scenario → Gym ID, descriptor, arm mask, and arm-explicit prompt once in `MacSimConfig`. A scenario prompt overrides the profile default and is immutable for an episode.
 - The optional Matplotlib window is display-only. It has no prompt text box, makes no network connection, and never changes policy input.
 - Add `make scenario-matrix` for one fail-closed four-scenario/three-seed batch under the selected profile and `make scenario-metrics` for its rollup. A single `ALOHA_SCENARIO=<id> make run` remains useful for development.
 

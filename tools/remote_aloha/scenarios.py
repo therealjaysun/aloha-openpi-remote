@@ -233,28 +233,28 @@ SCENARIOS = {
         "pi_robotics/PushPiSingleArm-v0",
         "pi",
         "left",
-        "Push the pi-shaped block onto its matching target.",
+        "Using only the left arm, push the pi-shaped block onto its matching target.",
     ),
     "push_pi_dual": ScenarioSpec(
         "push_pi_dual",
         "pi_robotics/PushPiBimanual-v0",
         "pi",
         "both",
-        "Push the pi-shaped block onto its matching target.",
+        "Using both arms, push the pi-shaped block onto its matching target.",
     ),
     "push_letters_single": ScenarioSpec(
         "push_letters_single",
         "pi_robotics/PushLettersSingleArm-v0",
         "letters",
         "left",
-        "Push the P and I blocks onto their matching targets.",
+        "Using only the left arm, push the P and I blocks onto their matching targets.",
     ),
     "push_letters_dual": ScenarioSpec(
         "push_letters_dual",
         "pi_robotics/PushLettersBimanual-v0",
         "letters",
         "both",
-        "Push the P and I blocks onto their matching targets.",
+        "Using both arms, push the P and I blocks onto their matching targets.",
     ),
 }
 CUSTOM_SCENARIOS = tuple(key for key, value in SCENARIOS.items() if value.is_custom)

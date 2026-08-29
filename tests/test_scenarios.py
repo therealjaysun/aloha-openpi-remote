@@ -54,7 +54,12 @@ def test_fixed_scenario_contract_uses_uppercase_dotless_letters() -> None:
         "push_letters_single",
         "push_letters_dual",
     )
-    assert SCENARIOS["push_letters_single"].prompt == "Push the P and I blocks onto their matching targets."
+    assert {key: SCENARIOS[key].prompt for key in tuple(SCENARIOS)[1:]} == {
+        "push_pi_single": "Using only the left arm, push the pi-shaped block onto its matching target.",
+        "push_pi_dual": "Using both arms, push the pi-shaped block onto its matching target.",
+        "push_letters_single": "Using only the left arm, push the P and I blocks onto their matching targets.",
+        "push_letters_dual": "Using both arms, push the P and I blocks onto their matching targets.",
+    }
     bodies = body_descriptors("letters")
     assert tuple(body.name for body in bodies) == ("P", "I")
     assert len(bodies[1].parts) == 3
@@ -157,7 +162,7 @@ def test_scene_hash_covers_only_physical_xml_assets_and_kind(monkeypatch: pytest
 
 
 def test_descriptor_hash_freezes_every_calibrated_value() -> None:
-    assert descriptor_sha256() == "9942fa7e851e352c2e7717e84a9fe1cb66b07f61c96fa62d9df136cefc6b154b"
+    assert descriptor_sha256() == "7d41cc0ddfb88f46eb0c33139f8e82c92ccc823853e07a80a5413faf135ad2d9"
 
 
 @pytest.mark.parametrize(
