@@ -233,6 +233,7 @@ def test_publishable_custom_scenario_keeps_safe_identity_counts_and_omits_privat
                 task="pi_robotics/PushLettersSingleArm-v0",
                 scenario="push_letters_single",
                 scene_hash="d" * 64,
+                target_area_coverage_method="exact-planar-union-v1",
                 prompt="private run prompt",
                 absolute_path="/private/output",
             ),
@@ -248,6 +249,13 @@ def test_publishable_custom_scenario_keeps_safe_identity_counts_and_omits_privat
                 time_limit_count=2,
                 videos_passed=3,
                 episodes=3,
+                coverage_sample_count=300,
+                initial_target_area_coverage_percent=12.0,
+                final_target_area_coverage_percent=80.0,
+                best_target_area_coverage_percent=95.0,
+                best_target_area_coverage_step=120,
+                time_to_best_target_area_coverage_seconds=2.4,
+                episode_elapsed_seconds=6.0,
                 private_machine="desktop-name",
             ),
         ]
@@ -260,6 +268,8 @@ def test_publishable_custom_scenario_keeps_safe_identity_counts_and_omits_privat
     assert public["result"]["lifted_count"] == public["result"]["both_arms_count"] == 0
     assert public["result"]["time_limit_count"] == 2
     assert public["result"]["videos_passed"] == 3
+    assert public["result"]["best_target_area_coverage_percent"] == 95.0
+    assert public["result"]["time_to_best_target_area_coverage_seconds"] == 2.4
     assert "private run prompt" not in encoded
     assert "/private/output" not in encoded
     assert "desktop-name" not in encoded
@@ -316,6 +326,8 @@ def test_publishable_per_episode_counts_are_bounded_without_aggregate_episode_fi
         ("result", "trajectory_plot_id", "/" + "Users/private/plot.png"),
         ("result", "trajectory_joint_count", 13),
         ("result", "trajectory_step_coverage", 1.01),
+        ("result", "best_target_area_coverage_percent", 101.0),
+        ("result", "time_to_best_target_area_coverage_seconds", -1.0),
         ("metrics", "warm_inference_ms", {"count": 1, "mean": "raw error", "p50": 1, "p95": 1, "max": 1}),
     ],
 )
@@ -381,10 +393,18 @@ def test_line_buffered_writer_p95_overhead_is_below_one_millisecond(tmp_path: Pa
                     "interference_ever": False,
                     "left_joint_travel": 0.1,
                     "right_joint_travel": 0.1,
+                    "target_area_coverage": 0.1,
                     **{
                         f"body_{body}_{metric}": 0.1
                         for body in range(2)
-                        for metric in ("xy_error", "yaw_error", "roll", "pitch", "height_error")
+                        for metric in (
+                            "xy_error",
+                            "yaw_error",
+                            "roll",
+                            "pitch",
+                            "height_error",
+                            "target_area_coverage",
+                        )
                     },
                 },
                 metrics={"sim_step_ms": 0.5},

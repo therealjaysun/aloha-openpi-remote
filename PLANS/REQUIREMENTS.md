@@ -244,7 +244,7 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 
 ## Active S0827 Push-PI requirements
 
-S0827 is complete with arm-explicit prompts and does not reopen phases 00–06. E-MAC-S0827 covers the amended exact Mac candidate and E-PC-S0827 covers both amended exact-SHA hardware matrices.
+S0827's prior arm-explicit matrix is complete and remains historical. The active coverage/timing amendment does not reopen phases 00–06.
 
 | ID | Requirement | Owner | Evidence | Status |
 | --- | --- | --- | --- | --- |
@@ -262,6 +262,8 @@ S0827 is complete with arm-explicit prompts and does not reopen phases 00–06. 
 | SP12 | Scenario telemetry remains below 1 ms write p95 and raw JSONL/videos/plots/manifests remain ignored | S0827 | benchmark + Git checks | Pass: E-MAC-S0827, E-PC-S0827 |
 | SP13 | Mac implementation/calibration/CI precede the PC gate; exact Mac/WSL SHA matches; no general CI or redundant display run occurs on PC | S0827 | logistics/hardware ledger | Pass: E-MAC-S0827, E-PC-S0827 |
 | SP14 | Stock Transfer Cube regression, normal local/hosted gates, 24 headless hardware episodes, artifact inspection, cleanup, and final evidence all pass before completion | S0827 | final S0827 evidence | Pass: E-MAC-S0827, E-PC-S0827 |
+| SP15 | Compute exact named-target planar footprint-union coverage per body and target-area-weighted overall on reset/every applied step; require finite `[0,100]` values and keep pose-held success unchanged | S0827 | geometry/outcome/runner tests | Pending |
+| SP16 | Preserve one coverage sample per applied step plus initial/final/best, earliest best step/monotonic time, and total elapsed time in private evidence and safe summaries; rank by coverage then time and validate one exact π₀ Scenario 1 run | S0827 | Mac gates + exact-candidate hardware artifact review | Pending |
 
 ## Evidence and recovery ledger
 

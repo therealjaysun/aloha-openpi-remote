@@ -16,6 +16,7 @@ from typing import TextIO
 import numpy as np
 
 from tools.remote_aloha.scenarios import SCENARIOS
+from tools.remote_aloha.scenarios import TARGET_AREA_COVERAGE_METHOD
 from tools.remote_aloha.scenarios import TASK_TO_SCENARIO
 
 _EVENT_NAME = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
@@ -47,6 +48,7 @@ _PUBLISHABLE_METADATA = {
     "seeds",
     "source_sha",
     "task",
+    "target_area_coverage_method",
     "upstream_sha",
 }
 _PUBLISHABLE_RESULTS = {
@@ -84,6 +86,13 @@ _PUBLISHABLE_RESULTS = {
     "right_contact_count",
     "time_limit_count",
     "videos_passed",
+    "coverage_sample_count",
+    "initial_target_area_coverage_percent",
+    "final_target_area_coverage_percent",
+    "best_target_area_coverage_percent",
+    "best_target_area_coverage_step",
+    "time_to_best_target_area_coverage_seconds",
+    "episode_elapsed_seconds",
 }
 _PUBLISHABLE_EVENTS = {
     "episode",
@@ -123,6 +132,11 @@ _PUBLISHABLE_METRICS = {
     "body_1_roll",
     "body_1_xy_error",
     "body_1_yaw_error",
+    "initial_target_area_coverage_percent",
+    "final_target_area_coverage_percent",
+    "best_target_area_coverage_percent",
+    "time_to_best_target_area_coverage_seconds",
+    "episode_elapsed_seconds",
 }
 
 
@@ -141,8 +155,8 @@ def json_safe(value: object, depth: int = 0) -> object:
     if isinstance(value, np.ndarray):
         raise ValueError("NumPy arrays are not valid telemetry fields")
     if isinstance(value, Mapping):
-        if len(value) > 32 or not all(isinstance(key, str) for key in value):
-            raise ValueError("telemetry mappings must have at most 32 string keys")
+        if len(value) > 40 or not all(isinstance(key, str) for key in value):
+            raise ValueError("telemetry mappings must have at most 40 string keys")
         return {key: json_safe(item, depth + 1) for key, item in value.items()}
     if isinstance(value, list | tuple) and len(value) <= 100:
         return [json_safe(item, depth + 1) for item in value]
@@ -387,6 +401,11 @@ def _valid_publishable_metadata(metadata: Mapping[str, object]) -> dict[str, obj
         raise ValueError("publishable telemetry custom scenario hash is invalid")
     if not custom and scene_id is not None:
         raise ValueError("publishable telemetry stock scenario must not have a scene hash")
+    coverage_method = result.get("target_area_coverage_method")
+    if custom and coverage_method != TARGET_AREA_COVERAGE_METHOD:
+        raise ValueError("publishable telemetry area coverage method is invalid")
+    if not custom and coverage_method is not None:
+        raise ValueError("publishable stock telemetry must not define area coverage")
     for key in ("action_horizon", "model_action_horizon", "prefetch_steps"):
         value = result.get(key)
         if value is not None and (isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 50):
@@ -433,6 +452,8 @@ def _valid_publishable_result(result: Mapping[str, object]) -> dict[str, object]
         "right_contact_count",
         "time_limit_count",
         "videos_passed",
+        "coverage_sample_count",
+        "best_target_area_coverage_step",
     ):
         value = safe.get(key)
         if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
@@ -443,6 +464,9 @@ def _valid_publishable_result(result: Mapping[str, object]) -> dict[str, object]
     steps_applied = safe.get("steps_applied")
     if sample_count is not None and steps_applied is not None and sample_count != steps_applied:
         raise ValueError("publishable trajectory samples must match applied steps")
+    coverage_samples = safe.get("coverage_sample_count")
+    if coverage_samples is not None and steps_applied is not None and coverage_samples != steps_applied:
+        raise ValueError("publishable area coverage samples must match applied steps")
     plots_passed = safe.get("trajectory_plots_passed")
     episodes = safe.get("episodes")
     count_limit = episodes if episodes is not None else 1
@@ -479,12 +503,51 @@ def _valid_publishable_result(result: Mapping[str, object]) -> dict[str, object]
         "reward_final",
         "reward_max",
         "reward_sum",
+        "initial_target_area_coverage_percent",
+        "final_target_area_coverage_percent",
+        "best_target_area_coverage_percent",
+        "time_to_best_target_area_coverage_seconds",
+        "episode_elapsed_seconds",
     ):
         value = safe.get(key)
         if value is not None and (
             isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value)
         ):
             raise ValueError(f"publishable result {key} is invalid")
+    for key in (
+        "initial_target_area_coverage_percent",
+        "final_target_area_coverage_percent",
+        "best_target_area_coverage_percent",
+    ):
+        value = safe.get(key)
+        if value is not None and not 0 <= value <= 100:
+            raise ValueError(f"publishable result {key} is invalid")
+    for key in ("time_to_best_target_area_coverage_seconds", "episode_elapsed_seconds"):
+        value = safe.get(key)
+        if value is not None and value < 0:
+            raise ValueError(f"publishable result {key} is invalid")
+    best_step = safe.get("best_target_area_coverage_step")
+    if best_step is not None and (steps_applied is None or not 1 <= best_step <= steps_applied):
+        raise ValueError("publishable area coverage best step is invalid")
+    best_fields = (
+        safe.get("best_target_area_coverage_percent"),
+        best_step,
+        safe.get("time_to_best_target_area_coverage_seconds"),
+    )
+    if any(value is None for value in best_fields) != all(value is None for value in best_fields):
+        raise ValueError("publishable area coverage best fields are incomplete")
+    if (
+        safe.get("final_target_area_coverage_percent") is not None
+        and safe.get("best_target_area_coverage_percent") is not None
+        and safe["final_target_area_coverage_percent"] > safe["best_target_area_coverage_percent"]
+    ):
+        raise ValueError("publishable final area coverage exceeds its best value")
+    if (
+        safe.get("time_to_best_target_area_coverage_seconds") is not None
+        and safe.get("episode_elapsed_seconds") is not None
+        and safe["time_to_best_target_area_coverage_seconds"] > safe["episode_elapsed_seconds"]
+    ):
+        raise ValueError("publishable area coverage time exceeds episode time")
     video_ids = safe.get("video_ids")
     if video_ids is not None and (
         not isinstance(video_ids, list)
@@ -539,6 +602,14 @@ def _valid_publishable_metrics(metrics: Mapping[str, object]) -> dict[str, objec
         ):
             raise ValueError("publishable metric statistics are invalid")
         result[name] = dict(stats)
+        if name.endswith("_target_area_coverage_percent") and any(
+            stats[key] is not None and not 0 <= stats[key] <= 100 for key in ("mean", "p50", "p95", "max")
+        ):
+            raise ValueError("publishable area coverage metric is invalid")
+        if name.endswith("_seconds") and any(
+            stats[key] is not None and stats[key] < 0 for key in ("mean", "p50", "p95", "max")
+        ):
+            raise ValueError("publishable duration metric is invalid")
     return result
 
 

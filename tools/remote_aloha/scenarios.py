@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from functools import cache
 import hashlib
+from itertools import pairwise
 import json
 import math
 
@@ -62,6 +64,7 @@ COLOR_MASK_RULES = {
     "I": (("b", "r", 35), ("b", "g", 25)),
 }
 DESCRIPTOR_VERSION = "push-pi-v1"
+TARGET_AREA_COVERAGE_METHOD = "exact-planar-union-v1"
 
 
 @dataclass(frozen=True)
@@ -376,6 +379,121 @@ def _transformed_corners(body: BodyDescriptor, state: BodyState) -> Iterable[tup
                 )
 
 
+@cache
+def _union_tiles(parts: tuple[Part, ...]) -> tuple[Part, ...]:
+    if not parts or any(
+        not all(math.isfinite(value) for value in (part.x, part.y, part.half_x, part.half_y))
+        or part.half_x <= 0
+        or part.half_y <= 0
+        for part in parts
+    ):
+        raise ValueError("body footprint parts must be finite, positive rectangles")
+    edges = sorted({part.x - part.half_x for part in parts} | {part.x + part.half_x for part in parts})
+    tiles = []
+    for left, right in pairwise(edges):
+        middle = (left + right) / 2
+        intervals = sorted(
+            (part.y - part.half_y, part.y + part.half_y)
+            for part in parts
+            if part.x - part.half_x < middle < part.x + part.half_x
+        )
+        merged: list[list[float]] = []
+        for low, high in intervals:
+            if merged and low <= merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], high)
+            else:
+                merged.append([low, high])
+        tiles.extend(
+            Part((left + right) / 2, (low + high) / 2, (right - left) / 2, (high - low) / 2) for low, high in merged
+        )
+    if not tiles:
+        raise ValueError("body footprint area must be positive")
+    return tuple(tiles)
+
+
+def _part_polygon(part: Part, x: float, y: float, yaw: float) -> list[tuple[float, float]]:
+    cosine, sine = math.cos(yaw), math.sin(yaw)
+    return [
+        (x + cosine * px - sine * py, y + sine * px + cosine * py)
+        for px, py in (
+            (part.x - part.half_x, part.y - part.half_y),
+            (part.x + part.half_x, part.y - part.half_y),
+            (part.x + part.half_x, part.y + part.half_y),
+            (part.x - part.half_x, part.y + part.half_y),
+        )
+    ]
+
+
+def _clip_convex(subject: list[tuple[float, float]], clip: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    output = subject
+    for first, second in zip(clip, clip[1:] + clip[:1], strict=True):
+        source, output = output, []
+        if not source:
+            break
+
+        def side(
+            point: tuple[float, float], first: tuple[float, float] = first, second: tuple[float, float] = second
+        ) -> float:
+            return (second[0] - first[0]) * (point[1] - first[1]) - (second[1] - first[1]) * (point[0] - first[0])
+
+        previous = source[-1]
+        previous_side = side(previous)
+        for current in source:
+            current_side = side(current)
+            if current_side >= -1e-12:
+                if previous_side < -1e-12:
+                    fraction = previous_side / (previous_side - current_side)
+                    output.append(
+                        (
+                            previous[0] + fraction * (current[0] - previous[0]),
+                            previous[1] + fraction * (current[1] - previous[1]),
+                        )
+                    )
+                output.append(current)
+            elif previous_side >= -1e-12:
+                fraction = previous_side / (previous_side - current_side)
+                output.append(
+                    (
+                        previous[0] + fraction * (current[0] - previous[0]),
+                        previous[1] + fraction * (current[1] - previous[1]),
+                    )
+                )
+            previous, previous_side = current, current_side
+    return output
+
+
+def _polygon_area(points: list[tuple[float, float]]) -> float:
+    if len(points) < 3:
+        return 0.0
+    return (
+        abs(
+            math.fsum(
+                first[0] * second[1] - second[0] * first[1]
+                for first, second in zip(points, points[1:] + points[:1], strict=True)
+            )
+        )
+        / 2
+    )
+
+
+def footprint_overlap_coverage(body: BodyDescriptor, state: BodyState) -> float:
+    """Return exact planar overlap with this body's matching target, as a fraction."""
+    if state.name != body.name or not all(
+        math.isfinite(value) for value in (state.x, state.y, body.target_x, body.target_y, body.target_yaw)
+    ):
+        raise ValueError("body footprint state is invalid")
+    _, _, yaw = quaternion_euler(state)
+    tiles = _union_tiles(body.parts)
+    target_area = math.fsum(4 * tile.half_x * tile.half_y for tile in tiles)
+    actual = [_part_polygon(tile, state.x, state.y, yaw) for tile in tiles]
+    target = [_part_polygon(tile, body.target_x, body.target_y, body.target_yaw) for tile in tiles]
+    overlap = math.fsum(_polygon_area(_clip_convex(source, goal)) for source in actual for goal in target)
+    tolerance = max(1e-12, target_area * 1e-9)
+    if not math.isfinite(overlap) or overlap < -tolerance or overlap > target_area + tolerance:
+        raise ValueError("body footprint overlap is outside its target area")
+    return min(1.0, max(0.0, overlap / target_area))
+
+
 def advance_outcome(
     bodies: tuple[BodyDescriptor, ...],
     states: Mapping[str, BodyState],
@@ -390,6 +508,7 @@ def advance_outcome(
     fallen = False
     off_table = False
     metrics: dict[str, float] = {}
+    coverage_area = total_area = 0.0
     min_x, max_x, min_y, max_y = TABLE_BOUNDS
     for index, body in enumerate(bodies):
         state = states[body.name]
@@ -401,6 +520,10 @@ def advance_outcome(
         xy_error = math.hypot(state.x - body.target_x, state.y - body.target_y)
         yaw_error = abs(wrapped_angle(yaw - body.target_yaw, body.yaw_period))
         height_error = abs(com_z - rest_heights[body.name])
+        target_area = math.fsum(4 * tile.half_x * tile.half_y for tile in _union_tiles(body.parts))
+        coverage = footprint_overlap_coverage(body, state)
+        coverage_area += coverage * target_area
+        total_area += target_area
         metrics.update(
             {
                 f"body_{index}_xy_error": xy_error,
@@ -408,6 +531,7 @@ def advance_outcome(
                 f"body_{index}_roll": abs(roll),
                 f"body_{index}_pitch": abs(pitch),
                 f"body_{index}_height_error": height_error,
+                f"body_{index}_target_area_coverage": coverage,
             }
         )
         lift_delta = com_z - rest_heights[body.name]
@@ -425,6 +549,7 @@ def advance_outcome(
             and _within(abs(pitch), SUCCESS_TILT_RADIANS)
             and _within(height_error, SUCCESS_HEIGHT_METERS)
         )
+    metrics["target_area_coverage"] = coverage_area / total_area
     held = previous.held_steps + 1 if all_at_goal and not lifted and not fallen and not off_table else 0
     success = held >= SUCCESS_HOLD_STEPS
     reason = "off_table" if off_table else "fallen" if fallen else "success" if success else "running"

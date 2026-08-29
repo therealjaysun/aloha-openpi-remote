@@ -32,6 +32,7 @@ from tools.remote_aloha.run import _write_performance_summary
 from tools.remote_aloha.scenarios import CUSTOM_SCENARIOS
 from tools.remote_aloha.scenarios import PUSHER_POSITION
 from tools.remote_aloha.scenarios import SCENARIOS
+from tools.remote_aloha.scenarios import TARGET_AREA_COVERAGE_METHOD
 from tools.remote_aloha.scenarios import body_descriptors
 from tools.remote_aloha.scenarios import descriptor_sha256
 from tools.remote_aloha.scenarios import effective_layout_seed
@@ -179,17 +180,32 @@ def _episode_result(
         or metadata.get("source_sha") != manifest.get("source_sha")
         or metadata.get("upstream_sha") != manifest.get("upstream_sha")
         or metadata.get("run_id") != run_id
+        or metadata.get("target_area_coverage_method") != TARGET_AREA_COVERAGE_METHOD
     ):
         raise ValueError("matrix telemetry metadata is invalid")
     step_events = [event for event in events if event.get("event") == "step"]
     if len(step_events) != steps:
         raise ValueError("matrix telemetry step coverage is invalid")
     minimum_errors = {name: {"xy": math.inf, "yaw": math.inf} for name in names}
+    maximum_coverage = {name: 0.0 for name in names}
+    best_coverage = -1.0
+    best_coverage_step = None
+    best_coverage_elapsed = None
+    previous_elapsed = -1.0
     time_to_success_step = None
     last_step_info = None
     for index, event in enumerate(step_events):
         if event.get("step") != index or event.get("applied_step") != index + 1:
             raise ValueError("matrix telemetry step sequence is invalid")
+        elapsed = event.get("elapsed_seconds")
+        if (
+            isinstance(elapsed, bool)
+            or not isinstance(elapsed, int | float)
+            or not math.isfinite(elapsed)
+            or elapsed < previous_elapsed
+        ):
+            raise ValueError("matrix telemetry elapsed time is invalid")
+        previous_elapsed = float(elapsed)
         command = validate_joint_vector(event.get("commanded_joint_positions"), "commanded_joint_positions")
         validate_joint_vector(event.get("actual_joint_positions"), "actual_joint_positions")
         if command[6] != PUSHER_POSITION or command[13] != PUSHER_POSITION:
@@ -203,10 +219,25 @@ def _episode_result(
         for body_index, name in enumerate(names):
             minimum_errors[name]["xy"] = min(minimum_errors[name]["xy"], info[f"body_{body_index}_xy_error"])
             minimum_errors[name]["yaw"] = min(minimum_errors[name]["yaw"], info[f"body_{body_index}_yaw_error"])
+            maximum_coverage[name] = max(maximum_coverage[name], info[f"body_{body_index}_target_area_coverage"])
+        if info["target_area_coverage"] > best_coverage:
+            best_coverage = info["target_area_coverage"]
+            best_coverage_step = index + 1
+            best_coverage_elapsed = float(elapsed)
         if time_to_success_step is None and info["is_success"] is True:
             time_to_success_step = index + 1
     if last_step_info != final_step or episode.get("task_success") is not final_step["is_success"]:
         raise ValueError("matrix final telemetry does not match the episode result")
+    if (
+        episode.get("coverage_method") != TARGET_AREA_COVERAGE_METHOD
+        or episode.get("coverage_sample_count") != steps
+        or episode.get("initial_target_area_coverage_percent") != reset_step["target_area_coverage"] * 100
+        or episode.get("final_target_area_coverage_percent") != final_step["target_area_coverage"] * 100
+        or episode.get("best_target_area_coverage_percent") != best_coverage * 100
+        or episode.get("best_target_area_coverage_step") != best_coverage_step
+        or episode.get("time_to_best_target_area_coverage_seconds") != best_coverage_elapsed
+    ):
+        raise ValueError("matrix area coverage summary is invalid")
 
     trajectory = _mapping(manifest.get("trajectory"), "matrix trajectory")
     calculated_trajectory = summarize_trajectory(events, steps)
@@ -285,6 +316,15 @@ def _episode_result(
         "interference_count": int(final_step["interference_ever"] is True),
         "time_limit_count": int(reason == "time_limit"),
         "videos_passed": 1,
+        "coverage_sample_count": steps,
+    }
+    expected_coverage = {
+        "initial_target_area_coverage_percent": episode["initial_target_area_coverage_percent"],
+        "final_target_area_coverage_percent": episode["final_target_area_coverage_percent"],
+        "best_target_area_coverage_percent": episode["best_target_area_coverage_percent"],
+        "best_target_area_coverage_step": episode["best_target_area_coverage_step"],
+        "time_to_best_target_area_coverage_seconds": episode["time_to_best_target_area_coverage_seconds"],
+        "episode_elapsed_seconds": episode["wall_seconds"],
     }
     if (
         terminal.get("status") != "complete"
@@ -298,6 +338,7 @@ def _episode_result(
         or terminal.get("trajectory_plot_id") != plot_id
         or terminal.get("video_ids") != [video_id]
         or any(terminal.get(key) != value for key, value in expected_counts.items())
+        or any(terminal.get(key) != value for key, value in expected_coverage.items())
     ):
         raise ValueError("matrix terminal telemetry does not match the episode manifest")
     return {
@@ -310,6 +351,10 @@ def _episode_result(
         "layout_provenance": provenance,
         "final": final_step,
         "minimum_errors": minimum_errors,
+        "maximum_coverage": maximum_coverage,
+        "best_coverage": best_coverage,
+        "best_coverage_step": best_coverage_step,
+        "best_coverage_elapsed": best_coverage_elapsed,
         "time_to_success_step": time_to_success_step,
         "trajectory_sample_count": steps,
         "telemetry_write_p95_ms": float(overhead),
@@ -393,6 +438,13 @@ def validate_matrix(raw: object, *, require_gpu: bool = True, batch_root: Path |
                     "final_xy_error_meters_mean": sum(info[f"body_{body_index}_xy_error"] for info in final_infos)
                     / len(final_infos),
                     "final_yaw_error_radians_mean": sum(info[f"body_{body_index}_yaw_error"] for info in final_infos)
+                    / len(final_infos),
+                    "maximum_target_area_coverage_percent": max(
+                        checked[(scenario_key, seed)]["maximum_coverage"][body.name] * 100 for seed in _SEEDS
+                    ),
+                    "final_target_area_coverage_percent_mean": sum(
+                        info[f"body_{body_index}_target_area_coverage"] * 100 for info in final_infos
+                    )
                     / len(final_infos),
                 }
             )

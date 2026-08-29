@@ -35,6 +35,7 @@ from tools.remote_aloha.remote import RemoteError
 from tools.remote_aloha.remote import start_gpu_sampler
 from tools.remote_aloha.scenarios import DISPLAY_EVERY_STEPS
 from tools.remote_aloha.scenarios import SCENARIOS
+from tools.remote_aloha.scenarios import TARGET_AREA_COVERAGE_METHOD
 from tools.remote_aloha.scenarios import ScenarioSpec
 from tools.remote_aloha.scenarios import project_action
 from tools.remote_aloha.sim_smoke_test import package_versions
@@ -110,10 +111,11 @@ def _scenario_info_fields(scenario: ScenarioSpec) -> set[str]:
         "interference_ever",
         "left_joint_travel",
         "right_joint_travel",
+        "target_area_coverage",
         *{
             f"body_{index}_{suffix}"
             for index in range(body_count)
-            for suffix in ("xy_error", "yaw_error", "roll", "pitch", "height_error")
+            for suffix in ("xy_error", "yaw_error", "roll", "pitch", "height_error", "target_area_coverage")
         },
     }
 
@@ -187,6 +189,9 @@ def _scenario_step_info(value: object, scenario: ScenarioSpec) -> object:
         for key in numeric
     ):
         raise ValueError("custom scenario info metrics are invalid")
+    coverage_fields = {"target_area_coverage"} | {f"body_{index}_target_area_coverage" for index in range(body_count)}
+    if any(safe[key] > 1 for key in coverage_fields):
+        raise ValueError("custom scenario area coverage is invalid")
     return safe
 
 
@@ -234,6 +239,7 @@ def control_episode(
     last_info: object = reset_info
     safe_reset_info = _json_safe(reset_info)
     reset_scenario_identity = None
+    reset_step_info = None
     if scenario.is_custom:
         if not isinstance(safe_reset_info, dict) or not _scenario_info_fields(scenario) <= set(safe_reset_info):
             raise ValueError("custom scenario reset info fields are invalid")
@@ -276,6 +282,18 @@ def control_episode(
             "display_error": display_error,
         }
     )
+    if reset_step_info is not None:
+        result.update(
+            {
+                "coverage_method": TARGET_AREA_COVERAGE_METHOD,
+                "coverage_sample_count": 0,
+                "initial_target_area_coverage_percent": reset_step_info["target_area_coverage"] * 100,
+                "final_target_area_coverage_percent": None,
+                "best_target_area_coverage_percent": None,
+                "best_target_area_coverage_step": None,
+                "time_to_best_target_area_coverage_seconds": None,
+            }
+        )
     if emit is not None:
         emit("episode", seed=seed, status="started")
 
@@ -331,6 +349,15 @@ def control_episode(
         except BaseException as error:
             step_info = None
             step_info_error = error
+        if scenario.is_custom and step_info is not None:
+            coverage_percent = step_info["target_area_coverage"] * 100
+            result["coverage_sample_count"] = applied_steps
+            result["final_target_area_coverage_percent"] = coverage_percent
+            best_coverage = result["best_target_area_coverage_percent"]
+            if best_coverage is None or coverage_percent > best_coverage:
+                result["best_target_area_coverage_percent"] = coverage_percent
+                result["best_target_area_coverage_step"] = applied_steps
+                result["time_to_best_target_area_coverage_seconds"] = applied - started
         video_step_error = None
         try:
             video.on_step(next_observation, {"actions": action})
@@ -543,6 +570,7 @@ def _run_seed(
             task=sim_config.task,
             scenario=sim_config.scenario.key,
             scene_hash=scene_id,
+            target_area_coverage_method=(TARGET_AREA_COVERAGE_METHOD if sim_config.scenario.is_custom else None),
             action_horizon=sim_config.action_horizon,
             model_action_horizon=remote_config.policy_profile.action_horizon,
             prefetch_steps=sim_config.prefetch_steps,
@@ -696,6 +724,7 @@ def _run_seed(
             trajectory.get("plot_status") != "passed"
             or trajectory.get("sample_count") != result.get("steps_applied")
             or trajectory.get("step_coverage") != 1.0
+            or (sim_config.scenario.is_custom and result.get("coverage_sample_count") != result.get("steps_applied"))
         ):
             error = ValueError("complete episode trajectory coverage or plot status is invalid")
             errors.append({"stage": "trajectory", "type": type(error).__name__, "message": str(error)})
@@ -732,7 +761,26 @@ def _run_seed(
                     "interference_count": int(final_info.get("interference_ever") is True),
                     "time_limit_count": int(final_info.get("terminal_reason") == "time_limit"),
                     "videos_passed": int(video_validation is not None and video_status == "complete"),
+                    "coverage_sample_count": int(result.get("coverage_sample_count", 0)),
+                    "initial_target_area_coverage_percent": result.get("initial_target_area_coverage_percent"),
+                    "final_target_area_coverage_percent": result.get("final_target_area_coverage_percent"),
+                    "best_target_area_coverage_percent": result.get("best_target_area_coverage_percent"),
+                    "best_target_area_coverage_step": result.get("best_target_area_coverage_step"),
+                    "time_to_best_target_area_coverage_seconds": result.get(
+                        "time_to_best_target_area_coverage_seconds"
+                    ),
+                    "episode_elapsed_seconds": result.get("wall_seconds"),
                 }
+                for key in (
+                    "initial_target_area_coverage_percent",
+                    "final_target_area_coverage_percent",
+                    "best_target_area_coverage_percent",
+                    "time_to_best_target_area_coverage_seconds",
+                    "episode_elapsed_seconds",
+                ):
+                    value = scenario_result[key]
+                    if isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value):
+                        terminal_metrics[key] = value
                 for body_index in range(2):
                     for suffix in ("xy_error", "yaw_error", "roll", "pitch", "height_error"):
                         key = f"body_{body_index}_{suffix}"
@@ -1129,6 +1177,9 @@ def _write_performance_summary(root: Path, summary: Mapping[str, object], gpu_pa
                 episode.get("video", {}).get("status") == "complete"
                 and episode.get("video", {}).get("frames") == episode.get("episode", {}).get("steps_applied")
                 for episode in manifests
+            ),
+            "coverage_sample_count": sum(
+                int(episode["episode"].get("coverage_sample_count", 0)) for episode in manifests
             ),
         }
     rewards = [episode["episode"].get("reward_max") for episode in manifests]

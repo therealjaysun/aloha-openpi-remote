@@ -10,4 +10,4 @@
 - **Actual findings:** This is the highest-complexity zero-shot condition because the policy must coordinate two arms and sequence two semantic targets; that affects expected task quality, not the inference contract.
 - **Actual validation:** Six exact-SHA hardware episodes completed 1,800 applied steps and matching trajectory rows with six valid videos and six inspected 14-joint plots. All reached the time limit with no contact, two-arm participation, lift, fall, off-table event, or task success.
 - **Remaining blockers:** None. Zero-shot sequencing remains an experiment result.
-- **Completion status:** Complete with uppercase dotless `P`/`I`; E-MAC-S0827 and E-PC-S0827.
+- **Completion status:** Historical run complete with uppercase dotless `P`/`I`; the shared coverage evaluator applies, with no new hardware claim/run in this amendment.

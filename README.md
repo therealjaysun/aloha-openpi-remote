@@ -135,7 +135,7 @@ Simulation only—no PC required:
 make smoke-sim
 ```
 
-The optional Push-PI suite uses four fixed prompts and scenario IDs. Each prompt explicitly tells the policy to use only the left arm or both arms. The glyph task uses Greek π; the letter task uses uppercase dotless `P` and `I`. There is no text-prompt box: select the task before launch, and set `ALOHA_DISPLAY=1` for a local view of the same post-step frames saved to video.
+The optional Push-PI suite uses four fixed prompts and scenario IDs. Each prompt explicitly tells the policy to use only the left arm or both arms. The glyph task uses Greek π; the letter task uses uppercase dotless `P` and `I`. There is no text-prompt box: select the task before launch, and set `ALOHA_DISPLAY=1` for a local view of the same post-step frames saved to video. Each applied step also records exact named-target footprint coverage; episode summaries report initial/final/best coverage, the earliest best step/time, and total elapsed time without changing the existing success rule.
 
 ```bash
 ALOHA_SCENARIO=push_pi_single ALOHA_DISPLAY=1 ALOHA_EPISODES=1 make smoke-sim

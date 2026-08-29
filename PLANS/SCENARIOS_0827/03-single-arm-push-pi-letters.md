@@ -10,6 +10,6 @@
 - **Actual findings:** Gym-Aloha has no multi-letter task or general object-pose sampler; its global one/two-object `BOX_POSE` path should not be extended for this suite.
 - **Actual validation:** Six exact-SHA hardware episodes completed 1,800 applied steps and matching trajectory rows with six valid videos and six inspected 14-joint plots. All reached the time limit with no contact, lift, fall, off-table event, or task success.
 - **Remaining blockers:** None. Zero-shot sequencing remains an experiment result.
-- **Completion status:** Complete with uppercase dotless `P`/`I`; E-MAC-S0827 and E-PC-S0827.
+- **Completion status:** Historical run complete with uppercase dotless `P`/`I`; the shared coverage evaluator applies, with no new hardware claim/run in this amendment.
 
 `ponytail:` primitive glyphs are sufficient for the first experiment; add authored meshes only if top-camera recognition is demonstrably inadequate.

@@ -49,10 +49,11 @@ def _custom_info(scenario: str = "push_letters_single") -> dict[str, object]:
         "interference_ever": False,
         "left_joint_travel": 0.1,
         "right_joint_travel": 0.0,
+        "target_area_coverage": 0.1,
         **{
             f"body_{index}_{suffix}": 0.1
             for index in range(body_count)
-            for suffix in ("xy_error", "yaw_error", "roll", "pitch", "height_error")
+            for suffix in ("xy_error", "yaw_error", "roll", "pitch", "height_error", "target_area_coverage")
         },
     }
 
@@ -426,6 +427,89 @@ def test_custom_episode_projects_one_command_into_sim_video_and_telemetry() -> N
     assert step["commanded_joint_positions"] == expected.tolist()
     assert step["actual_joint_positions"] == (home + 1).tolist()
     assert step["scenario_info"] == _custom_info()
+    assert result["coverage_sample_count"] == 1
+    assert result["initial_target_area_coverage_percent"] == 10.0
+    assert result["final_target_area_coverage_percent"] == 10.0
+    assert result["best_target_area_coverage_percent"] == 10.0
+    assert result["best_target_area_coverage_step"] == 1
+
+
+def test_custom_episode_tracks_earliest_best_coverage_time_and_preserves_failure_progress() -> None:
+    scenario = SCENARIOS["push_pi_single"]
+
+    class Clock:
+        now = 0.0
+
+        def monotonic(self) -> float:
+            return self.now
+
+        def sleep(self, duration: float) -> None:
+            self.now += duration
+
+    class Environment:
+        def __init__(self, clock: Clock) -> None:
+            self.clock = clock
+            self.steps = 0
+
+        def reset(self, *, seed: int):
+            return _raw_observation(), _custom_info(scenario.key)
+
+        def step(self, action: np.ndarray):
+            self.steps += 1
+            self.clock.now += 0.01
+            info = _custom_info(scenario.key)
+            info["target_area_coverage"] = (0.2, 0.6, 0.6)[self.steps - 1]
+            info["body_0_target_area_coverage"] = info["target_area_coverage"]
+            return _raw_observation(), 0.0, self.steps == 3, False, info
+
+    class Policy:
+        def infer(self, observation: dict, step: int) -> np.ndarray:
+            return np.zeros(14, dtype=np.float64)
+
+    class Video:
+        def on_episode_start(self) -> None:
+            return None
+
+        def on_step(self, observation: dict, action: dict) -> None:
+            return None
+
+    clock = Clock()
+    result = control_episode(
+        Environment(clock),
+        Policy(),
+        Video(),
+        seed=0,
+        prompt=scenario.prompt,
+        profile=POLICY_PROFILES["pi0_aloha_sim"],
+        scenario=scenario,
+        monotonic=clock.monotonic,
+        sleep=clock.sleep,
+    )
+    assert result["coverage_sample_count"] == 3
+    assert result["final_target_area_coverage_percent"] == pytest.approx(60.0)
+    assert result["best_target_area_coverage_percent"] == pytest.approx(60.0)
+    assert result["best_target_area_coverage_step"] == 2
+    assert result["time_to_best_target_area_coverage_seconds"] == pytest.approx(0.03)
+
+    progress = {}
+
+    class FailingVideo(Video):
+        def on_step(self, observation: dict, action: dict) -> None:
+            raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        control_episode(
+            Environment(Clock()),
+            Policy(),
+            FailingVideo(),
+            seed=0,
+            prompt=scenario.prompt,
+            profile=POLICY_PROFILES["pi0_aloha_sim"],
+            scenario=scenario,
+            progress=progress,
+        )
+    assert progress["coverage_sample_count"] == progress["steps_applied"] == 1
+    assert progress["best_target_area_coverage_step"] == 1
 
 
 @pytest.mark.parametrize(
@@ -437,6 +521,7 @@ def test_custom_episode_projects_one_command_into_sim_video_and_telemetry() -> N
         ("both_arms_participated", True),
         ("terminal_reason", "success"),
         ("body_0_xy_error", float("nan")),
+        ("target_area_coverage", 1.01),
     ],
 )
 def test_custom_step_info_rejects_invalid_identity_counts_and_metrics(field: str, value: object) -> None:
@@ -979,7 +1064,11 @@ def test_run_seed_publishes_custom_scenario_identity_and_integer_counts(tmp_path
     assert manifest["infrastructure_pass"] is True
     assert public["metadata"]["scenario"] == scenario.key
     assert public["metadata"]["scene_hash"] == "a" * 64
+    assert public["metadata"]["target_area_coverage_method"] == "exact-planar-union-v1"
     assert public["result"]["push_success"] == 1
+    assert public["result"]["coverage_sample_count"] == 1
+    assert public["result"]["best_target_area_coverage_percent"] == 10.0
+    assert public["result"]["best_target_area_coverage_step"] == 1
     assert isinstance(public["result"]["push_success"], int)
 
 

@@ -10,4 +10,4 @@
 - **Actual findings:** The installed MuJoCo/Gym-Aloha model is already bimanual and its policy/state contract already matches both model profiles.
 - **Actual validation:** Six exact-SHA hardware episodes completed 1,800 applied steps and matching trajectory rows with six valid videos and six inspected 14-joint plots. All reached the time limit with no contact, two-arm participation, lift, fall, off-table event, or task success.
 - **Remaining blockers:** None. Zero-shot coordination competence remains an experiment result.
-- **Completion status:** Complete; E-MAC-S0827 and E-PC-S0827.
+- **Completion status:** Historical run complete; the shared coverage evaluator applies, with no new hardware claim/run in this amendment.

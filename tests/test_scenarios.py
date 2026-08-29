@@ -16,12 +16,15 @@ from tools.remote_aloha.scenario_matrix import summarize_latest
 from tools.remote_aloha.scenario_matrix import validate_matrix
 import tools.remote_aloha.scenarios as scenarios
 from tools.remote_aloha.scenarios import SCENARIOS
+from tools.remote_aloha.scenarios import BodyDescriptor
 from tools.remote_aloha.scenarios import BodyState
 from tools.remote_aloha.scenarios import OutcomeState
+from tools.remote_aloha.scenarios import Part
 from tools.remote_aloha.scenarios import Participation
 from tools.remote_aloha.scenarios import advance_outcome
 from tools.remote_aloha.scenarios import body_descriptors
 from tools.remote_aloha.scenarios import descriptor_sha256
+from tools.remote_aloha.scenarios import footprint_overlap_coverage
 from tools.remote_aloha.scenarios import layout_hash
 from tools.remote_aloha.scenarios import project_action
 from tools.remote_aloha.scenarios import sample_layout
@@ -109,6 +112,35 @@ def test_success_requires_five_held_steps_and_i_yaw_is_pi_symmetric() -> None:
         outcome, metrics = advance_outcome(bodies, states, rest, outcome)
         assert outcome.success is (index == 4)
     assert metrics["body_1_yaw_error"] == pytest.approx(0.0)
+
+
+def test_target_area_coverage_is_exact_for_translation_rotation_and_compound_unions() -> None:
+    box = BodyDescriptor("box", (Part(0.0, 0.0, 0.5, 0.5),), 0.0, 0.0, 0.0, (1.0, 0.0, 0.0, 1.0))
+    assert footprint_overlap_coverage(box, _state(box)) == pytest.approx(1.0)
+    assert footprint_overlap_coverage(box, _state(box, x=0.5)) == pytest.approx(0.5)
+    assert footprint_overlap_coverage(box, _state(box, x=2.0)) == pytest.approx(0.0)
+    assert footprint_overlap_coverage(box, _state(box, yaw=math.pi / 4)) == pytest.approx(2 * math.sqrt(2) - 2)
+
+    duplicate = BodyDescriptor("duplicate", (box.parts[0], box.parts[0]), 0.0, 0.0, 0.0, box.rgba)
+    assert footprint_overlap_coverage(duplicate, _state(duplicate)) == pytest.approx(1.0)
+    compound = BodyDescriptor(
+        "compound",
+        (Part(-0.25, 0.0, 0.5, 0.5), Part(0.25, 0.0, 0.5, 0.5)),
+        0.0,
+        0.0,
+        0.0,
+        box.rgba,
+    )
+    assert footprint_overlap_coverage(compound, _state(compound, x=0.5)) == pytest.approx(2 / 3)
+
+
+def test_target_area_coverage_rejects_nonfinite_or_degenerate_geometry() -> None:
+    box = BodyDescriptor("box", (Part(0.0, 0.0, 0.5, 0.5),), 0.0, 0.0, 0.0, (1.0, 0.0, 0.0, 1.0))
+    with pytest.raises(ValueError, match="state"):
+        footprint_overlap_coverage(box, _state(box, x=float("nan")))
+    degenerate = BodyDescriptor("box", (Part(0.0, 0.0, 0.0, 0.5),), 0.0, 0.0, 0.0, box.rgba)
+    with pytest.raises(ValueError, match="positive"):
+        footprint_overlap_coverage(degenerate, _state(degenerate))
 
 
 def test_letters_reject_one_correct_swapped_lift_fall_and_off_table() -> None:
@@ -226,10 +258,11 @@ def _matrix_info(scenario_key: str, layout: str, *, terminal: bool = False) -> d
         "interference_ever": False,
         "left_joint_travel": 0.1,
         "right_joint_travel": 0.0,
+        "target_area_coverage": 0.1,
         **{
             f"body_{index}_{suffix}": 0.1
             for index in range(body_count)
-            for suffix in ("xy_error", "yaw_error", "roll", "pitch", "height_error")
+            for suffix in ("xy_error", "yaw_error", "roll", "pitch", "height_error", "target_area_coverage")
         },
     }
 
@@ -277,6 +310,7 @@ def _synthetic_matrix(tmp_path: Path) -> dict[str, object]:
                     "task": spec.gym_id,
                     "scenario": scenario_key,
                     "scene_hash": final["scene_hash"],
+                    "target_area_coverage_method": "exact-planar-union-v1",
                 },
                 {
                     "schema": 1,
@@ -315,6 +349,13 @@ def _synthetic_matrix(tmp_path: Path) -> dict[str, object]:
                     "interference_count": 0,
                     "time_limit_count": 0,
                     "videos_passed": 1,
+                    "coverage_sample_count": 1,
+                    "initial_target_area_coverage_percent": 10.0,
+                    "final_target_area_coverage_percent": 10.0,
+                    "best_target_area_coverage_percent": 10.0,
+                    "best_target_area_coverage_step": 1,
+                    "time_to_best_target_area_coverage_seconds": 0.02,
+                    "episode_elapsed_seconds": 0.02,
                 },
             ]
             telemetry_path = root / "telemetry.jsonl"
@@ -357,6 +398,14 @@ def _synthetic_matrix(tmp_path: Path) -> dict[str, object]:
                         "terminated": True,
                         "truncated": False,
                         "task_success": False,
+                        "coverage_method": "exact-planar-union-v1",
+                        "coverage_sample_count": 1,
+                        "initial_target_area_coverage_percent": 10.0,
+                        "final_target_area_coverage_percent": 10.0,
+                        "best_target_area_coverage_percent": 10.0,
+                        "best_target_area_coverage_step": 1,
+                        "time_to_best_target_area_coverage_seconds": 0.02,
+                        "wall_seconds": 0.02,
                         "reset_info": reset,
                         "final_info": final,
                     },
