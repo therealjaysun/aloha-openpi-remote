@@ -13,7 +13,7 @@
 - **Test commands:** `make test`; `make lint`; `make secret-scan`; focused synthetic/interrupt/plot/overhead tests; `make metrics`; the existing three-episode π₀ and π₀.₅ `make run` sequence; inspect six plots and confirm outputs remain untracked.
 - **Risks:** Larger rows or composite frames exceed telemetry/RAM budgets, plots obscure series, interrupted artifacts diverge from applied steps, metadata leaks paths, or staged prompt boundaries reuse stale buffered actions.
 - **Rollback:** Disable subscribers/sampler while retaining core control loop; stop validated metrics PID; revert phase; keep partial ignored artifacts.
-- **Current status:** Historical Phase 5 is complete. The S0827 extension reuses these artifacts and is pending exact-candidate staged-run validation; Phase 5 is not restarted.
+- **Current status:** Historical Phase 5 remains complete and is not restarted. The S0827 π₀.₅ candidate `b1a1727` passed safe live status, 3,646 applied-step telemetry rows, three-panel MP4, 14-joint plot, GPU coverage, artifact inspection, and cleanup; the requested π₀ block-transfer comparison is in progress.
 - **Actual results:** Exact candidate `2065dd9d5a5e7f21ea40a940944d48ac08c6da20` passed 297 tests with one platform skip, lint/format/Bash/secret gates, and hosted PR checks. RTX 3090 runs recorded exact 761/761 π₀ and 900/900 π₀.₅ step/sample coverage, 14 actual plus 14 commanded series, and six passing plots. π₀ infrastructure/task success was 3/3 and 2/3; experimental π₀.₅ was 3/3 and 0/3. Maximum episode telemetry-write p95 was 0.197 ms, below the 1 ms budget. All raw rows/plots are ignored, and final stop/residue checks passed.
 - **Deviations:** Automatic retry is deliberately limited to client construction/connect/metadata before reset or inference. Once an inference may have been sent, replay is unsafe; the episode aborts and preserves partial evidence. The first hardware run exposed an orphaned WSL sampler when the Mac SSH client was terminated; the final implementation added an explicit remote ownership record/stop and the exact-candidate rerun passed cleanup.
 - **PR:** [PR 6](https://github.com/therealjaysun/pi-robotics/pull/6).
@@ -21,4 +21,4 @@
 
 ## Machine handoff
 
-The historical Phase 5 profile campaign remains complete. The S0827 extension adds only one π₀.₅ Scenario 1 diagnostic after local/hosted gates; it does not rerun the Phase 5 campaign.
+The historical Phase 5 profile campaign remains complete. The S0827 extension adds bounded Scenario 1 diagnostics for π₀.₅ base and the π₀ block-transfer checkpoint after local/hosted gates; it does not rerun the Phase 5 campaign.

@@ -13,14 +13,15 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 | 04 End-to-end | Complete; open for review | `codex/04-end-to-end-control` | 5 | [PR 5](https://github.com/therealjaysun/pi-robotics/pull/5) | `codex/03-secure-connectivity` | `codex/04-end-to-end-control` | 205 local and isolated-lock tests plus lint/format/shell/secret scan pass; hosted `pure-checks`/`secret-scan` pass; Mac 900-step smoke and six exact-candidate policy episodes/videos pass with clean stops | None; sustained 50 Hz was not claimed (45.44–47.09 Hz measured) | `d7e9714` |
 | 05 Observability | Complete; open for review | `codex/05-observability` | 6 | [PR 6](https://github.com/therealjaysun/pi-robotics/pull/6) | `codex/04-end-to-end-control` | `codex/05-observability` | 297 passed + 1 platform skip; lint/format/Bash/secret and hosted checks pass; exact π₀/π₀.₅ hardware runs produced 1,661/1,661 samples and six verified 14-joint plots | None | Hardware implementation `2065dd9`; completion evidence at branch HEAD |
 | 06 Hardening/docs | Complete; open for review | `codex/06-hardening-docs` | 7 | [PR 7](https://github.com/therealjaysun/pi-robotics/pull/7) | `codex/05-observability` | `codex/06-hardening-docs` | 318 passed + 1 platform skip; 21 feasible upstream tests, lint/format/Bash, doctors, public/secret audits, plan/link/ancestry validators, hosted checks, and seven-PR status pass | None; final hardware proof remains Phase 5 `2065dd9`, with Phase 6 `90b0fed` smokes retained as historical evidence | Implementation `a8a3ca1`; final evidence at branch HEAD |
-| S0827 Push-PI | Complete; open for review | `codex/push-pi-scenarios` | 8 | [PR 8](https://github.com/therealjaysun/pi-robotics/pull/8) | `codex/06-hardening-docs` | `codex/push-pi-scenarios` | 413 passed + 1 platform skip; lint/format/Bash/secret/public and hosted checks pass; exact-SHA three-view π₀ 300-step acceptance and 6,000-step diagnostic artifacts pass | None; prior matrices remain historical top-only evidence | Three-view implementation `6662a23`; completion evidence at branch HEAD |
+| S0827 Push-PI | In progress; open for review | `codex/push-pi-scenarios` | 8 | [PR 8](https://github.com/therealjaysun/pi-robotics/pull/8) | `codex/06-hardening-docs` | `codex/push-pi-scenarios` | 423 passed + 1 platform skip; lint/format/Bash/secret/public and four hosted checks pass; exact-SHA π₀.₅ staged three-view run/evidence/cleanup pass | Requested same-schedule π₀ block-transfer comparison pending | Live-status/staged implementation `b1a1727`; comparison candidate pending |
 
 ## Active extension cursor
 
-- S0827 composite-video/staged-prompt extension is in progress on `codex/push-pi-scenarios`; π₀.₅ is the default and π₀ remains explicit. Safe live Mac-terminal setup/server and bounded simulation progress are being added before the exact-SHA π₀.₅ diagnostic.
-- Mac state: full CI, exact clean-checkout calibration, stock regression, four three-seed hold runs, four visual smokes, and image inspection pass for the amended prompt descriptor.
+- S0827 composite-video/staged-prompt extension remains on `codex/push-pi-scenarios`; π₀.₅ is the default and π₀ remains explicit. The π₀.₅ candidate passed; the same-schedule π₀ block-transfer comparison is in progress.
+- Behavior result: the π₀.₅ staged Scenario 1 run achieved 0% coverage and naturally ended off-table at step 3,646/6,000 after non-finger hand contact; deterministic seed-0 retry is not justified.
+- Next comparison: run the same seed-0 staged three-view Scenario 1 ceiling with the task-specific `pi0_aloha_sim` block-transfer checkpoint; keep artifacts ignored and append results without a per-run commit.
 - Identity: custom 3-D ALOHA Push-PI experiment inspired by PushT, not the standard PushT benchmark. The glyph task uses Greek π; the letter task uses uppercase dotless `P` and `I`.
-- Machine gate: PC online; the 32 GB WSL ceiling and updated read-only doctor pass. Exact-candidate setup/server/run remain gated on commit, push, secret scan, and hosted checks.
+- Machine gate: PC online and SSH ready; no owned server/tunnel currently running.
 - PR dependency: PR 8 is based on `codex/06-hardening-docs`; retarget to `main` only after PR 7 merges and verify the incremental diff.
 - Plan: [`SCENARIOS_0827/00-overview.md`](SCENARIOS_0827/00-overview.md).
 
@@ -29,12 +30,12 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 - Volatile snapshot at `2026-08-27T03:09:59Z`: Apple Silicon arm64, macOS 26.6.1, 18 GB RAM, 58 GiB workspace disk free. Rerun `make doctor-mac` before capacity decisions.
 - Tools: Python 3.14.5 default, `uv 0.12.1`, `gh 2.89.0`, Docker 28.0.4.
 - Native arm64 Python 3.10.20 now exists only in ignored `examples/aloha_sim/.venv`; the default Python remains untouched and no model/JAX/CUDA stack is installed on Mac.
-- PC capacity observed: RTX 3090 with 24,576 MiB VRAM and 48 GB installed system RAM. On 2026-08-29 the user-owned WSL2 ceiling was changed from 12 to 32 GB with 8 GB swap preserved; the updated doctor reported 32,866,932 KiB total, 31,981,904 KiB available, and automatic `full-float32`. Exact-candidate setup/runtime revalidation remains pending; partial BF16 remains the validated fallback below 16 GiB available.
+- PC capacity observed: RTX 3090 with 24,576 MiB VRAM and 48 GB installed system RAM. On 2026-08-29 the user-owned WSL2 ceiling changed from 12 to 32 GB with 8 GB swap preserved; exact-candidate doctor/setup/runtime reported about 32,866,936 KiB total, 31,983,336–31,991,260 KiB available, and automatic `full-float32`. Existing BF16 artifacts were reused; partial BF16 remains the validated fallback below 16 GiB available.
 - Source baseline remains upstream `215abfb217dbac7d5f1273282331b9b1866c0479`. Baseline commit is `13426ca`; validated Phase 01 implementation is `44e1d5f229c787d7d1af24bf323a968bce33dfcf`.
 - Remotes: official OpenPI is fetch-only `upstream` with push disabled; public project `origin` is `https://github.com/therealjaysun/pi-robotics`.
 - Submodules: ALOHA `d1dc83afd89ded4379851257fe5d85632d31d5ec`; LIBERO `f78abd68ee283de9f9be3c8f7e2a9ad60246e95c`.
 - GitHub: authenticated access works. The public repository exists; Actions allows selected immutable-SHA actions, requires SHA pinning, uses read-only default workflow permissions, and cannot approve pull-request reviews. See [`00-bootstrap/04-github-blocker.md`](00-bootstrap/04-github-blocker.md).
-- Remote: strict `robot-gpu` key/host trust passes through Windows cmd to explicitly selected Ubuntu 24.04 WSL2. Hardware candidate `38b5228418c729d39d1c4fe551ef5ddcbef9e49e` passed locked setup plus both converted-profile smokes on the RTX 3090; machine identifiers remain untracked.
+- Remote: strict `robot-gpu` key/host trust passes through Windows cmd to explicitly selected Ubuntu 24.04 WSL2. Latest hardware candidate `b1a1727e8aad06fb5592ecba94c2eb57fa406306` passed locked setup, π₀.₅ smoke, staged run infrastructure/evidence, and cleanup; machine identifiers remain untracked.
 - Public repository URL: https://github.com/therealjaysun/pi-robotics.
 
 ## Final plan review evidence
@@ -51,10 +52,10 @@ Final plan review: 2026-08-28. Independent code/test, security, plan-traceabilit
 
 ## Execution cursor
 
-- Active subphase: S0827 composite episode video plus staged Scenario 1 diagnostic; phases 00–06 remain complete.
-- Machine gate: OFF after successful cleanup and a final free-port doctor check.
-- Exact user action: none; the PC may be powered off.
-- Release gate: pending local/exact-commit/hosted checks, staged hardware run, artifact inspection, and cleanup.
+- Active subphase: S0827 staged Scenario 1 π₀ block-transfer comparison; phases 00–06 remain complete.
+- Machine gate: PC online; SSH readiness passed and port ownership will be rechecked before launch.
+- Exact user action: none while the comparison runs.
+- Release gate: exact comparison candidate, hosted checks, π₀ smoke/run, artifact inspection, evidence, and cleanup.
 - Recovery: camera-only amendments require global contract tests plus the bounded Scenario 1 hardware run; do not claim the historical matrices validate three-view behavior.
 - Three-view implementation `6662a235278f01c6ee08dec976f58359c47181ec`; latest top-only diagnostic `6e6180c85b5ae279966f790ee7e96720b3285a6e`; coverage `4516422a95e3d3572997cace51b6a9b718cb8794`; matrix `7c2ec5927ad200e5aaf30bed0db4ef61cb9e2ba4`; upstream `215abfb217dbac7d5f1273282331b9b1866c0479`.
 - PR state: PRs 1–7 remain open and stacked; PR 8 is the standalone S0827 extension based temporarily on PR 7.

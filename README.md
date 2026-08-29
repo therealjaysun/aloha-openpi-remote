@@ -182,12 +182,13 @@ For the exact Push-PI evaluation, replace `make run` with one `make scenario-mat
 
 `ALOHA_EPISODE_STEPS` defaults to the accepted 300-step limit. A single diagnostic run may raise it to at most 6,000 steps (120 simulated seconds at 50 Hz); the acceptance matrix rejects overrides so its results remain comparable.
 
-Scenario 1 also has one fail-closed π₀.₅-only staged diagnostic. It first asks the left arm to point its wrist down and look, then lower beside the π, then make short pushes toward the target. Boundaries are exact and old queued actions are discarded before each new instruction:
+Scenario 1 also has a fail-closed staged diagnostic for either validated profile. It first asks the left arm to point its wrist down and look, then lower beside the π, then make short pushes toward the target. Boundaries are exact and old queued actions are discarded before each new instruction:
 
 ```bash
+profile=pi0_aloha_sim  # or pi05_aloha_base
 ALOHA_SCENARIO=push_pi_single ALOHA_EPISODES=1 ALOHA_EPISODE_STEPS=6000 \
   ALOHA_PROMPT_SCHEDULE=push_pi_single_left_staged_v1 \
-  OPENPI_POLICY_PROFILE=pi05_aloha_base OPENPI_POLICY_BACKEND=pytorch make run
+  OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make run
 ```
 
 One automatic, low-frequency RTX sampler covers the whole `make run`. It validates the owned server identity before every bounded `nvidia-smi` query and stops in `finally`; there is no SSH or GPU query per simulation step. Start/end clock probes record the Mac↔WSL UTC offset with a round-trip uncertainty bound. `make metrics` only validates the latest run for the selected `OPENPI_POLICY_PROFILE` and atomically rebuilds derived summaries—it does not contact the PC, change raw evidence, or start a sampler.
