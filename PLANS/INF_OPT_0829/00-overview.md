@@ -2,12 +2,12 @@
 
 ## Handoff
 
-- **Status:** P0 is merged. Candidate `e00768e` passed local gates, the normal and 5+50 tunneled π₀.₅ timing smokes, and four short R1/R2 trials; fixed-observation/fixed-noise B0 parity remains open.
+- **Status:** P0 is merged. Candidate `8faea85` passed local gates, four short R1/R2 trials, and the captured-observation/fixed-noise π₀.₅ B0 replay. S1 is next.
 - **Base candidate:** main after merged plan PR #9 (`3ebf8b017384e1e38ba97261d65a723966596b45`).
 - **Optimization scope:** `pi05_aloha_base` only. By user decision on 2026-08-29, do not run, benchmark, optimize, or qualify π₀. Keep existing π₀ support unchanged for compatibility.
 - **Order:** P0 clean baseline → implement B0 instrumentation plus disabled R1/R2 switches → B0 measurements → isolated R1/R2 trials → S1–S6 measured speed work → final hardware validation.
 - **Ownership:** One integrating agent owns shared files and final validation. Read-only agents may inspect independent candidates.
-- **PC boundary:** The PC is live with `e00768e`. Next close π₀.₅ fixed-observation/fixed-noise B0 replay, then implement and A/B S1. Do not rerun completed short R1/R2 trials.
+- **PC boundary:** The PC is live with `8faea85`. Implement S1 locally, sync its exact candidate, then A/B it against the completed π₀.₅ B0 replay. Do not rerun completed short R1/R2 trials.
 
 ## Objective
 
@@ -37,6 +37,8 @@ Exact candidate `e00768e` adds a timing-only π₀.₅ smoke result of 659.85 ms
 | `45/40` | 5 | 0 | 13 | 6.554% |
 
 All four preserved 300/300 step/trajectory/video coverage. `45/40 + 5` addresses both observed failure modes, but its jump p95 still misses the 5% gate; no runtime default is promoted yet.
+
+Exact candidate `8faea85` completed B0 with one captured three-camera Scenario 2 observation, fixed noise seed 7, 5 warmups, and 50 measured π₀.₅ requests. Bitwise action replay passed (`observation ff33e919…`, `actions 38f302fd…`). Warmed server-inference p95 was 459.74 ms; denoise p95 was 302.91 ms. All 50 stage totals reconciled.
 
 ## Fixed constraints
 
@@ -82,7 +84,7 @@ The runtime work may complete even if no speed candidate survives measurement; r
 
 ### B0 — Correct baseline and timing
 
-**Current boundary:** Local code records synchronized PyTorch stages and supports an explicit 5-warmup/50-measurement timing smoke. Its synthetic observation and model-generated noise are timing-only; captured-observation/fixed-noise replay remains a PC-local B0 exit gate.
+**Current boundary:** Complete on `8faea85`. The private captured observation and fixed local noise seed produced bitwise-identical actions across all warmup and measured calls; synchronized stage totals reconciled.
 
 1. Reuse existing request telemetry; add only enough CUDA-event timing to separate input transfer, three-camera SigLIP, Gemma prefix/KV, ten-step denoising, and device-to-host output.
 2. Include the final CUDA-to-CPU synchronization that the current `Policy.infer` timer misses.
@@ -177,7 +179,7 @@ Only if B0 shows material CPU/input-transfer cost, remove redundant `np.array` c
 
 1. **Clean baseline — complete:** P0 and documentation-only SHA merged.
 2. **Mac candidate — complete:** B0 instrumentation and selectable R1/R2 passed local gates and were pushed.
-3. **PC timing baseline — partial:** Exact SHA synced; doctor/setup, normal smoke, and tunneled 5+50 timing smoke passed for π₀.₅. Fixed-observation/fixed-noise replay remains.
+3. **PC timing baseline — complete:** Exact `8faea85` synced; doctor/setup, captured three-camera observation, and tunneled fixed-noise 5+50 replay passed for π₀.₅.
 4. **Isolated runtime trials — complete:** Short matched baseline, R1, R2, and combined π₀.₅ runs are recorded above; no default is promoted yet.
 5. **Speed A/B:** Apply S1–S6 one at a time. Benchmark π₀.₅ after each; remove losers before continuing. Do not run a 120-second episode per experiment.
 6. **Combined smoke:** Run the existing four-call π₀.₅ policy smoke plus one 300-step three-camera episode. Verify finite 14D actions, crossfade/buffer metrics, video, trajectory, and cleanup.
