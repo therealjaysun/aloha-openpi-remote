@@ -2,12 +2,12 @@
 
 ## Handoff
 
-- **Status:** P0/B0 and short R1/R2 trials are complete. S1 is retained; S2/S3 were reverted for parity and the S4 expert trial was reverted for parity plus regression. S4 prefix remains.
+- **Status:** P0/B0 and short R1/R2 trials are complete. S1 is retained; S2/S3 and both S4 trials were rejected and reverted. S5 is next.
 - **Base candidate:** main after merged plan PR #9 (`3ebf8b017384e1e38ba97261d65a723966596b45`).
 - **Optimization scope:** `pi05_aloha_base` only. By user decision on 2026-08-29, do not run, benchmark, optimize, or qualify π₀. Keep existing π₀ support unchanged for compatibility.
 - **Order:** P0 clean baseline → implement B0 instrumentation plus disabled R1/R2 switches → B0 measurements → isolated R1/R2 trials → S1–S6 measured speed work → final hardware validation.
 - **Ownership:** One integrating agent owns shared files and final validation. Read-only agents may inspect independent candidates.
-- **PC boundary:** The S4 expert server is stopped. Trial prefix SDPA independently, then close S4; do not repeat the rejected expert candidate.
+- **PC boundary:** S4 is closed and its server is stopped. Restore the exact retained candidate on the PC before the isolated S5 trial.
 
 ## Objective
 
@@ -165,6 +165,8 @@ Test PyTorch SDPA independently for SigLIP, Gemma prefix attention, and the acti
 
 **Expert result:** Rejected and reverted. Forced efficient-only SDPA required a BF16 mask, then ran without fallback on `22d0201`, but changed the action digest and regressed server p95 to 369.71 ms.
 
+**Prefix result:** Rejected and reverted. Forced efficient-only SDPA ran without fallback on `52d2f91` and reached 353.21 ms server p95, only 2.08% below the stronger retained S1 run. Its fixed action digest changed from `38f302fd…` to `2f5dd9a0…`; all 700 values changed, with max error 0.003506, p95 0.002453, mean 0.001135, and at most 0.106% of a joint range. No value reached 0.01, but 696 exceeded the declared `1e-5` numerical-equivalence limit.
+
 ### S5 — Compile only the stable denoise step
 
 After S1, test `torch.compile(..., mode="default")` on the fixed-shape denoise step. Warm it before readiness and retain explicit eager selection. Do not retry the previously failing whole-sampler `max-autotune` path.
@@ -193,7 +195,7 @@ Only if B0 shows material CPU/input-transfer cost, remove redundant `np.array` c
 2. **Mac candidate — complete:** B0 instrumentation and selectable R1/R2 passed local gates and were pushed.
 3. **PC timing baseline — complete:** Exact `8faea85` synced; doctor/setup, captured three-camera observation, and tunneled fixed-noise 5+50 replay passed for π₀.₅.
 4. **Isolated runtime trials — complete:** Short matched baseline, R1, R2, and combined π₀.₅ runs are recorded above; no default is promoted yet.
-5. **Speed A/B — active:** S1 retained on `36bbf1a`; S2/S3 and S4 expert rejected and reverted. Finish S4 prefix, then apply S5–S6 one at a time; remove losers. Do not run a 120-second episode per experiment.
+5. **Speed A/B — active:** S1 retained on `36bbf1a`; S2/S3/S4 rejected and reverted. Apply S5–S6 one at a time and remove losers. Do not run a 120-second episode per experiment.
 6. **Combined smoke:** Run the existing four-call π₀.₅ policy smoke plus one 300-step three-camera episode. Verify finite 14D actions, crossfade/buffer metrics, video, trajectory, and cleanup.
 7. **Final hardware run:** Run the same 120-second Scenario 2 seed/profile pair used by the π₀.₅ baseline. Inspect its video and all 14 trajectory series; compare task coverage/time honestly.
 8. **Closeout:** Re-run local gates on the exact pushed SHA, update status/evidence only after the final candidate passes, run `make stop`, confirm the policy port is free, and tell the user the PC can be switched off.
