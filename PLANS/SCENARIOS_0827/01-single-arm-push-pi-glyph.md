@@ -8,8 +8,8 @@
 - **Acceptance:** Report `(best coverage descending, time-to-best ascending)`, initial/final coverage, total elapsed time, and existing success/safety fields. The measured value may be 0%; one episode measures this candidate but does not prove optimality.
 - **Planned commit:** Included in `feat(sim): add shared Push-PI environment` and `feat(runtime): integrate Push-PI scenarios and display`.
 - **Actual findings:** The current ALOHA policy ABI cannot accept a literal 7-D state/action. Holding the inactive half is the minimal compatible experiment.
-- **Actual validation:** The historical six episodes remain unchanged. The exact coverage candidate's additional π₀ seed-0 run completed 300/300 coverage/joint/video rows with a valid inspected plot/video and clean stop. Initial/final/best coverage were `0.0%`; step 1 at `0.604606 s` is only the earliest all-zero tie; total time was `6.968412 s`. The arm moved but never contacted or displaced the π meaningfully.
+- **Actual validation:** The historical six episodes remain unchanged. The exact coverage candidate's π₀ seed-0 run completed 300/300 rows with `0.0%` coverage and no meaningful displacement. A separate experimental π₀.₅ base diagnostic completed 6,000/6,000 rows over 120 simulated seconds, also at `0.0%`; the arm swept the π farther from its target around step 960, then remained near joint limits. Both videos/plots passed inspection and both cleanup checks left the policy port free. The extended result is not pooled with acceptance evidence.
 - **Remaining blockers:** None. PR 7 ancestry remains a merge-order dependency, not a technical blocker.
-- **Completion status:** Complete; E-MAC-S0827-COVERAGE and E-PC-S0827-COVERAGE. Prior six episodes remain historical.
+- **Completion status:** Complete; E-MAC/E-PC-S0827-COVERAGE plus separate E-MAC/E-PC-S0827-LONG diagnostic. Prior six episodes remain historical.
 
 `ponytail:` the visible right robot remains in the scene; remove it only if measured occlusion or contact changes the experiment.
