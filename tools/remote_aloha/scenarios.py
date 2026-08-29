@@ -245,7 +245,10 @@ SCENARIOS = {
         "pi_robotics/PushPiBimanual-v0",
         "pi",
         "both",
-        "Using both arms, push the pi-shaped block onto its matching target.",
+        "Using both arms, first tilt both wrists down to see the pi-shaped block and its matching outline; "
+        "then lower both grippers close to the table on opposite sides of the block without lifting it; "
+        "finally make short coordinated incremental pushes that move the block into the outline, rechecking "
+        "alignment after each push.",
     ),
     "push_letters_single": ScenarioSpec(
         "push_letters_single",

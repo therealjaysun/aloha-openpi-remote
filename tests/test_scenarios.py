@@ -63,7 +63,12 @@ def test_fixed_scenario_contract_uses_uppercase_dotless_letters() -> None:
             "then lower the gripper close to the table beside the block and make short incremental pushes that move "
             "the block into the outline; recheck alignment after each push and do not lift the block."
         ),
-        "push_pi_dual": "Using both arms, push the pi-shaped block onto its matching target.",
+        "push_pi_dual": (
+            "Using both arms, first tilt both wrists down to see the pi-shaped block and its matching outline; "
+            "then lower both grippers close to the table on opposite sides of the block without lifting it; "
+            "finally make short coordinated incremental pushes that move the block into the outline, rechecking "
+            "alignment after each push."
+        ),
         "push_letters_single": "Using only the left arm, push the P and I blocks onto their matching targets.",
         "push_letters_dual": "Using both arms, push the P and I blocks onto their matching targets.",
     }
@@ -196,7 +201,7 @@ def test_scene_hash_covers_only_physical_xml_assets_and_kind(monkeypatch: pytest
 
 
 def test_descriptor_hash_freezes_every_calibrated_value() -> None:
-    assert descriptor_sha256() == "afce0142e6eb984c411d6c551cd3e4f7ab27cc7c649351d1899f913105708c4f"
+    assert descriptor_sha256() == "4e5c0cfff58436a244c6695e13cbfe7fe61aa2b0cc17f1410161622c0774919c"
 
 
 @pytest.mark.parametrize(
