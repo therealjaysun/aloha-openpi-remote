@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+import math
 import os
 from pathlib import Path
 from pathlib import PurePosixPath
@@ -82,6 +83,9 @@ class RemoteConfig:
     server_startup_timeout_seconds: int = 1800
     policy_inference_timeout_seconds: int = 300
     policy_close_timeout_seconds: int = 10
+    policy_retry_count: int = 2
+    policy_retry_backoff_seconds: float = 2.0
+    gpu_metrics_interval_seconds: float = 1.0
     min_free_gib: int = 40
 
 
@@ -115,6 +119,18 @@ def _uint(name: str, value: str, *, maximum: int | None = None) -> int:
     parsed = int(value)
     if maximum is not None and parsed > maximum:
         raise ValueError(f"{name} must be at most {maximum}")
+    return parsed
+
+
+def _positive_float(name: str, value: str, *, maximum: float | None = None) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as error:
+        raise ValueError(f"{name} must be a finite positive number") from error
+    if not math.isfinite(parsed) or parsed <= 0:
+        raise ValueError(f"{name} must be a finite positive number")
+    if maximum is not None and parsed > maximum:
+        raise ValueError(f"{name} must be at most {maximum:g}")
     return parsed
 
 
@@ -209,6 +225,9 @@ def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str]
         "OPENPI_SERVER_STARTUP_TIMEOUT_SECONDS",
         "OPENPI_POLICY_INFERENCE_TIMEOUT_SECONDS",
         "OPENPI_POLICY_CLOSE_TIMEOUT_SECONDS",
+        "OPENPI_POLICY_RETRY_COUNT",
+        "OPENPI_POLICY_RETRY_BACKOFF_SECONDS",
+        "GPU_METRICS_INTERVAL_SECONDS",
         "OPENPI_MIN_FREE_GIB",
     )
     for key in keys:
@@ -261,6 +280,19 @@ def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str]
         values.get("OPENPI_POLICY_CLOSE_TIMEOUT_SECONDS", "10"),
         maximum=300,
     )
+    retry_count = _uint("OPENPI_POLICY_RETRY_COUNT", values.get("OPENPI_POLICY_RETRY_COUNT", "2"), maximum=10)
+    retry_backoff = _positive_float(
+        "OPENPI_POLICY_RETRY_BACKOFF_SECONDS",
+        values.get("OPENPI_POLICY_RETRY_BACKOFF_SECONDS", "2"),
+        maximum=60,
+    )
+    gpu_metrics_interval = _positive_float(
+        "GPU_METRICS_INTERVAL_SECONDS",
+        values.get("GPU_METRICS_INTERVAL_SECONDS", "1"),
+        maximum=60,
+    )
+    if gpu_metrics_interval < 0.1:
+        raise ValueError("GPU_METRICS_INTERVAL_SECONDS must be at least 0.1")
     min_free_gib = _uint("OPENPI_MIN_FREE_GIB", values.get("OPENPI_MIN_FREE_GIB", "40"), maximum=1024)
     if (
         min(
@@ -303,5 +335,8 @@ def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str]
         server_startup_timeout_seconds=startup_timeout,
         policy_inference_timeout_seconds=inference_timeout,
         policy_close_timeout_seconds=close_timeout,
+        policy_retry_count=retry_count,
+        policy_retry_backoff_seconds=retry_backoff,
+        gpu_metrics_interval_seconds=gpu_metrics_interval,
         min_free_gib=min_free_gib,
     )

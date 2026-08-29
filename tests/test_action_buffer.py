@@ -120,23 +120,129 @@ def test_invalid_observation_aborts_before_transport_call() -> None:
     policy.close()
 
 
-def test_transport_failure_and_short_chunk_are_not_hidden() -> None:
+def test_transport_failure_poisons_policy_and_is_not_hidden() -> None:
     class Policy:
         def __init__(self) -> None:
             self.calls = 0
 
         def infer(self, observation: dict) -> dict:
             self.calls += 1
-            if self.calls == 1:
-                raise RuntimeError("inference failed")
-            return {"actions": _actions()[:-1]}
+            raise RuntimeError("inference failed")
 
     policy = BufferedPolicy(Policy(), POLICY_PROFILES["pi0_aloha_sim"], 3, 1)
     with pytest.raises(RuntimeError, match="inference failed"):
         policy.infer(_observation(), 0)
-    with pytest.raises(ValueError, match="shape"):
+    with pytest.raises(RuntimeError, match="stale actions were discarded"):
         policy.infer(_observation(), 0)
+    assert policy.stats["request_count"] == 1
     policy.close()
+
+
+def test_inference_timeout_is_not_replayed() -> None:
+    class Policy:
+        calls = 0
+
+        def infer(self, observation: dict) -> dict:
+            self.calls += 1
+            raise TimeoutError("request outcome is unknown")
+
+        def close(self) -> None:
+            return None
+
+    transport = Policy()
+    policy = BufferedPolicy(transport, POLICY_PROFILES["pi0_aloha_sim"], 3, 1)
+    with pytest.raises(TimeoutError, match="outcome is unknown"):
+        policy.infer(_observation(), 0)
+    assert transport.calls == 1
+    policy.close()
+
+
+def test_telemetry_failure_poisons_policy_before_any_action_is_returned() -> None:
+    class Policy:
+        calls = 0
+
+        def infer(self, observation: dict) -> dict:
+            self.calls += 1
+            return {"actions": _actions()}
+
+        def close(self) -> None:
+            return None
+
+    transport = Policy()
+
+    def emit(*args: object, **kwargs: object) -> None:
+        raise OSError("telemetry unavailable")
+
+    policy = BufferedPolicy(transport, POLICY_PROFILES["pi0_aloha_sim"], 3, 1, emit=emit)
+    with pytest.raises(OSError, match="telemetry unavailable"):
+        policy.infer(_observation(), 0)
+    with pytest.raises(RuntimeError, match="stale actions were discarded"):
+        policy.infer(_observation(), 1)
+    assert transport.calls <= 1
+    policy.close()
+
+
+def test_failed_prefetch_discards_remaining_actions_and_blocks_later_requests() -> None:
+    failed = threading.Event()
+
+    class Policy:
+        calls = 0
+
+        def infer(self, observation: dict) -> dict:
+            self.calls += 1
+            if self.calls == 1:
+                return {"actions": _actions()}
+            failed.set()
+            raise ConnectionError("prefetch lost")
+
+        def close(self) -> None:
+            return None
+
+    transport = Policy()
+    policy = BufferedPolicy(transport, POLICY_PROFILES["pi0_aloha_sim"], 3, 2)
+    policy.infer(_observation(), 0)
+    policy.infer(_observation(), 1)
+    assert failed.wait(1)
+    with pytest.raises(ConnectionError, match="prefetch lost"):
+        policy.infer(_observation(), 2)
+    with pytest.raises(RuntimeError, match="stale actions were discarded"):
+        policy.infer(_observation(), 3)
+    assert transport.calls == 2
+    policy.close()
+
+
+def test_policy_events_report_request_and_previous_server_timing() -> None:
+    class Policy:
+        calls = 0
+
+        def infer(self, observation: dict) -> dict:
+            self.calls += 1
+            timing = {"infer_ms": float(self.calls)}
+            if self.calls == 2:
+                timing["prev_total_ms"] = 12.5
+            return {"actions": _actions(), "server_timing": timing}
+
+        def close(self) -> None:
+            return None
+
+    events = []
+    policy = BufferedPolicy(
+        Policy(),
+        POLICY_PROFILES["pi0_aloha_sim"],
+        2,
+        1,
+        emit=lambda event, **fields: events.append((event, fields)),
+    )
+    policy.infer(_observation(), 0)
+    policy.infer(_observation(), 1)
+    policy.infer(_observation(), 2)
+    policy.close()
+    results = [fields for event, fields in events if event == "policy_result"]
+    assert len(results) == 2
+    assert results[1]["previous_timing_for_request_id"] == 0
+    assert results[1]["previous_request_total_ms"] == 12.5
+    assert results[1]["metrics"]["server_total_ms"] == 12.5
+    assert policy.stats["server_total_ms"] == [12.5, None]
 
 
 def test_chunk_older_than_wire_horizon_is_discarded_and_refreshed() -> None:

@@ -1,17 +1,24 @@
 import base64
+import io
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 
 from tools.remote_aloha import connection_check
 from tools.remote_aloha import remote as remote_module
 from tools.remote_aloha.config import RemoteConfig
+from tools.remote_aloha.remote import GpuSampler
 from tools.remote_aloha.remote import RemoteError
 from tools.remote_aloha.remote import RemoteSession
 from tools.remote_aloha.remote import RemoteTarget
 from tools.remote_aloha.remote import _candidate_sha
 from tools.remote_aloha.remote import _doctor_script
+from tools.remote_aloha.remote import _gpu_sampler_command
+from tools.remote_aloha.remote import _gpu_sampler_copy_script
+from tools.remote_aloha.remote import _gpu_sampler_ready_script
+from tools.remote_aloha.remote import _gpu_sampler_stop_script
 from tools.remote_aloha.remote import _read_launch_receipt
 from tools.remote_aloha.remote import _remote_script_command
 from tools.remote_aloha.remote import _setup_script
@@ -115,6 +122,20 @@ def test_default_tilde_setup_path_resolves_inside_wsl(tmp_path: Path) -> None:
         _doctor_script(8000),
         _setup_script(RemoteConfig(), "a" * 40),
         _remote_script_command(RemoteConfig(), "example.sh", ["one", "two"]),
+        _gpu_sampler_command(
+            RemoteConfig(),
+            ".runtime/gpu-metrics-" + "b" * 32 + "-pi0_aloha_sim.jsonl",
+            "b" * 32,
+            "4242",
+            "a" * 40,
+        ),
+        _gpu_sampler_ready_script(RemoteConfig(), ".runtime/gpu-metrics-" + "b" * 32 + "-pi0_aloha_sim.jsonl"),
+        _gpu_sampler_copy_script(
+            RemoteConfig(),
+            ".runtime/gpu-metrics-" + "b" * 32 + "-pi0_aloha_sim.jsonl",
+            ".runtime/server-abc.log",
+        ),
+        _gpu_sampler_stop_script(RemoteConfig(), expected_profile="pi0_aloha_sim", expected_source_sha="a" * 40),
     ],
 )
 def test_generated_wsl_bash_is_valid(script: str) -> None:
@@ -555,7 +576,7 @@ def test_stop_uses_the_original_receipt_target(monkeypatch: pytest.MonkeyPatch, 
 
     def fake_run_wsl(actual_target: RemoteTarget, script: str, **kwargs: object) -> str:
         captured.update({"target": actual_target, "script": script, **kwargs})
-        return ""
+        return "__ALOHA_GPU_SAMPLER_STOPPED__=absent" if kwargs["label"] == "gpu-sampler-stop" else ""
 
     monkeypatch.setattr(session, "run_wsl", fake_run_wsl)
     monkeypatch.setattr(session, "discover_target", lambda: pytest.fail("receipt target should be used"))
@@ -565,6 +586,76 @@ def test_stop_uses_the_original_receipt_target(monkeypatch: pytest.MonkeyPatch, 
     assert "/srv/original" not in str(captured["script"])
     assert base64.b64encode(b"/srv/original").decode() in str(captured["script"])
     assert not Path(".runtime/phase2-launch.json").exists()
+
+
+def test_gpu_sampler_checks_exact_mac_owner_and_stops_through_record(monkeypatch, tmp_path: Path) -> None:
+    class Process:
+        pid = 4242
+        waited = False
+
+        def poll(self):
+            return None
+
+        def wait(self, timeout: int):
+            self.waited = True
+            return -15
+
+    process = Process()
+    session = RemoteSession(RemoteConfig())
+
+    def run_wsl(target: RemoteTarget, script: str, **kwargs: object) -> str:
+        if kwargs["label"] == "gpu-sampler-stop":
+            return "__ALOHA_GPU_SAMPLER_STOPPED__=stopped"
+        if kwargs["label"] == "gpu-metrics-copy":
+            return "__ALOHA_GPU_METRICS__=" + base64.b64encode(b"metrics\n").decode() + "\n__ALOHA_SERVER_LOG__="
+        return "\n".join(
+            [
+                "__ALOHA_CLOCK_UTC__=2026-08-28T08:00:00.000Z",
+                "__ALOHA_CLOCK_MONOTONIC_NS__=1",
+            ]
+        )
+
+    monkeypatch.setattr(session, "run_wsl", run_wsl)
+    monkeypatch.setattr(remote_module, "verify_sampler_record", lambda: SimpleNamespace(pid=4242))
+    stopped = []
+    monkeypatch.setattr(remote_module, "stop_sampler", lambda **kwargs: stopped.append(kwargs) or True)
+    sampler = GpuSampler(
+        session,
+        RemoteTarget("powershell", "Ubuntu-24.04"),
+        process,
+        io.BytesIO(),
+        io.BytesIO(),
+        "b" * 32,
+        "pi0_aloha_sim",
+        "a" * 40,
+        ".runtime/gpu.jsonl",
+        ".runtime/server.log",
+        {},
+    )
+    sampler.check()
+    assert sampler.stop(tmp_path).read_bytes() == b"metrics\n"
+    assert stopped == [{"timeout_seconds": 30}]
+    assert process.waited
+
+
+def test_gpu_sampler_check_rejects_another_recorded_process(monkeypatch) -> None:
+    process = SimpleNamespace(pid=4242, poll=lambda: None)
+    monkeypatch.setattr(remote_module, "verify_sampler_record", lambda: SimpleNamespace(pid=9999))
+    sampler = GpuSampler(
+        RemoteSession(RemoteConfig()),
+        RemoteTarget("powershell", "Ubuntu-24.04"),
+        process,
+        io.BytesIO(),
+        io.BytesIO(),
+        "b" * 32,
+        "pi0_aloha_sim",
+        "a" * 40,
+        ".runtime/gpu.jsonl",
+        ".runtime/server.log",
+        {},
+    )
+    with pytest.raises(RemoteError, match="another process"):
+        sampler.check()
 
 
 def test_smoke_requires_a_second_session_survival_check(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

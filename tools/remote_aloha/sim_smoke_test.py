@@ -62,7 +62,16 @@ def _policy_image(image: np.ndarray) -> np.ndarray:
 
 
 def package_versions() -> dict[str, str]:
-    names = ("dm-control", "gym-aloha", "gymnasium", "imageio", "imageio-ffmpeg", "mujoco", "numpy")
+    names = (
+        "dm-control",
+        "gym-aloha",
+        "gymnasium",
+        "imageio",
+        "imageio-ffmpeg",
+        "matplotlib",
+        "mujoco",
+        "numpy",
+    )
     return {name: importlib.metadata.version(name) for name in names}
 
 

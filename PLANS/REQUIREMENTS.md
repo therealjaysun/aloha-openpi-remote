@@ -7,13 +7,13 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | ID | Requirement | Owner | Evidence | Status |
 | --- | --- | --- | --- | --- |
 | G01 | Mac runs MuJoCo/gym-aloha/client; RTX 3090 WSL runs all π inference | 01,02 | process/device evidence | Pass: E-MAC01, E-PC-BF16 |
-| G02 | Default task is `gym_aloha/AlohaTransferCube-v0`; inference only, no training | 01,04 | config/run manifest | Pass through Phase 04: E-MAC01, E-PC-CONTROL |
-| G03 | `pi0_aloha_sim` is the task-specific default; `pi05_aloha_base` is optional and explicitly experimental | 02–06 | server metadata and docs | Pass through Phase 04: E-PC-BF16, E-PC-CONTROL |
+| G02 | Default task is `gym_aloha/AlohaTransferCube-v0`; inference only, no training | 01,04 | config/run manifest | Pass through Phase 05: E-MAC01, E-PC-CONTROL, E-PC-OBS |
+| G03 | `pi0_aloha_sim` is the task-specific default; `pi05_aloha_base` is optional and explicitly experimental | 02–06 | server metadata and docs | Pass through Phase 05: E-PC-BF16, E-PC-CONTROL, E-PC-OBS |
 | G04 | Policy hosts are loopback; Mac reaches WSL only through authenticated SSH local forwarding | 02,03,06 | listener/routing checks | Pass through Phase 03: E-PC-TUNNEL |
 | G05 | Machine values are discovered, not invented; private OS/SSH identity stays untracked | 00,02,03,06 | scan and doctor output | Pass through Phase 02: E-PC-SETUP |
-| G06 | Every shell script starts `set -euo pipefail`, quotes arguments, cleans temporary files, is rerunnable, and emits actionable failures | 00–06 | syntax/unit review | Pending |
+| G06 | Every project-added or project-modified operational shell script starts `set -euo pipefail`, quotes arguments, cleans temporary files, is rerunnable, and emits actionable failures | 00–06 | syntax/unit review | Pending |
 | G07 | `.env` is ignored; `.env.example` contains placeholders only; profile mapping is fixed and never evaluated as code | 00,02,06 | config tests and scan | Pass through Phase 02: E-MAC02 |
-| G08 | Exact upstream pin and Mac/WSL project SHA are recorded before remote tests | 00,02–06 | Git evidence | Pass through Phase 04: E-PC-SETUP, E-PC-CONTROL |
+| G08 | Exact upstream pin and Mac/WSL project SHA are recorded before remote tests | 00,02–06 | Git evidence | Pass through Phase 05: E-PC-SETUP, E-PC-CONTROL, E-PC-OBS |
 | G09 | Weights, checkpoints, caches, raw logs/telemetry, videos, and machine paths remain ignored | 00–06 | tracked/candidate scan | Pass through Phase 04: E-MAC05 |
 | G10 | All seven PRs remain open for human review; no merge/auto-merge/automatic dependent-branch deletion | 00,06 | GitHub PR evidence | Pending |
 | MK01 | Stable targets exist: `doctor doctor-mac doctor-pc setup-mac setup-pc convert-pc server tunnel smoke-sim smoke-policy run metrics stop test lint secret-scan pr-status` | 00–06 | `make help` and invocations | Pending |
@@ -54,8 +54,8 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | `OPENPI_POLICY_METADATA_TIMEOUT_SECONDS` | `30` | Finite positive handshake receive deadline | 03 |
 | `OPENPI_POLICY_INFERENCE_TIMEOUT_SECONDS` | `300` | Finite positive request receive deadline; tune only from evidence | 03–05 |
 | `OPENPI_POLICY_CLOSE_TIMEOUT_SECONDS` | `10` | Finite positive close deadline | 03–05 |
-| `OPENPI_POLICY_RETRY_COUNT` | `2` | Integer `0..10`; connection-class errors only | 05 |
-| `OPENPI_POLICY_RETRY_BACKOFF_SECONDS` | `2` | Finite positive number, capped at 60 | 05 |
+| `OPENPI_POLICY_RETRY_COUNT` | `2` | Integer `0..10`; client construction/connect/metadata only, before reset or inference | 05 |
+| `OPENPI_POLICY_RETRY_BACKOFF_SECONDS` | `2` | Finite positive number, capped at 60; applies only to safe pre-inference retries | 05 |
 
 ## Public repository hygiene
 
@@ -104,7 +104,7 @@ This is the compact, durable acceptance index for future AI turns. Load only row
 | DR16 | Remote repo/cache disk margin | 02 | E-PC-SETUP | Pass: E-PC-SETUP |
 | DR17 | Configured local/remote port conflicts | 02,03 | listener checks | Pass through Phase 03: E-PC-SETUP, E-PC-TUNNEL |
 | DR18 | WSL project installation and exact SHA | 02 | E-PC-SETUP | Pass: E-PC-SETUP |
-| DR19 | Public-repository secret hygiene | 00,06 | fail-closed scan | Pass through Phase 01: E-GH |
+| DR19 | Public-repository secret hygiene | 00,06 | fail-closed scan | Pass through Phase 05: E-GH, E-MAC05, E-PC-OBS |
 
 Every failed doctor row names the failed check and one exact next command; it does not silently fall back.
 
@@ -113,21 +113,23 @@ Every failed doctor row names the failed check and one exact next command; it do
 | ID | Output | Owner | Evidence | Status |
 | --- | --- | --- | --- | --- |
 | RO01 | Episode video or explicit partial/encode-failure status | 04 | ignored artifact/hash | Pass: E-PC-CONTROL |
-| RO02 | Episode reward | 04,05 | result manifest | Pass through Phase 04: E-PC-CONTROL |
-| RO03 | Completion/termination state and info-derived success when available | 04,05 | result manifest | Pass through Phase 04: E-PC-CONTROL |
-| RO04 | Policy request count | 04,05 | summary vs JSONL | Pass through Phase 04: E-PC-CONTROL |
-| RO05 | Model chunk length, execution horizon, and prefetch threshold | 04,05 | metadata/summary | Pass through Phase 04: E-PC-CONTROL |
-| RO06 | Cold and warmed inference latency | 03,05 | JSONL/summary | Pass for Phase 03; final Phase 05 aggregation pending: E-PC-TUNNEL |
-| RO07 | Simulation step latency | 01,05 | JSONL/summary | Pass for Phase 01: E-MAC01 |
-| RO08 | Active control rate and wall-clock episode rate | 04,05 | JSONL/summary | Pass through Phase 04: E-PC-CONTROL |
-| RO09 | Time waiting for action chunks | 04,05 | JSONL/summary | Pass through Phase 04: E-PC-CONTROL |
-| RO10 | Connection failures | 05 | JSONL/summary | Pending |
-| RO11 | Retry events | 05 | JSONL/summary | Pending |
-| RO12 | GPU memory | 02,05 | GPU JSONL/summary | Pass for Phase 02; final Phase 05 aggregation pending, E-PC-BF16 |
-| RO13 | GPU utilization samples | 02,05 | GPU JSONL/summary | Pass for Phase 02; final Phase 05 aggregation pending, E-PC-BF16 |
-| RO14 | Relevant raw OpenPI server logs copied to ignored run directory | 05 | ignored artifact/hash | Pending |
-| RO15 | Project and upstream OpenPI commits | 02,04,05 | metadata/summary | Pass through Phase 04: E-PC-SETUP, E-PC-CONTROL |
-| RO16 | Environment package versions | 01,02,05 | metadata/summary | Pass on Mac and WSL through Phase 02: E-MAC01, E-PC-SETUP |
+| RO02 | Episode reward | 04,05 | result manifest | Pass through Phase 05: E-PC-CONTROL, E-PC-OBS |
+| RO03 | Completion/termination state and info-derived success when available | 04,05 | result manifest | Pass through Phase 05: E-PC-CONTROL, E-PC-OBS |
+| RO04 | Policy request count | 04,05 | summary vs JSONL | Pass through Phase 05: E-PC-CONTROL, E-PC-OBS |
+| RO05 | Model chunk length, execution horizon, and prefetch threshold | 04,05 | metadata/summary | Pass through Phase 05: E-PC-CONTROL, E-PC-OBS |
+| RO06 | Cold and warmed inference latency | 03,05 | JSONL/summary | Pass: E-PC-TUNNEL, E-PC-OBS |
+| RO07 | Simulation step latency | 01,05 | JSONL/summary | Pass: E-MAC01, E-PC-OBS |
+| RO08 | Active control rate and wall-clock episode rate | 04,05 | JSONL/summary | Pass through Phase 05: E-PC-CONTROL, E-PC-OBS |
+| RO09 | Time waiting for action chunks | 04,05 | JSONL/summary | Pass through Phase 05: E-PC-CONTROL, E-PC-OBS |
+| RO10 | Connection failures | 05 | JSONL/summary | Pass: zero in both exact-candidate profiles, E-PC-OBS |
+| RO11 | Retry events | 05 | JSONL/summary | Pass: zero in both exact-candidate profiles and injected paths tested, E-PC-OBS |
+| RO12 | GPU memory | 02,05 | GPU JSONL/summary | Pass: E-PC-BF16, E-PC-OBS |
+| RO13 | GPU utilization samples | 02,05 | GPU JSONL/summary | Pass: E-PC-BF16, E-PC-OBS |
+| RO14 | Relevant raw OpenPI server logs copied to ignored run directory | 05 | ignored artifact/hash | Pass: E-PC-OBS |
+| RO15 | Project and upstream OpenPI commits | 02,04,05 | metadata/summary | Pass through Phase 05: E-PC-SETUP, E-PC-CONTROL, E-PC-OBS |
+| RO16 | Environment package versions | 01,02,05 | metadata/summary | Pass on Mac and WSL through Phase 05: E-MAC01, E-PC-SETUP, E-PC-OBS |
+| RO17 | Existing step JSONL records one finite actual and commanded 14-joint vector with exact one-based applied step and monotonic elapsed time | 05 | focused tests + ignored JSONL | Pass: E-PC-TRAJ |
+| RO18 | Every episode with valid trajectory rows atomically produces one fixed-limit normalized plot; summaries expose only counts, coverage, status, and safe local plot IDs | 05 | focused tests + ignored plots + summary audit | Pass: E-PC-TRAJ |
 
 Infrastructure passes when valid chunks drive complete simulator episodes without schema/network termination and artifacts/metrics persist. Cube-transfer success is always a separate result.
 
@@ -137,12 +139,12 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | --- | --- | --- | --- | --- |
 | R01 | Finite connect, metadata, and inference timeouts | 03 | focused client tests | Pass: E-MAC04, E-PC-TUNNEL |
 | R02 | Bounded initial server startup retries | 02 | lifecycle tests | Pass for both profiles: E-MAC02, E-PC-BF16 |
-| R03 | Graceful Ctrl+C shutdown | 04,05 | interrupt test | Pass through Phase 04: E-MAC05 |
-| R04 | Tunnel cleanup | 03,05 | owned-process test | Pass for Phase 03: E-PC-TUNNEL |
-| R05 | Remote server/sampler cleanup | 02,05 | owned-process test | Pending: Phase 05 sampler; policy-server cleanup passed E-PC-STOP |
+| R03 | Graceful Ctrl+C shutdown | 04,05 | interrupt test | Pass through Phase 05: E-MAC05, E-PC-OBS |
+| R04 | Tunnel cleanup | 03,05 | owned-process test | Pass through Phase 05: E-PC-TUNNEL, E-PC-OBS |
+| R05 | Remote server/sampler cleanup | 02,05 | owned-process test | Pass: E-PC-STOP, E-PC-OBS |
 | R06 | Duplicate server protection | 02 | lifecycle test | Pass locally: E-MAC02 |
 | R07 | Duplicate tunnel protection | 03 | lifecycle test | Pass locally and lifecycle recheck passed on hardware: E-PC-TUNNEL |
-| R08 | Timestamped ignored run directories | 04,05 | artifact check | Pass through Phase 04: E-PC-CONTROL |
+| R08 | Timestamped ignored run directories | 04,05 | artifact check | Pass through Phase 05: E-PC-CONTROL, E-PC-OBS |
 | R09 | Shape validation | 03,04 | contract tests | Pass through Phase 04: E-MAC05, E-PC-CONTROL |
 | R10 | Dtype validation | 03,04 | contract tests | Pass through Phase 04: E-MAC05, E-PC-CONTROL |
 | R11 | NaN/infinity validation | 03,04 | contract tests | Pass through Phase 04: E-MAC05, E-PC-CONTROL |
@@ -153,9 +155,10 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | R16 | WSL GPU diagnostics and CPU-fallback rejection | 02 | E-PC-SETUP | Pass: E-PC-SETUP |
 | R17 | Remote shell detection | 02,03 | three-route tests | Pass locally and on real cmd route: E-MAC02, E-PC-SETUP |
 | R18 | Safe Windows→WSL quoting | 02,03 | PowerShell/cmd tests | Pass locally and on real cmd route: E-MAC02, E-PC-SETUP |
-| R19 | Stale/reused PID detection before signaling | 02,03,05 | lifecycle tests | Pass locally through Phase 03 and for Phase 02 stop: E-MAC02, E-PC-STOP |
-| R20 | Partial run result preservation after failure | 04,05 | interrupt/write-failure tests | Pass through Phase 04: E-MAC05 |
+| R19 | Stale/reused PID detection before signaling | 02,03,05 | lifecycle tests | Pass through Phase 05 locally and on hardware: E-MAC02, E-PC-STOP, E-PC-OBS |
+| R20 | Partial run result preservation after failure | 04,05 | interrupt/write-failure tests | Pass through Phase 05: E-MAC05, E-PC-OBS |
 | R21 | Project conversion defaults to automatic selection: below 16 GiB Linux `MemAvailable` it uses bounded partial BF16, otherwise full FP32; explicit allowlisted overrides remain, the direct converter preserves its full-FP32 default, and no failed partial artifact is published. Runtime backend selection defaults to the validated PyTorch path, never falls back implicitly, and retains JAX only as an explicit diagnostic option | 02,04 | focused selector/converter/backend tests + checkpoint validation | Pass: E-PC-BF16, E-MAC05, E-PC-CONTROL |
+| R22 | Joint trajectories reuse line-buffered local step events, preserve valid partial data, use pinned simulator limits rather than run extrema, and add no per-step fsync/network/SSH | 05 | focused tests + overhead/hardware evidence | Pass: E-PC-TRAJ |
 
 ## Required pure tests
 
@@ -169,11 +172,12 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | T06 | Observation schema validation | 04 | pytest | Pass: E-MAC05 |
 | T07 | Action shape validation | 04 | pytest | Pass: E-MAC05 |
 | T08 | Action buffer/generation behavior | 04 | pytest | Pass: E-MAC05 |
-| T09 | Telemetry serialization | 05 | pytest | Pending |
-| T10 | Metrics aggregation | 05 | pytest | Pending |
+| T09 | Telemetry serialization | 05 | pytest | Pass: E-PC-OBS |
+| T10 | Metrics aggregation | 05 | pytest | Pass: E-PC-OBS |
 | T11 | PID/start-identity validation | 02,03,05 | pytest/shell test | Pass locally through Phase 03 and hosted Linux for Phase 02: E-MAC02 |
 | T12 | Public-output sanitization | 00,06 | pytest/scan | Pending |
 | T13 | Representative direct-BF16 versus FP32→BF16 value equivalence, incomplete/duplicate mapping failure, and explicit backend routing | 02 | focused converter/backend tests + real one-leaf proof | Pass: E-PC-BF16 |
+| T14 | Joint-vector validation, fixed-limit normalization, step coverage, interruption preservation, atomic plot generation, and all-series verification | 05 | focused synthetic tests + hardware plot inspection | Pass: E-PC-TRAJ |
 
 `pyproject.toml` must discover root `tests/`, and `make test` must invoke the Mac client/project environment explicitly; root OpenPI `uv sync` is never required on macOS. Simulator/network/GPU checks remain separate manual lanes.
 
@@ -214,9 +218,9 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | DOD04 | Public GitHub repository exists | 00 | Pass | E-GH |
 | DOD05 | `origin` is the user repository | 00 | Pass | E-GH |
 | DOD06 | `upstream` is official OpenPI | 00 | Pass | E-GH |
-| DOD07 | All phase branches are pushed | 00–06 | Pending: phases 00–04 pushed | E-GH, E-MAC05 |
-| DOD08 | Seven-PR stack exists | 00–06 | Pending: PRs 1–5 exist | E-GH, E-MAC05 |
-| DOD09 | PRs remain open for human review | 00–06 | Pending: PRs 1–5 open; later PRs not created | E-GH, E-MAC05 |
+| DOD07 | All phase branches are pushed | 00–06 | Pending: phases 00–05 pushed | E-GH, E-MAC05, E-PC-OBS |
+| DOD08 | Seven-PR stack exists | 00–06 | Pending: PRs 1–6 exist | E-GH, E-MAC05, E-PC-OBS |
+| DOD09 | PRs remain open for human review | 00–06 | Pending: PRs 1–6 open; PR 7 not created | E-GH, E-MAC05, E-PC-OBS |
 | DOD10 | Final branch contains the complete project | 06 | Pending | — |
 | DOD11 | Mac creates/steps dual-arm ALOHA sim | 01 | Pass | E-MAC01 |
 | DOD12 | Mac renders/saves video | 01 | Pass | E-MAC01 |
@@ -227,13 +231,13 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | DOD17 | Smoke test returns finite expected action chunk | 02,03 | Pass at WSL and Mac-tunnel boundaries for both profiles | E-PC-BF16, E-PC-TUNNEL |
 | DOD18 | Mac executes returned actions in MuJoCo | 04 | Pass for both profiles | E-PC-CONTROL |
 | DOD19 | At least one complete policy-controlled episode runs | 04 | Pass: six episodes across both profiles | E-PC-CONTROL |
-| DOD20 | Videos and structured metrics are saved | 04,05 | Pass through Phase 04: six decoded videos/manifests | E-PC-CONTROL |
-| DOD21 | GPU memory and inference latency are reported | 02,05 | Pass for Phase 02; final aggregation remains Phase 05 | E-PC-BF16 |
-| DOD22 | Unit tests pass | 00–06 | Pass through Phase 04 locally and hosted | E-MAC03, E-MAC04, E-MAC05 |
+| DOD20 | Videos and structured metrics are saved | 04,05 | Pass through Phase 05 | E-PC-CONTROL, E-PC-OBS |
+| DOD21 | GPU memory and inference latency are reported | 02,05 | Pass | E-PC-BF16, E-PC-OBS |
+| DOD22 | Unit tests pass | 00–06 | Pass through Phase 05 locally and hosted | E-MAC03, E-MAC04, E-MAC05, E-PC-OBS, E-PC-TRAJ |
 | DOD23 | Relevant upstream checks pass or exact infeasible lane is recorded | 00,06 | Pending | — |
 | DOD24 | CPU-only public CI is configured where practical | 00 | Pass: hosted checks are green through Phase 04 | E-GH, E-MAC03, E-MAC04, E-MAC05 |
-| DOD25 | No credentials or machine secrets are committed | 00–06 | Pass through Phase 04 | E-MAC05 |
-| DOD26 | Public-repository hygiene passes | 00,06 | Pass through Phase 04 | E-MAC05 |
+| DOD25 | No credentials or machine secrets are committed | 00–06 | Pass through Phase 05 locally | E-MAC05, E-PC-OBS |
+| DOD26 | Public-repository hygiene passes | 00,06 | Pass through Phase 05 locally | E-MAC05, E-PC-OBS |
 | DOD27 | Complete workflow is documented | 06 | Pending | — |
 | DOD28 | Human merge instructions are documented | 00 | Pending final implementation verification | — |
 | DOD29 | Every blocker has evidence and exact recovery command | 00–06 | Pending | — |
@@ -250,6 +254,8 @@ Infrastructure passes when valid chunks drive complete simulator episodes withou
 | E-PC-BF16 | R02, R09–R13, R21, RO12–RO13, T13, DOD14–DOD15, DOD17, DOD21 | Mac→Windows→Ubuntu-24.04 WSL2 RTX 3090; `2026-08-28T03:59:18Z`–`2026-08-28T04:36:27Z`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`. Bounded `make convert-pc` passed for π₀ at candidate `a777eae61ae4b278b4b7f0b920a7f20dc357ebd4` and π₀.₅ at `b173c7cc1def08255f7d46eae71a17a6f92641ac`; the initial π₀.₅ attempt failed safely before output because its source was absent, then its pinned JAX profile populated the cache and reached health. π₀ proof/full RSS 943,960/9,935,064 KiB, GPU peak 21,256 MiB, artifact hash `305bda3ad9c28641ec87be70c1012eb8ed8100776f53778c864300e4a7151254`; π₀.₅ 943,988/9,879,536 KiB, 21,979 MiB, hash `62691de6ef86df811552a9fa4291856b656a0b172add630ca372ace45fd57f9c`. Optional PyTorch autotune was disabled after its first request exited; WSL's Torch compute-process table omitted the Linux PID, so final candidate `38b5228418c729d39d1c4fe551ef5ddcbef9e49e` proved model placement on `cuda:0`, sampled the 3090 plus host RSS, verified the process immediately and through a second SSH session while WSL remained active, and returned four finite `(50,14)` chunks per profile. This did not prove survival after the final Windows-side WSL client exited; Phase 03 owns that gate. Final π₀ cold/warmed latency 1,639.0/291.8 ms, host peak 1,907,312 KiB; π₀.₅ 1,331.1/335.6 ms, 1,943,684 KiB. Both safe stops passed. Ignored local evidence: π₀ conversion `outputs/phase02/20260828T035918.233989Z/07-partial-bf16-conversion.log` SHA-256 `1075273424c3b4c8bc3052f92e62d36da4da7e080f99510e1c571cd60959aacf`; π₀.₅ conversion `outputs/phase02/20260828T042633.051326Z/07-partial-bf16-conversion.log` SHA-256 `255d6d3ae68c06479d1202833e98ed6fefa6e6d5d268ade72d9be049b4d533c8`; final π₀ smoke `outputs/phase02/20260828T043519.989893Z/01-policy-smoke.log` SHA-256 `3157a49278e6ba8b360a6d8e3d976b20b3dba8c90d292b3fce3d1d23497e4097`; final π₀.₅ smoke `outputs/phase02/20260828T043613.328205Z/01-policy-smoke.log` SHA-256 `af8e01782c01f7881b8b8c3ff9b2cad3e91804a46de66bdcb1e394e4f37d9d45`; final stop `outputs/phase02/20260828T043627.799597Z/01-server-stop.log` SHA-256 `762b2a1134769cf82a13b0c95cfcc69d46f1d87692c1ec17ee291bc9a4c1e4a0`. | No recovery now. If an artifact is removed or the pin changes: `OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE=<profile> make convert-pc`, then run `make server` and `make smoke-policy` with the same profile plus `OPENPI_POLICY_BACKEND=pytorch`, and finish with `make stop`. |
 | E-PC-TUNNEL | G04, DR17, R01, R04, R07, R12, DOD15–DOD17 | Mac→Windows cmd→Ubuntu-24.04 WSL2 RTX 3090; `2026-08-28T06:28:09Z`–`2026-08-28T06:32:07Z`; implementation SHA `0c641878451b33d419de6670f4fe422832275fdc`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; backend PyTorch. Doctor observed 11,561,392 KiB available RAM, which maps automatic conversion to `partial-bfloat16`; exact setup passed and reused the two artifacts previously proven by E-PC-BF16 without reconversion. For each profile, `make server` started the owned server plus synchronous WSL holder/tunnel; after the idle-teardown window, fresh WSL and Windows loopback checks passed, Windows showed no non-loopback listener, and exact `lsof` showed only Mac `127.0.0.1:8000`. Four tunneled finite `(50,14)` calls passed: π₀ cold/warmed 2,555.95/360.17 ms; experimental π₀.₅ 1,871.78/371.08 ms. Server-first `make stop` completed within the bounded Mac reaping window, each random holder ID had zero matching Windows processes afterward, a second stop passed, and no Mac record/socket/listener remained. Sanitized smoke summaries: `outputs/phase03/20260828T062936.125696Z/policy-smoke-pi0_aloha_sim.json` SHA-256 `e8a61f14fa5603e21d3150b7d6ae2192f6e08c9aa30961ddf2b0131d49948221`; `outputs/phase03/20260828T063136.804610Z/policy-smoke-pi05_aloha_base.json` SHA-256 `44c1e335581a77f684a4176d7477860ebd2cfa130831d2694448c336ac9368af`. Ignored exact setup log SHA-256 `73c4615c15f6c24247a5354e20341a2526c8f6bbf7f70ed774d5607ca8b713e8`; generic stop and zero-holder evidence hashes `762b2a1134769cf82a13b0c95cfcc69d46f1d87692c1ec17ee291bc9a4c1e4a0` and `13b75c2bc806ecbc88628d6345d4117020913f379455bb6aefbd56ad9ecb7f19`. | None. Phase 03 is complete; the PC is safe to power off until Phase 04 hardware acceptance. |
 | E-PC-CONTROL | G02–G03, G08, RO01–RO05, RO08–RO09, RO15, R08–R12, R21, DOC13, DOC16, DOD18–DOD20 | Mac→private SSH tunnel→Windows cmd→Ubuntu-24.04 WSL2 RTX 3090; `2026-08-28T07:36:58Z`–`2026-08-28T07:41:02Z`; implementation and WSL SHA `0fca61f796f018706d1af51d00ab562b68509eef`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; backend PyTorch; automatic conversion mode `partial-bfloat16`. Exact setup passed, and both profile smokes returned finite `(50,14)` chunks: π₀ cold/warmed 1,950.96/365.62 ms, π₀.₅ 1,590.60/413.86 ms. Six fresh-client/fresh-environment episodes completed with no schema/network/artifact error. π₀ infrastructure/task success was 3/3 with 201/218/293 applied steps, warmed p95 477.39/612.38/604.43 ms, underruns 0/1/2, and active rates 46.97/45.44/45.55 Hz. Experimental π₀.₅ infrastructure success was 3/3, task success 0/3 at three exact 300-step limits, warmed p95 548.07/503.26/451.71 ms, underruns 1/0/0, and active rates 46.56/46.95/47.09 Hz. Every video decoded at 50 fps with exact applied-step frame count. Because no episode met the p95-plus-100-ms/zero-underrun/≥49 Hz conjunction, no uninterrupted 50 Hz claim was emitted. Profile summaries: `outputs/phase04/20260828T073815.963691Z/pi0_aloha_sim/summary.json` SHA-256 `536ab1b940c036519bf4161a78a1045ee4066008a288c8bb8597c7d3ccd4d20a`; `outputs/phase04/20260828T074009.410131Z/pi05_aloha_base/summary.json` SHA-256 `50ac91b41508c17fdddf9af507859bb0c3d8edda9492aa2f178f129d952c5ca0`. Ignored video SHA-256 values in seed order: π₀ `067914…af194`, `cab96b…2b38`, `6970ab…0a8d`; π₀.₅ `285bf5…7758`, `968617…f7655`, `d1b1af…c06a`. Both profile stops plus a second idempotent stop passed, leaving no owned server/tunnel. | None. To repeat: start a selected profile with `OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_BACKEND=pytorch make server`, run `make smoke-policy` and `ALOHA_SEED=0 ALOHA_EPISODES=3 make run` with the same profile variables, then `make stop`. |
+| E-PC-OBS | G02–G03, G08, DR19, RO02–RO16, R03–R05, R08, R19–R20, T09–T10, DOD20–DOD22, DOD25–DOD26 | Mac→private SSH tunnel→Windows cmd→Ubuntu-24.04 WSL2 RTX 3090; `2026-08-28T17:04:24Z`–`2026-08-28T17:06:28Z`; exact project/WSL candidate `de63e19c37d8fd76fbda5b5a07a8f5a0b19b42d6`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; PyTorch backend and automatic partial-BF16 conversion. Local validation passed 273 tests with one platform skip, Ruff/format/Bash, and fail-closed secret scan. π₀ completed three infrastructure/task-success episodes: 731 steps, 38 requests, zero retries/failures, 20 GPU samples spanning 21,213 ms with 1,137 ms max gap, warmed latency mean/p95/max 327.28/392.83/448.95 ms, active-rate mean 48.21 Hz, telemetry-write p95 0.177 ms, peak GPU memory/utilization 15,403 MiB/46%, server RSS 1,907,580 KiB. Experimental π₀.₅ completed three infrastructure-valid/task-failure episodes at the 300-step limit: 900 steps, 40 requests, zero retries/failures, 24 GPU samples spanning 25,589 ms with 1,142 ms max gap, warmed latency mean/p95/max 418.27/515.54/672.15 ms, active-rate mean 47.56 Hz, telemetry-write p95 0.203 ms, peak GPU memory/utilization 15,859 MiB/39%, server RSS 1,931,868 KiB. Sustained 50 Hz is not claimed. `make metrics` reproduced both ignored summaries. Final idempotent stop and read-only probes found no owned Mac records/listener, no WSL sampler/server, and no Windows listener. The first hardware attempt exposed an SSH-disconnect orphan and was fixed with explicit remote ownership/stop before this rerun. | None. To repeat, run the Phase 05 per-profile commands with `OPENPI_WSL_DISTRO=Ubuntu-24.04`, finish with `make stop`, and verify the three host boundaries as documented in the phase plan. |
+| E-PC-TRAJ | RO17–RO18, R22, T14, DOD22 | Mac→private loopback tunnel→Ubuntu-24.04 WSL2 RTX 3090; `2026-08-28T18:34:26Z`–`2026-08-28T18:40:19Z`; exact project/WSL candidate `2065dd9d5a5e7f21ea40a940944d48ac08c6da20`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; PyTorch backend and automatic partial-BF16 conversion. Local gates passed 297 tests with one platform skip, Ruff/format/Bash, fail-closed secret scan, and hosted PR checks; a 300-row synthetic trajectory measured 0.110 ms write p95. π₀ recorded 761/761 ordered samples, 14 actual and 14 commanded series, 3/3 plots, infrastructure/task 3/3 and 2/3, 42 requests, zero retries/failures, and 0.162 ms maximum episode write p95. Experimental π₀.₅ recorded 900/900 samples, the same 14+14 series and 3/3 plots, infrastructure/task 3/3 and 0/3, 42 requests, zero retries/failures, and 0.197 ms maximum episode write p95. All six plots were visually inspected; fixed pinned-source ranges, external legends, arm grouping, and all 14 actual series were present. Raw JSONL/PNG outputs are ignored. Sanitized summary hashes: π₀ `ed1edb598ef2e224fdb9905e995430ba9dec5cb4d01810c1516ffa59a5c91bcd`; π₀.₅ `79115916ef7067957e1693243453608ce316f86ccdd62b416cc76f5b616bc911`. Final idempotent stop and local/WSL residue checks passed. | None; do not repeat the GPU runs unless the hardware-affecting candidate changes. |
 | E-PC-STOP | R05, R19 | Mac→WSL; `2026-08-27T19:29:52Z`; profile `pi0_aloha_sim`; `make stop` exited 0 and identity verification reported the owned policy server stopped; no Mac tunnel or long-lived GPU sampler was started. Ignored artifact: `outputs/phase02/20260827T192952.329288Z/01-server-stop.log` SHA-256 `762b2a1134769cf82a13b0c95cfcc69d46f1d87692c1ec17ee291bc9a4c1e4a0`. | None; PC is safe to power off. |
 | E-MAC01 | G02, MF01, DR01–DR02, DR06–DR08, RO07, RO16, R15, T01–T02, DOD11–DOD12, DOD24 | Mac; `2026-08-27T03:37:18Z`; `make setup-mac && make doctor-mac && make ci`, fresh lightweight-venv `make ci`, and two `make smoke-sim` runs exited 0; project SHA `44e1d5f229c787d7d1af24bf323a968bce33dfcf`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; profile N/A; native arm64 Python 3.10.20; two 900-step totals; p95 11.880/11.750 ms; 300-frame 224×224 video at 50 fps; ignored manifests `outputs/phase01/20260827T033612.389060Z/manifest.json` (`cfd484…d0d3`) and `outputs/phase01/20260827T033659.222401Z/manifest.json` (`8a8394…cfda`) | Rerun `make setup-mac && make doctor-mac && make ci && make smoke-sim` from the logged-in Mac desktop session. |
 | E-MAC02 | G03, G07–G09, PH12, PH15–PH17, R09–R12, R17–R19, T03–T04, T11, DOD07–DOD09, DOD22, DOD24–DOD26 | Historical initial Phase 02 staging evidence: Mac + GitHub-hosted Linux; `2026-08-27T05:49:13Z`; implementation commit `7f024035822c341acfc705c44842431a6fd57695`; upstream SHA `215abfb217dbac7d5f1273282331b9b1866c0479`; 100 tests passed on Mac with the Linux PIDfd launch test skipped; hosted pure checks and secret scan passed. Its 28-key count predates `OPENPI_JAX_MEM_FRACTION`; current validation is E-MAC03. | Continue from E-PC-CONVERT; do not repeat the completed power/SSH gate. |
