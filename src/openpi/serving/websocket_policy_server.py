@@ -2,7 +2,6 @@ import asyncio
 import http
 import logging
 import time
-import traceback
 
 from openpi_client import base_policy as _base_policy
 from openpi_client import msgpack_numpy
@@ -40,7 +39,7 @@ class WebsocketPolicyServer:
             self._host,
             self._port,
             compression=None,
-            max_size=None,
+            origins=[None],
             process_request=_health_check,
         ) as server:
             await server.serve_forever()
@@ -75,10 +74,11 @@ class WebsocketPolicyServer:
                 logger.info(f"Connection from {websocket.remote_address} closed")
                 break
             except Exception:
-                await websocket.send(traceback.format_exc())
+                logger.exception("Policy inference failed")
+                await websocket.send("Internal inference server error.")
                 await websocket.close(
                     code=websockets.frames.CloseCode.INTERNAL_ERROR,
-                    reason="Internal server error. Traceback included in previous frame.",
+                    reason="Internal server error.",
                 )
                 raise
 

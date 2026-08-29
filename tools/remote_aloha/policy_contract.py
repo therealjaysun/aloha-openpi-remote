@@ -51,10 +51,12 @@ def validate_server_timing(response: object) -> dict[str, Real]:
     timing = response.get("server_timing") if isinstance(response, Mapping) else None
     if not isinstance(timing, Mapping):
         raise ValueError("policy response must contain server timing")
+    result: dict[str, Real] = {}
     for key in ("infer_ms", "prev_total_ms"):
         if key == "prev_total_ms" and key not in timing:
             continue
         value = timing.get(key)
         if isinstance(value, bool) or not isinstance(value, Real) or not math.isfinite(value) or value < 0:
             raise ValueError(f"server timing {key!r} must be finite and nonnegative")
-    return dict(timing)
+        result[key] = value
+    return result

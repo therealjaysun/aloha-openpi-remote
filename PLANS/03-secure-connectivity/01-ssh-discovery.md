@@ -7,6 +7,6 @@
 - **Validation:** Alias-missing, untrusted/mismatched host key, connection-failed, PowerShell, cmd.exe, and direct-WSL cases; sanitizer tests.
 - **Acceptance:** One route selected from evidence; connection bounded; no host-key bypass; tracked/logged output is sanitized.
 - **Planned commit:** `feat(ssh): discover remote execution environment`.
-- **Actual findings:** `robot-gpu` is configured privately; strict host-key and public-key checks pass. Bounded probes identify Windows cmd as the single remote shell route without publishing connection details.
+- **Actual findings:** `robot-gpu` is configured privately; strict host-key and public-key checks pass. Bounded probes identify Windows cmd as the single remote shell route without publishing connection details. Phase 03 additionally runs quiet `ssh -G`, rejects an unresolved alias and any preconfigured forwards, and discards effective configuration output.
 - **Remaining blockers:** None for SSH discovery.
-- **Completion status:** Complete through the Phase 02 boundary.
+- **Completion status:** Complete on final implementation candidate `0c64187`; see E-PC-TUNNEL.

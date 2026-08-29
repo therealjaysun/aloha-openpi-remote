@@ -31,4 +31,6 @@ jobs:
           uv pip install --python examples/aloha_sim/.venv/bin/python --require-hashes -r requirements/project-test.txt
 
       - name: Run pure checks
+        env:
+          PYTHONPATH: packages/openpi-client/src
         run: make ci

@@ -5,6 +5,7 @@ from tools.remote_aloha.config import POLICY_PROFILES
 from tools.remote_aloha.policy_contract import validate_policy_response
 from tools.remote_aloha.policy_contract import validate_server_metadata
 from tools.remote_aloha.policy_contract import validate_server_timing
+from tools.remote_aloha.policy_smoke import run_policy_smoke
 
 SHA = "a" * 40
 
@@ -95,3 +96,31 @@ def test_invalid_server_timing_is_rejected(timing: object) -> None:
 def test_server_timing_accepts_optional_previous_total() -> None:
     assert validate_server_timing({"server_timing": {"infer_ms": 1.5}}) == {"infer_ms": 1.5}
     assert validate_server_timing({"server_timing": {"infer_ms": 1.5, "prev_total_ms": 2}})["prev_total_ms"] == 2
+    assert validate_server_timing({"server_timing": {"infer_ms": 1.5, "private": "discarded"}}) == {"infer_ms": 1.5}
+
+
+def test_policy_smoke_closes_client_when_metadata_validation_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    from openpi_client import websocket_client_policy
+
+    closed = []
+
+    class InvalidMetadataPolicy:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def get_server_metadata(self) -> dict[str, object]:
+            return {}
+
+        def close(self) -> None:
+            closed.append(True)
+
+    monkeypatch.setattr(websocket_client_policy, "WebsocketClientPolicy", InvalidMetadataPolicy)
+    with pytest.raises(ValueError, match="metadata"):
+        run_policy_smoke(
+            profile_name="pi0_aloha_sim",
+            backend="pytorch",
+            host="127.0.0.1",
+            port=8000,
+            source_sha=SHA,
+        )
+    assert closed == [True]

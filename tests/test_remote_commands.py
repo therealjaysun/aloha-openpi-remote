@@ -4,6 +4,7 @@ import subprocess
 
 import pytest
 
+from tools.remote_aloha import connection_check
 from tools.remote_aloha import remote as remote_module
 from tools.remote_aloha.config import RemoteConfig
 from tools.remote_aloha.remote import RemoteError
@@ -17,10 +18,12 @@ from tools.remote_aloha.remote import _setup_script
 from tools.remote_aloha.remote import _write_launch_receipt
 from tools.remote_aloha.remote import build_wsl_command
 from tools.remote_aloha.remote import classify_route
+from tools.remote_aloha.remote import route as check_route
 from tools.remote_aloha.remote import select_ubuntu_distro
 from tools.remote_aloha.remote import smoke
 from tools.remote_aloha.remote import ssh_argv
 from tools.remote_aloha.remote import stop
+from tools.remote_aloha.remote import windows_listener_addresses_are_private
 
 
 def _decode_powershell(command: str) -> str:
@@ -52,10 +55,10 @@ def test_wsl_command_keeps_distro_and_payload_out_of_outer_windows_quoting() -> 
     assert "$payload | wsl.exe --distribution $distro --exec bash -c \"tr -d '\\r' | bash -s --\"" in decoded
     assert build_wsl_command("bash", "") == "bash -s --"
     assert build_wsl_command("bash", "", 19) == "timeout --signal=TERM --kill-after=30s 19s bash -s --"
-    for route in ("powershell", "cmd"):
+    for route_name in ("powershell", "cmd"):
         assert (
             "--exec bash -c \"tr -d '\\r' | timeout --signal=TERM --kill-after=30s 19s bash -s --\""
-            in _decode_powershell(build_wsl_command(route, "Ubuntu", 19))
+            in _decode_powershell(build_wsl_command(route_name, "Ubuntu", 19))
         )
     with pytest.raises(ValueError, match="explicit WSL distro"):
         build_wsl_command("cmd", "")
@@ -171,6 +174,81 @@ def test_shell_route_and_distro_selection_are_unambiguous() -> None:
         select_ubuntu_distro({"Ubuntu A": "ubuntu", "Ubuntu B": "ubuntu"}, "")
     with pytest.raises(RemoteError, match="not a discovered"):
         select_ubuntu_distro({"Debian": "debian"}, "Ubuntu")
+
+
+def test_windows_route_gate_checks_owned_wsl_server_and_rejects_wildcard_listener(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    candidate = "a" * 40
+    config = RemoteConfig(wsl_distro="Ubuntu-24.04", policy_backend="pytorch")
+    receipt = {
+        "profile": config.policy_profile.name,
+        "backend": config.policy_backend,
+        "port": config.policy_port,
+        "remote_dir": config.remote_dir,
+        "route": "cmd",
+        "source_sha": candidate,
+        "ssh_alias": config.ssh_alias,
+        "wsl_distro": config.wsl_distro,
+    }
+    monkeypatch.setattr(remote_module, "_candidate_sha", lambda: candidate)
+    monkeypatch.setattr(remote_module, "_read_launch_receipt", lambda: receipt)
+    session = RemoteSession(config)
+    monkeypatch.setattr(session, "run_wsl", lambda *args, **kwargs: "__ALOHA_SERVER__=ready")
+    captured = {}
+
+    def ssh(command: str, **kwargs: object) -> tuple[int, str]:
+        captured.update({"command": command, **kwargs})
+        listeners = base64.b64encode(b'["127.0.0.1"]')
+        return 0, f"__ALOHA_WINDOWS_WSL_ROUTE__=ready\n__ALOHA_WINDOWS_LISTENERS__={listeners.decode()}"
+
+    monkeypatch.setattr(session, "ssh", ssh)
+    check_route(session)
+    script = _decode_powershell(str(captured["command"]))
+    assert "Invoke-WebRequest" in script
+    assert "127.0.0.1:8000/healthz" in script
+    assert "Get-NetTCPConnection" in script
+    assert "ConvertTo-Json" in script
+    assert windows_listener_addresses_are_private([])
+    assert windows_listener_addresses_are_private(["127.0.0.1", "::1"])
+    assert not windows_listener_addresses_are_private(["192.0.2.1"])
+
+
+def test_windows_route_gate_rejects_a_concrete_nonloopback_listener(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    candidate = "a" * 40
+    config = RemoteConfig(wsl_distro="Ubuntu-24.04", policy_backend="pytorch")
+    monkeypatch.setattr(remote_module, "_candidate_sha", lambda: candidate)
+    monkeypatch.setattr(
+        remote_module,
+        "_read_launch_receipt",
+        lambda: {
+            "profile": config.policy_profile.name,
+            "backend": config.policy_backend,
+            "port": config.policy_port,
+            "remote_dir": config.remote_dir,
+            "route": "cmd",
+            "source_sha": candidate,
+            "ssh_alias": config.ssh_alias,
+            "wsl_distro": config.wsl_distro,
+        },
+    )
+    session = RemoteSession(config)
+    monkeypatch.setattr(session, "run_wsl", lambda *args, **kwargs: "__ALOHA_SERVER__=ready")
+    encoded = base64.b64encode(b'["192.0.2.1"]')
+    monkeypatch.setattr(
+        session,
+        "ssh",
+        lambda *args, **kwargs: (
+            0,
+            f"__ALOHA_WINDOWS_WSL_ROUTE__=ready\n__ALOHA_WINDOWS_LISTENERS__={encoded.decode()}",
+        ),
+    )
+    with pytest.raises(RemoteError, match="cannot safely reach"):
+        check_route(session)
 
 
 def test_windows_distro_list_removes_wsl_utf16_nuls(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -306,20 +384,47 @@ def test_server_passes_jax_memory_fraction_to_wsl(monkeypatch: pytest.MonkeyPatc
     session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04", jax_mem_fraction="0.85"))
     target = RemoteTarget("powershell", "Ubuntu-24.04")
     monkeypatch.setattr(session, "discover_target", lambda: target)
-    scripts = []
+    events = []
 
     def fake_run_wsl(*args: object, **kwargs: object) -> str:
-        scripts.append(str(args[1]))
-        return "__ALOHA_SERVER__=ready" if len(scripts) == 2 else ""
+        events.append(("server", str(args[1])))
+        return ""
 
     monkeypatch.setattr(session, "run_wsl", fake_run_wsl)
+    monkeypatch.setattr(
+        connection_check, "start", lambda config, actual_target: events.append(("holder", actual_target))
+    )
+    monkeypatch.setattr(remote_module, "route", lambda actual_session: events.append(("route", actual_session)))
     remote_module.server(session)
+    script = events[0][1]
     fraction = base64.b64encode(b"0.85").decode()
     backend = base64.b64encode(b"jax").decode()
     candidate = base64.b64encode(("a" * 40).encode()).decode()
-    assert f'arg1="$(printf %s {backend} | base64 -d)"' in scripts[0]
-    assert f'arg6="$(printf %s {fraction} | base64 -d)"' in scripts[0]
-    assert f'arg7="$(printf %s {candidate} | base64 -d)"' in scripts[0]
+    assert f'arg1="$(printf %s {backend} | base64 -d)"' in script
+    assert f'arg6="$(printf %s {fraction} | base64 -d)"' in script
+    assert f'arg7="$(printf %s {candidate} | base64 -d)"' in script
+    assert [event[0] for event in events] == ["server", "holder", "route"]
+
+
+def test_server_failure_stops_remote_before_tunnel(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(remote_module, "_candidate_sha", lambda: "a" * 40)
+    session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04"))
+    target = RemoteTarget("powershell", "Ubuntu-24.04")
+    monkeypatch.setattr(session, "discover_target", lambda: target)
+    events = []
+    monkeypatch.setattr(session, "run_wsl", lambda *args, **kwargs: events.append("server") or "")
+
+    def fail_holder(*args: object) -> None:
+        events.append("holder")
+        raise RemoteError("holder failed")
+
+    monkeypatch.setattr(connection_check, "start", fail_holder)
+    monkeypatch.setattr(remote_module, "stop", lambda actual_session: events.append("remote-stop"))
+    monkeypatch.setattr(connection_check, "stop", lambda config: events.append("tunnel-stop"))
+    with pytest.raises(RemoteError, match="holder failed"):
+        remote_module.server(session)
+    assert events == ["server", "holder", "remote-stop", "tunnel-stop"]
 
 
 def test_convert_uses_one_bounded_allowlisted_remote_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

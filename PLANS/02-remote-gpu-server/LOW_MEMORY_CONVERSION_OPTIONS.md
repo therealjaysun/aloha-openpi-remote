@@ -45,7 +45,7 @@ This decision plan exists because the stock JAX policy loads in BF16 but first i
 
 ## Outcome
 
-Option C passed on the current PC for both profiles. π₀ and π₀.₅ each passed the one-leaf proof, full BF16 conversion, fresh sharded load, explicit PyTorch launch, four finite RTX actions, second-session survival, and safe stop. The ≥32 GiB stock-converter fallback was not needed. Exact memory, latency, artifact-hash, and raw-evidence hashes are recorded in E-PC-BF16.
+Option C passed on the current PC for both profiles. π₀ and π₀.₅ each passed the one-leaf proof, full BF16 conversion, fresh sharded load, explicit PyTorch launch, four finite RTX actions, a second-session check while WSL remained active, and safe stop. Phase 03 separately owns persistence after the final Windows WSL client exits. The ≥32 GiB stock-converter fallback was not needed. Exact memory, latency, artifact-hash, and raw-evidence hashes are recorded in E-PC-BF16.
 
 `make convert-pc` subsequently made the selection automatic: Linux `MemAvailable < 16 GiB` selects Option C; otherwise it selects the full-FP32 route. `OPENPI_CONVERSION_RESTORE_MODE` permits an intentional allowlisted override. Auto mode fails closed if available RAM cannot be measured and records both the measurement and selected mode.
 

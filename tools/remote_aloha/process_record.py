@@ -139,6 +139,32 @@ def verify_record(path: Path, proc_root: Path = Path("/proc")) -> ProcessRecord:
     return record
 
 
+def hold_record(
+    path: Path,
+    *,
+    profile: str,
+    port: int,
+    source_sha: str,
+    proc_root: Path = Path("/proc"),
+    poll_seconds: float = 1.0,
+) -> None:
+    expected = verify_record(path, proc_root)
+    if (expected.profile, expected.port, expected.source_sha) != (profile, port, source_sha):
+        raise RecordError("process record does not match the requested holder")
+    while True:
+        try:
+            current = verify_record(path, proc_root)
+        except StaleProcessError:
+            return
+        except RecordError:
+            if not path.exists() and not path.is_symlink():
+                return
+            raise
+        if current != expected:
+            raise RecordError("process record changed while held")
+        time.sleep(poll_seconds)
+
+
 def signal_record(
     path: Path,
     signal_number: int,
@@ -289,6 +315,11 @@ def main() -> None:
     launch.add_argument("expected_executable")
     launch.add_argument("expected_script")
     launch.add_argument("command", nargs=argparse.REMAINDER)
+    hold = subparsers.add_parser("hold")
+    hold.add_argument("path", type=Path)
+    hold.add_argument("profile")
+    hold.add_argument("port", type=int)
+    hold.add_argument("source_sha")
     args = parser.parse_args()
     try:
         if args.command == "create":
@@ -307,6 +338,13 @@ def main() -> None:
         elif args.command == "signal":
             number = signal.SIGTERM if args.name == "TERM" else signal.SIGKILL
             print(signal_record(args.path, number))
+        elif args.command == "hold":
+            hold_record(
+                args.path,
+                profile=args.profile,
+                port=args.port,
+                source_sha=args.source_sha,
+            )
         else:
             command = args.command[1:] if args.command[:1] == ["--"] else args.command
             print(
