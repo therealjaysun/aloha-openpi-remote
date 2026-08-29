@@ -8,5 +8,5 @@
 - **Acceptance:** Each available profile completes three episodes with valid actions and no fatal schema/network errors; actual success rate and limitations are explicit.
 - **Planned commit:** `test(runtime): validate complete remote-policy episodes`.
 - **Actual findings:** Not run. Expected π₀ profile is task-specific; π₀.₅ base profile may have low/zero success and that does not invalidate connectivity infrastructure.
-- **Remaining blockers:** Hardware and phases 01–03.
-- **Completion status:** Blocked pending hardware.
+- **Remaining blockers:** Phase 01 is complete; Phase 02 cannot return actions on current memory, so Phases 03–04 cannot yet run.
+- **Completion status:** Blocked by E-PC-JAX/E-PC-CONVERT, not by PC availability.

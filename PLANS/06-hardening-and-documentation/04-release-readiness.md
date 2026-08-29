@@ -7,6 +7,6 @@
 - **Validation:** `git log --graph --decorate --all`; `gh pr list/view/diff/checks` for 1–7; final `make doctor test lint secret-scan`; repository/file/link audit; verify PRs open and auto-merge off.
 - **Acceptance:** No unexplained pending item or unsupported success claim; blockers contain sanitized exact logs and recovery commands; human can review/merge in order; final branch is complete.
 - **Planned commit:** `docs(release): record final validation evidence`.
-- **Actual findings:** Planning-only milestone complete; no implementation or release claim is made.
-- **Remaining blockers:** Phases 02–06 plus SSH/PC hardware validation; GitHub is no longer blocked.
+- **Actual findings:** Phases 00–01 are complete; Phase 02 PC setup/lifecycle passed but inference is durably blocked by E-PC-JAX/E-PC-CONVERT. The repository is public, PRs 1–3 remain open, and the current branch is not release-ready.
+- **Remaining blockers:** Resolve E-PC-CONVERT, then implement/validate Phases 03–06 and complete the seven-PR review stack.
 - **Completion status:** Planned.

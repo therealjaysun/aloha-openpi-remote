@@ -7,6 +7,6 @@
 - **Validation:** Start/duplicate/stop/stale PID; sample cadence near configured 1 s; process associated with intended GPU/server; no SSH in Mac step loop.
 - **Acceptance:** GPU samples span inference and correlate by relative interval despite clock skew; sampler cleans up; profile/server/run/SHA correlation is unambiguous; raw identifiers remain ignored and are not committed.
 - **Planned commit:** `feat(telemetry): sample remote GPU metrics`.
-- **Actual findings:** WSL `nvidia-smi` can expose a limited feature set, so supported query fields must be discovered rather than assumed.
-- **Remaining blockers:** RTX/WSL access.
-- **Completion status:** Blocked pending hardware.
+- **Actual findings:** Real WSL `nvidia-smi` sampling and policy-process GPU-memory attribution work and captured the failed π₀ attempts. The run-correlated long-lived sampler remains unimplemented.
+- **Remaining blockers:** Successful inference and the Phase 05 run lifecycle.
+- **Completion status:** Hardware interface proven; feature implementation planned.

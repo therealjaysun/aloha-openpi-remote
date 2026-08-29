@@ -1,0 +1,484 @@
+import base64
+from pathlib import Path
+import subprocess
+
+import pytest
+
+from tools.remote_aloha import remote as remote_module
+from tools.remote_aloha.config import RemoteConfig
+from tools.remote_aloha.remote import RemoteError
+from tools.remote_aloha.remote import RemoteSession
+from tools.remote_aloha.remote import RemoteTarget
+from tools.remote_aloha.remote import _candidate_sha
+from tools.remote_aloha.remote import _doctor_script
+from tools.remote_aloha.remote import _read_launch_receipt
+from tools.remote_aloha.remote import _remote_script_command
+from tools.remote_aloha.remote import _setup_script
+from tools.remote_aloha.remote import _write_launch_receipt
+from tools.remote_aloha.remote import build_wsl_command
+from tools.remote_aloha.remote import classify_route
+from tools.remote_aloha.remote import select_ubuntu_distro
+from tools.remote_aloha.remote import smoke
+from tools.remote_aloha.remote import ssh_argv
+from tools.remote_aloha.remote import stop
+
+
+def _decode_powershell(command: str) -> str:
+    return base64.b64decode(command.rsplit(" ", 1)[1]).decode("utf-16le")
+
+
+def test_ssh_argv_is_bounded_and_fail_closed() -> None:
+    argv = ssh_argv(RemoteConfig())
+    assert argv[:2] == ["ssh", "-T"]
+    assert argv[-1] == "robot-gpu"
+    assert "BatchMode=yes" in argv
+    assert "StrictHostKeyChecking=yes" in argv
+    assert "ConnectionAttempts=1" in argv
+    assert "ConnectTimeout=10" in argv
+    assert "ClearAllForwardings=yes" in argv
+    with pytest.raises(ValueError, match="unsafe SSH alias"):
+        ssh_argv(RemoteConfig(ssh_alias="user@host"))
+
+
+def test_wsl_command_keeps_distro_and_payload_out_of_outer_windows_quoting() -> None:
+    distro = "Ubuntu Dev's"
+    command = build_wsl_command("powershell", distro)
+    assert distro not in command
+    decoded = _decode_powershell(command)
+    assert distro not in decoded
+    encoded_distro = decoded.split("FromBase64String('", 1)[1].split("')", 1)[0]
+    assert base64.b64decode(encoded_distro).decode() == distro
+    assert "[Console]::In.ReadToEnd()" in decoded
+    assert "$payload | wsl.exe --distribution $distro --exec bash -c \"tr -d '\\r' | bash -s --\"" in decoded
+    assert build_wsl_command("bash", "") == "bash -s --"
+    assert build_wsl_command("bash", "", 19) == "timeout --signal=TERM --kill-after=30s 19s bash -s --"
+    for route in ("powershell", "cmd"):
+        assert (
+            "--exec bash -c \"tr -d '\\r' | timeout --signal=TERM --kill-after=30s 19s bash -s --\""
+            in _decode_powershell(build_wsl_command(route, "Ubuntu", 19))
+        )
+    with pytest.raises(ValueError, match="explicit WSL distro"):
+        build_wsl_command("cmd", "")
+    with pytest.raises(ValueError, match="unsupported"):
+        build_wsl_command("fish", "Ubuntu")
+
+
+def test_remote_script_values_are_base64_data_not_shell_code() -> None:
+    value = "/srv/open pi's;$(id)"
+    config = RemoteConfig(remote_dir=value)
+    script = _remote_script_command(config, "example.sh", [value])
+    assert value not in script
+    assert "eval" not in script
+    assert '\ncd "$repo"\nexec ' in script
+    encoded = base64.b64encode(value.encode()).decode("ascii")
+    assert script.count(encoded) == 2
+
+
+def test_default_tilde_remote_path_resolves_inside_wsl(tmp_path: Path) -> None:
+    executable = tmp_path / "src" / "openpi" / "scripts" / "example.sh"
+    executable.parent.mkdir(parents=True)
+    executable.write_text("#!/usr/bin/env bash\nprintf '%s' \"$1\"\n", encoding="utf-8")
+    executable.chmod(0o755)
+    script = _remote_script_command(RemoteConfig(), "example.sh", ["round trip"])
+    result = subprocess.run(
+        ["bash"],
+        input=script,
+        capture_output=True,
+        text=True,
+        env={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"},
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "round trip"
+
+
+def test_default_tilde_setup_path_resolves_inside_wsl(tmp_path: Path) -> None:
+    prefix = _setup_script(RemoteConfig(), "a" * 40).split("lifecycle_state=", 1)[0]
+    result = subprocess.run(
+        ["bash"],
+        input=prefix + "printf '%s' \"$remote_dir\"\n",
+        capture_output=True,
+        text=True,
+        env={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"},
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == str(tmp_path / "src" / "openpi")
+
+
+@pytest.mark.parametrize(
+    "script",
+    [
+        _doctor_script(8000),
+        _setup_script(RemoteConfig(), "a" * 40),
+        _remote_script_command(RemoteConfig(), "example.sh", ["one", "two"]),
+    ],
+)
+def test_generated_wsl_bash_is_valid(script: str) -> None:
+    assert 'export PATH="$HOME/.local/bin:$PATH"' in script
+    subprocess.run(["bash", "-n"], input=script, text=True, check=True)
+
+
+def test_doctor_checks_evdev_build_prerequisites() -> None:
+    script = _doctor_script(8000)
+    assert "base64 cc curl flock git realpath ss timeout" in script
+    assert "GNU time" in script
+    assert "linux-input-headers" in script
+
+
+def test_setup_migrates_only_the_known_pre_rename_origin() -> None:
+    script = _setup_script(RemoteConfig(), "a" * 40)
+    assert "legacy_repo_url" in script
+    assert 'remote set-url origin "$repo_url"' in script
+
+
+def test_doctor_accepts_selected_ubuntu_2404_and_requires_uv(monkeypatch: pytest.MonkeyPatch) -> None:
+    uv = "uv 0.8.13"
+
+    def run_wsl(*args: object, **kwargs: object) -> str:
+        return "\n".join(
+            [
+                "__ALOHA_OS_ID__=ubuntu",
+                "__ALOHA_OS_VERSION__=24.04",
+                "__ALOHA_WSL2__=yes",
+                "__ALOHA_ARCH__=x86_64",
+                "__ALOHA_GPU_NAME__=NVIDIA GeForce RTX 3090",
+                "__ALOHA_RAM_AVAILABLE_KIB__=12000000",
+                "__ALOHA_TOOLS__=ready",
+                f"__ALOHA_UV__={uv}",
+            ]
+        )
+
+    monkeypatch.setattr(RemoteSession, "run_wsl", run_wsl)
+    session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04"))
+    target = RemoteTarget("powershell", "Ubuntu-24.04")
+    assert remote_module.doctor(session, target) == target
+    with pytest.raises(RemoteError, match="select it explicitly"):
+        remote_module.doctor(RemoteSession(RemoteConfig()), target)
+    uv = "missing"
+    with pytest.raises(RemoteError, match="uv is missing"):
+        remote_module.doctor(session, target)
+
+
+def test_shell_route_and_distro_selection_are_unambiguous() -> None:
+    outputs = {"bash": (1, ""), "powershell": (0, "__ALOHA_ROUTE_POWERSHELL__"), "cmd": (1, "")}
+    assert classify_route(outputs) == "powershell"
+    with pytest.raises(RemoteError, match="uniquely"):
+        classify_route({"bash": (0, "__ALOHA_ROUTE_BASH__"), "cmd": (0, "__ALOHA_ROUTE_CMD__")})
+    assert select_ubuntu_distro({"Ubuntu-22.04": "ubuntu"}, "") == "Ubuntu-22.04"
+    assert select_ubuntu_distro({"Ubuntu A": "ubuntu", "Debian": "debian"}, "Ubuntu A") == "Ubuntu A"
+    with pytest.raises(RemoteError, match="exactly one"):
+        select_ubuntu_distro({"Ubuntu A": "ubuntu", "Ubuntu B": "ubuntu"}, "")
+    with pytest.raises(RemoteError, match="not a discovered"):
+        select_ubuntu_distro({"Debian": "debian"}, "Ubuntu")
+
+
+def test_windows_distro_list_removes_wsl_utf16_nuls(monkeypatch: pytest.MonkeyPatch) -> None:
+    encoded = base64.b64encode("Ubuntu-24.04".encode("utf-16le")).decode()
+    monkeypatch.setattr(RemoteSession, "ssh", lambda *args, **kwargs: (0, f"{encoded}\nAA==\n"))
+    assert RemoteSession(RemoteConfig())._windows_distros() == ["Ubuntu-24.04"]  # noqa: SLF001
+
+
+def test_remote_session_uses_argv_stdin_and_total_timeout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    captured = {}
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured.update({"argv": argv, **kwargs})
+        return subprocess.CompletedProcess(argv, 0, "ok\n", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    session = RemoteSession(RemoteConfig())
+    session.evidence_dir = tmp_path
+    assert session.ssh("bash -s --", input_text="printf ok\n", timeout=17, label="test") == (0, "ok")
+    assert isinstance(captured["argv"], list)
+    assert captured["input"] == "printf ok\n"
+    assert captured["timeout"] == 17
+    assert "shell" not in captured
+    assert (tmp_path / "01-test.log").stat().st_mode & 0o777 == 0o600
+
+
+def test_remote_session_maps_outer_timeout_without_leaking_output(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def timeout(*args: object, **kwargs: object) -> None:
+        raise subprocess.TimeoutExpired("ssh", 5, output="private", stderr="private")
+
+    monkeypatch.setattr(subprocess, "run", timeout)
+    session = RemoteSession(RemoteConfig())
+    session.evidence_dir = tmp_path
+    with pytest.raises(RemoteError, match="total deadline") as error:
+        session.ssh("probe", timeout=5, label="timeout")
+    assert "private" not in str(error.value)
+    evidence = tmp_path / "01-timeout.log"
+    assert evidence.stat().st_mode & 0o777 == 0o600
+    assert evidence.read_text(encoding="utf-8").count("private") == 2
+
+
+def test_transport_failure_is_classified_even_during_shell_probe(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def host_key_failure(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(argv, 255, "", "Host key verification failed.")
+
+    monkeypatch.setattr(subprocess, "run", host_key_failure)
+    session = RemoteSession(RemoteConfig())
+    session.evidence_dir = tmp_path
+    with pytest.raises(RemoteError, match="fingerprint-verification"):
+        session.ssh("probe", timeout=5, label="route", check=False)
+
+
+def test_launch_receipt_is_private_and_round_trips(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    config = RemoteConfig()
+    _write_launch_receipt(config, "a" * 40, RemoteTarget("powershell", "Ubuntu-22.04"))
+    receipt = Path(".runtime/phase2-launch.json")
+    assert receipt.stat().st_mode & 0o777 == 0o600
+    assert _read_launch_receipt() == {
+        "backend": "jax",
+        "profile": "pi0_aloha_sim",
+        "port": 8000,
+        "remote_dir": "~/src/openpi",
+        "route": "powershell",
+        "source_sha": "a" * 40,
+        "ssh_alias": "robot-gpu",
+        "wsl_distro": "Ubuntu-22.04",
+    }
+    receipt.chmod(0o644)
+    with pytest.raises(RemoteError, match="invalid"):
+        _read_launch_receipt()
+
+
+@pytest.mark.parametrize("failure", ["branch", "dirty", "origin", "missing", "stale", "permissive", "symlink"])
+def test_candidate_gate_rejects_every_unpublished_or_unscanned_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, failure: str
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    sha = "a" * 40
+
+    def fake_git(*arguments: str) -> str:
+        if arguments == ("rev-parse", "HEAD"):
+            return sha
+        if arguments == ("branch", "--show-current"):
+            return "wrong" if failure == "branch" else remote_module.PHASE_BRANCH
+        if arguments == ("status", "--porcelain", "--untracked-files=all"):
+            return " M file" if failure == "dirty" else ""
+        if arguments == ("rev-parse", f"origin/{remote_module.PHASE_BRANCH}"):
+            return "b" * 40 if failure == "origin" else sha
+        raise AssertionError(arguments)
+
+    monkeypatch.setattr(remote_module, "_git", fake_git)
+    runtime = tmp_path / ".runtime"
+    runtime.mkdir()
+    runtime.chmod(0o700)
+    receipt = runtime / "secret-scan.sha"
+    if failure != "missing":
+        receipt.write_text(("b" * 40 if failure == "stale" else sha) + "\n", encoding="utf-8")
+        receipt.chmod(0o644 if failure == "permissive" else 0o600)
+    if failure == "symlink":
+        target = runtime / "target"
+        receipt.replace(target)
+        receipt.symlink_to(target)
+    with pytest.raises(RemoteError):
+        _candidate_sha()
+
+
+def test_candidate_gate_accepts_exact_clean_pushed_scan(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    sha = "a" * 40
+    answers = {
+        ("rev-parse", "HEAD"): sha,
+        ("branch", "--show-current"): remote_module.PHASE_BRANCH,
+        ("status", "--porcelain", "--untracked-files=all"): "",
+        ("rev-parse", f"origin/{remote_module.PHASE_BRANCH}"): sha,
+    }
+    monkeypatch.setattr(remote_module, "_git", lambda *arguments: answers[arguments])
+    receipt = tmp_path / ".runtime" / "secret-scan.sha"
+    receipt.parent.mkdir()
+    receipt.parent.chmod(0o700)
+    receipt.write_text(sha + "\n", encoding="utf-8")
+    receipt.chmod(0o600)
+    assert _candidate_sha() == sha
+
+
+def test_server_passes_jax_memory_fraction_to_wsl(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(remote_module, "_candidate_sha", lambda: "a" * 40)
+    session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04", jax_mem_fraction="0.85"))
+    target = RemoteTarget("powershell", "Ubuntu-24.04")
+    monkeypatch.setattr(session, "discover_target", lambda: target)
+    scripts = []
+
+    def fake_run_wsl(*args: object, **kwargs: object) -> str:
+        scripts.append(str(args[1]))
+        return "__ALOHA_SERVER__=ready" if len(scripts) == 2 else ""
+
+    monkeypatch.setattr(session, "run_wsl", fake_run_wsl)
+    remote_module.server(session)
+    fraction = base64.b64encode(b"0.85").decode()
+    backend = base64.b64encode(b"jax").decode()
+    candidate = base64.b64encode(("a" * 40).encode()).decode()
+    assert f'arg1="$(printf %s {backend} | base64 -d)"' in scripts[0]
+    assert f'arg6="$(printf %s {fraction} | base64 -d)"' in scripts[0]
+    assert f'arg7="$(printf %s {candidate} | base64 -d)"' in scripts[0]
+
+
+def test_convert_uses_one_bounded_allowlisted_remote_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(remote_module, "_candidate_sha", lambda: "a" * 40)
+    target = RemoteTarget("powershell", "Ubuntu-24.04")
+    session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04"))
+    monkeypatch.setattr(remote_module, "doctor", lambda actual_session: target)
+    captured = {}
+
+    def fake_run_wsl(actual_target: RemoteTarget, script: str, **kwargs: object) -> str:
+        captured.update({"target": actual_target, "script": script, **kwargs})
+        return "\n".join(
+            [
+                "__ALOHA_CONVERSION__=passed",
+                "__ALOHA_CONVERSION_PARTIAL__=absent",
+                "__ALOHA_PROFILE__=pi0_aloha_sim",
+                f"__ALOHA_PROJECT_SHA__={'a' * 40}",
+                "__ALOHA_CONVERSION_RESTORE_MODE__=partial-bfloat16",
+                "__ALOHA_AVAILABLE_RAM_KIB__=12000000",
+                f"__ALOHA_MODEL_HASH__={'b' * 64}",
+                "__ALOHA_PROBE_MAX_RSS_KIB__=100",
+                "__ALOHA_FULL_MAX_RSS_KIB__=200",
+                "__ALOHA_GPU_PEAK_MIB__=300",
+                "__ALOHA_GPU_SAMPLES__=4",
+                "__ALOHA_REMOTE_EVIDENCE__=.runtime/conversion/20260827T120000Z-123",
+            ]
+        )
+
+    monkeypatch.setattr(session, "run_wsl", fake_run_wsl)
+    remote_module.convert(session)
+    assert captured["target"] == target
+    assert captured["command_timeout"] == 7200
+    assert captured["timeout"] == 7275
+    assert "convert_policy_checkpoint.sh" in str(captured["script"])
+    assert "bash -c" not in str(captured["script"])
+    auto_mode = base64.b64encode(b"auto").decode()
+    assert f'arg4="$(printf %s {auto_mode} | base64 -d)"' in str(captured["script"])
+
+
+def test_convert_rejects_nonpositive_resource_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(remote_module, "_candidate_sha", lambda: "a" * 40)
+    target = RemoteTarget("powershell", "Ubuntu-24.04")
+    session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04"))
+    monkeypatch.setattr(remote_module, "doctor", lambda actual_session: target)
+    output = "\n".join(
+        [
+            "__ALOHA_CONVERSION__=passed",
+            "__ALOHA_CONVERSION_PARTIAL__=absent",
+            "__ALOHA_PROFILE__=pi0_aloha_sim",
+            f"__ALOHA_PROJECT_SHA__={'a' * 40}",
+            "__ALOHA_CONVERSION_RESTORE_MODE__=partial-bfloat16",
+            "__ALOHA_AVAILABLE_RAM_KIB__=12000000",
+            f"__ALOHA_MODEL_HASH__={'b' * 64}",
+            "__ALOHA_PROBE_MAX_RSS_KIB__=100",
+            "__ALOHA_FULL_MAX_RSS_KIB__=200",
+            "__ALOHA_GPU_PEAK_MIB__=300",
+            "__ALOHA_GPU_SAMPLES__=0",
+            "__ALOHA_REMOTE_EVIDENCE__=.runtime/conversion/20260827T120000Z-123",
+        ]
+    )
+    monkeypatch.setattr(session, "run_wsl", lambda *args, **kwargs: output)
+
+    with pytest.raises(RemoteError, match="complete validated evidence"):
+        remote_module.convert(session)
+
+
+def test_convert_auto_requires_mode_matching_available_ram(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(remote_module, "_candidate_sha", lambda: "a" * 40)
+    session = RemoteSession(RemoteConfig(wsl_distro="Ubuntu-24.04"))
+    monkeypatch.setattr(remote_module, "doctor", lambda actual_session: RemoteTarget("powershell", "Ubuntu-24.04"))
+    output = "\n".join(
+        [
+            "__ALOHA_CONVERSION__=passed",
+            "__ALOHA_CONVERSION_PARTIAL__=absent",
+            "__ALOHA_PROFILE__=pi0_aloha_sim",
+            f"__ALOHA_PROJECT_SHA__={'a' * 40}",
+            "__ALOHA_CONVERSION_RESTORE_MODE__=full-float32",
+            "__ALOHA_AVAILABLE_RAM_KIB__=12000000",
+            f"__ALOHA_MODEL_HASH__={'b' * 64}",
+            "__ALOHA_PROBE_MAX_RSS_KIB__=0",
+            "__ALOHA_FULL_MAX_RSS_KIB__=200",
+            "__ALOHA_GPU_PEAK_MIB__=300",
+            "__ALOHA_GPU_SAMPLES__=4",
+            "__ALOHA_REMOTE_EVIDENCE__=.runtime/conversion/20260827T120000Z-123",
+        ]
+    )
+    monkeypatch.setattr(session, "run_wsl", lambda *args, **kwargs: output)
+    with pytest.raises(RemoteError, match="complete validated evidence"):
+        remote_module.convert(session)
+
+
+def test_convert_explicit_full_mode_overrides_low_ram(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(remote_module, "_candidate_sha", lambda: "a" * 40)
+    config = RemoteConfig(wsl_distro="Ubuntu-24.04", conversion_restore_mode="full-float32")
+    session = RemoteSession(config)
+    monkeypatch.setattr(remote_module, "doctor", lambda actual_session: RemoteTarget("powershell", "Ubuntu-24.04"))
+    output = "\n".join(
+        [
+            "__ALOHA_CONVERSION__=passed",
+            "__ALOHA_CONVERSION_PARTIAL__=absent",
+            "__ALOHA_PROFILE__=pi0_aloha_sim",
+            f"__ALOHA_PROJECT_SHA__={'a' * 40}",
+            "__ALOHA_CONVERSION_RESTORE_MODE__=full-float32",
+            "__ALOHA_AVAILABLE_RAM_KIB__=12000000",
+            f"__ALOHA_MODEL_HASH__={'b' * 64}",
+            "__ALOHA_PROBE_MAX_RSS_KIB__=0",
+            "__ALOHA_FULL_MAX_RSS_KIB__=200",
+            "__ALOHA_GPU_PEAK_MIB__=300",
+            "__ALOHA_GPU_SAMPLES__=4",
+            "__ALOHA_REMOTE_EVIDENCE__=.runtime/conversion/20260827T120000Z-123",
+        ]
+    )
+    monkeypatch.setattr(session, "run_wsl", lambda *args, **kwargs: output)
+    remote_module.convert(session)
+
+
+def test_stop_uses_the_original_receipt_target(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    launched = RemoteConfig(ssh_alias="original-gpu", remote_dir="/srv/original", policy_port=8123)
+    target = RemoteTarget("powershell", "Ubuntu-22.04")
+    _write_launch_receipt(launched, "a" * 40, target)
+    session = RemoteSession(RemoteConfig(ssh_alias="changed-gpu", remote_dir="/srv/changed", policy_port=9000))
+    captured = {}
+
+    def fake_run_wsl(actual_target: RemoteTarget, script: str, **kwargs: object) -> str:
+        captured.update({"target": actual_target, "script": script, **kwargs})
+        return ""
+
+    monkeypatch.setattr(session, "run_wsl", fake_run_wsl)
+    monkeypatch.setattr(session, "discover_target", lambda: pytest.fail("receipt target should be used"))
+    stop(session)
+    assert session.config.ssh_alias == "original-gpu"
+    assert captured["target"] == target
+    assert "/srv/original" not in str(captured["script"])
+    assert base64.b64encode(b"/srv/original").decode() in str(captured["script"])
+    assert not Path(".runtime/phase2-launch.json").exists()
+
+
+def test_smoke_requires_a_second_session_survival_check(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    candidate = "a" * 40
+    monkeypatch.setattr(remote_module, "_candidate_sha", lambda: candidate)
+    config = RemoteConfig(wsl_distro="Ubuntu-24.04", policy_backend="pytorch")
+    target = RemoteTarget("powershell", "Ubuntu-24.04")
+    _write_launch_receipt(config, candidate, target)
+    session = RemoteSession(config)
+    scripts = []
+
+    def fake_run_wsl(actual_target: RemoteTarget, script: str, **kwargs: object) -> str:
+        assert actual_target == target
+        scripts.append(script)
+        return "__ALOHA_SERVER__=ready" if len(scripts) == 2 else ""
+
+    monkeypatch.setattr(session, "run_wsl", fake_run_wsl)
+    smoke(session)
+    assert len(scripts) == 2
+    assert "smoke_policy.sh" in scripts[0]
+    assert "check_policy_server.sh" in scripts[1]

@@ -8,10 +8,10 @@ Codex remains in the Mac project workspace. PC-side work runs remotely over the 
 | --- | --- | --- | --- | --- |
 | M0 — Mac only | 00–01 + 02 local staging | On; development, pure tests, and remote-test candidate commit happen here | May remain off | Repair GitHub login when convenient; otherwise no PC action |
 | P1 — Power/SSH trust | 02 after candidate SHA is ready | On | Turn on, sign in to Windows, connect to the same LAN, keep awake; complete one-time SSH trust if requested | Reply `PC ready`, then follow only the fingerprint-verification prompt if needed |
-| P2 — Remote setup | 02 remote validation–03 | Codex runs bounded diagnostics and SSH commands here | On; WSL/OpenPI/server run the exact candidate SHA | Stay at Mac unless Codex reports a Windows-admin blocker |
+| P2 — Remote setup/conversion | 02 remote validation–03 | Codex runs bounded diagnostics, the partial-BF16 recovery experiment, and SSH commands here | On; WSL/OpenPI/converter/server run the exact candidate SHA; no PC-side CI | Stay at Mac unless Codex reports a Windows-admin blocker |
 | B1 — Both machines | 04–05 | MuJoCo, client, tunnel, video, local telemetry | Policy server and GPU telemetry | Keep PC on/awake; no routine console work |
 | P3 — Final validation | 06 | Tests, docs, security scan, PR work | On only for final GPU/inference checks | Turn on if it was powered down; reply `PC ready` |
-| OFF — Shutdown | After final validation | Stop tunnel/runtime | Stop server/GPU sampler, then PC may power off | Wait for `PC SAFE TO POWER OFF` |
+| OFF — Shutdown | After final validation or a durable blocker | Stop tunnel/runtime | Stop server/GPU sampler, then PC may power off | Wait for `PC SAFE TO POWER OFF` |
 
 ## Notifications Codex will send
 
@@ -40,11 +40,11 @@ Sent only after host trust, bounded batch SSH, shell routing, WSL, and basic GPU
 
 ### `PC SAFE TO POWER OFF`
 
-Sent only after `make stop` attempts cleanup for every owned component and verifies the Mac tunnel plus WSL policy/GPU-metrics processes are stopped. Any live, mismatched, or unverifiable process makes `make stop` nonzero and suppresses this notification. Powering off earlier preserves data already written but interrupts the active phase; the next session must restart server and tunnel.
+Sent after final validation or a durable external blocker, but only when `make stop` attempts cleanup for every owned component and verifies the Mac tunnel plus WSL policy/GPU-metrics processes are stopped. Any live, mismatched, or unverifiable process makes `make stop` nonzero and suppresses this notification. Powering off earlier preserves data already written but interrupts the active phase; the next session must restart server and tunnel.
 
 ## One-time handoff checklist
 
-At gate P1, Codex validates in this order and stops at the first real blocker:
+At gate P1, Codex validates steps 1–8 for Phase 02 and stops at the first real blocker. Those steps are complete; step 9 resumes in Phase 03:
 
 1. `robot-gpu` alias exists without printing its private values; if first-use trust is absent, complete the fingerprint gate above.
 2. Bounded batch SSH connects with host-key checking intact.
@@ -54,7 +54,7 @@ At gate P1, Codex validates in this order and stops at the first real blocker:
 6. An absolute WSL POSIX project path is resolved inside WSL. A fixed `~/` default may be expanded against WSL `$HOME`; all other relative paths are rejected, with no `eval`.
 7. The project branch is fetched from public `origin`, or from a secret-scanned Git bundle if GitHub remains blocked; its exact SHA equals the Mac remote-test candidate and contains the audited upstream pin.
 8. A WSL-local request proves the selected policy binds loopback, passes `/healthz`, and performs GPU inference.
-9. The Mac reaches it only through the local SSH tunnel.
+9. In Phase 03, the Mac reaches it only through the local SSH tunnel.
 
 ## Source and process ownership contract
 

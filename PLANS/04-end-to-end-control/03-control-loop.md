@@ -8,5 +8,5 @@
 - **Acceptance:** Correct data flow with no schema/network termination; exact full episode runs; selected server identity matches; complete or explicitly partial video/result manifest saved; process exits in bounded time and releases local resources.
 - **Planned commits:** `fix(runtime): correct episode accounting and finalization`; `feat(runtime): connect ALOHA simulation to remote policy`.
 - **Actual findings:** Stock ALOHA main exposes host/port/task/seed/horizon/display but only one episode and no profile/telemetry. Stock environment derives even its first Gym seed from an RNG. Stock Runtime supports episode count/max steps, but shortened runs currently execute `max_episode_steps + 1` actions, timing uses the wall clock, subscribers finalize only on normal completion, and a final reset always runs.
-- **Remaining blockers:** End-to-end hardware access.
+- **Remaining blockers:** Phase 02 has hardware access but no valid policy action; resolve E-PC-CONVERT, then complete Phase 03 before end-to-end work.
 - **Completion status:** Planned.

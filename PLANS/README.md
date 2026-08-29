@@ -43,7 +43,7 @@ Do not rename these targets without updating every plan and user document:
 
 ```text
 make doctor doctor-mac doctor-pc setup-mac setup-pc
-make server tunnel smoke-sim smoke-policy run metrics stop
+make convert-pc server tunnel smoke-sim smoke-policy run metrics stop
 make test lint secret-scan pr-status
 ```
 

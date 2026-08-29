@@ -22,6 +22,7 @@ def create_trained_policy(
     default_prompt: str | None = None,
     norm_stats: dict[str, transforms.NormStats] | None = None,
     pytorch_device: str | None = None,
+    compact_masked_images: bool = False,
 ) -> _policy.Policy:
     """Create a policy from a trained checkpoint.
 
@@ -45,13 +46,25 @@ def create_trained_policy(
     repack_transforms = repack_transforms or transforms.Group()
     checkpoint_dir = download.maybe_download(str(checkpoint_dir))
 
-    # Check if this is a PyTorch model by looking for model.safetensors
-    weight_path = os.path.join(checkpoint_dir, "model.safetensors")
-    is_pytorch = os.path.exists(weight_path)
+    # Check for either the upstream single file or the standard sharded SafeTensors index.
+    single_weight_path = os.path.join(checkpoint_dir, "model.safetensors")
+    sharded_weight_index = os.path.join(checkpoint_dir, "model.safetensors.index.json")
+    is_pytorch = os.path.exists(single_weight_path) or os.path.exists(sharded_weight_index)
+    weight_path = str(checkpoint_dir) if os.path.exists(sharded_weight_index) else single_weight_path
+
+    # Select CUDA before construction so a sharded PyTorch checkpoint never creates
+    # the full model in host RAM first.
+    if is_pytorch and pytorch_device is None:
+        try:
+            import torch
+
+            pytorch_device = "cuda" if torch.cuda.is_available() else "cpu"
+        except ImportError:
+            pytorch_device = "cpu"
 
     logging.info("Loading model...")
     if is_pytorch:
-        model = train_config.model.load_pytorch(train_config, weight_path)
+        model = train_config.model.load_pytorch(train_config, weight_path, pytorch_device)
         model.paligemma_with_expert.to_bfloat16_for_selected_params("bfloat16")
     else:
         model = train_config.model.load(_model.restore_params(checkpoint_dir / "params", dtype=jnp.bfloat16))
@@ -62,15 +75,6 @@ def create_trained_policy(
         if data_config.asset_id is None:
             raise ValueError("Asset id is required to load norm stats.")
         norm_stats = _checkpoints.load_norm_stats(checkpoint_dir / "assets", data_config.asset_id)
-
-    # Determine the device to use for PyTorch models
-    if is_pytorch and pytorch_device is None:
-        try:
-            import torch
-
-            pytorch_device = "cuda" if torch.cuda.is_available() else "cpu"
-        except ImportError:
-            pytorch_device = "cpu"
 
     return _policy.Policy(
         model,
@@ -91,4 +95,5 @@ def create_trained_policy(
         metadata=train_config.policy_metadata,
         is_pytorch=is_pytorch,
         pytorch_device=pytorch_device if is_pytorch else None,
+        compact_masked_images=compact_masked_images,
     )

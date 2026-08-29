@@ -7,6 +7,6 @@
 - **Validation:** Known fixture calculations; empty/partial/single-sample runs; cross-check event counts and episode steps; ensure no machine identifiers.
 - **Acceptance:** Reviewer can determine whether infrastructure met the contract and compare both profiles without conflating transfer success with system health.
 - **Planned commit:** `docs(perf): summarize remote ALOHA runs`.
-- **Actual findings:** No measurements exist; no latency or success estimate is claimed.
+- **Actual findings:** Failed-request GPU memory was measured, but no inference completed, so no cold/warm latency or task-success estimate is claimed.
 - **Remaining blockers:** Live episodes and GPU samples.
 - **Completion status:** Planned.

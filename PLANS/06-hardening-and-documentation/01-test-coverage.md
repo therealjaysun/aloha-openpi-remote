@@ -7,6 +7,6 @@
 - **Validation:** `make test`; targeted test files; upstream `uv run pytest --strict-markers -m "not manual"` where environment permits; mutation spot-check each nontrivial branch by forcing one failure.
 - **Acceptance:** `REQUIREMENTS.md` T01–T12 are covered; root `tests/` is discovered; tests are deterministic and need no GPU/network/secrets; feature and test stay in the same phase commit; no framework beyond pytest already upstream.
 - **Planned commit:** `test(runtime): cover contracts and lifecycle edges`.
-- **Actual findings:** Upstream has pytest and Ruff, but project-specific tests do not exist. Upstream CI runner is not generally available to the derivative.
-- **Remaining blockers:** Implemented interfaces and dependency environments.
+- **Actual findings:** Project-specific configuration, routing, process, server, smoke, and security-gate tests now run in the lightweight Mac environment and hosted Linux. Later phase interfaces still need their focused tests.
+- **Remaining blockers:** Phases 03–05 interfaces do not exist yet; upstream GPU-heavy/private-runner lanes remain infeasible here.
 - **Completion status:** Planned.
