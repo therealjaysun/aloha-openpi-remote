@@ -25,7 +25,7 @@ The complete workflow was validated on the exact Phase 5 candidate `2065dd9` wit
 | `pi0_aloha_sim` | π₀ fine-tuned for this simulator | 3/3 | 2/3 success | 761 | 46.91 / 47.02 Hz | 359.21 ms | 15,401 MiB |
 | `pi05_aloha_base` (default) | Experimental π₀.₅ base model with ALOHA transforms | 3/3 | 0/3 success | 900 | 48.13 / 48.38 Hz | 502.35 ms | 15,857 MiB |
 
-GPU coverage passed for both runs (31 and 24 samples respectively), with no request retries or failures. The 1,661 successful simulator steps produced exactly 1,661 trajectory samples and six plots; each plot contains all 14 actual joints plus thinner dashed commands, normalized against pinned simulator limits. The π₀.₅ base checkpoint is not simulator-fine-tuned, so its zero task successes do not negate the separately reported infrastructure result. Neither profile met the complete cadence/underrun gate, so this project does **not** claim uninterrupted 50 Hz. The current execution cursor and complete evidence ledger are in [Project status](PLANS/STATUS.md).
+GPU coverage passed for both runs (31 and 24 samples respectively), with no request retries or failures. The 1,661 successful simulator steps produced exactly 1,661 trajectory samples and six plots; each plot contains all 14 actual joints plus thinner dashed commands, normalized against pinned simulator limits. The π₀.₅ base checkpoint is not simulator-fine-tuned, so its zero task successes do not negate the separately reported infrastructure result. Neither profile met the complete cadence/underrun gate, so this project does **not** claim uninterrupted 50 Hz. The completed evidence ledger is archived in [Original implementation status](PLANS/ORIGINAL_IMPLEMENTATION_0828/STATUS.md); current work is defined by the [runtime and inference plan](PLANS/INF_OPT_0829/00-overview.md).
 
 The pre-trajectory hardening candidate `90b0fed` also passed exact-SHA WSL setup and a fresh four-call tunneled smoke for each profile, then verified cleanup and a free policy port. Phase 5 candidate `2065dd9` remains the newer hardware proof and the source of the full-episode figures above.
 
@@ -87,7 +87,7 @@ ssh -o BatchMode=yes -o StrictHostKeyChecking=yes robot-gpu exit
 
 ## First setup
 
-Start on the Mac. During stacked review, use the current published phase branch named in [Project status](PLANS/STATUS.md); hardware commands deliberately reject another branch, a dirty checkout, an unpushed SHA, or a candidate without a fresh secret-scan receipt.
+Start on the Mac. Hardware commands deliberately reject a dirty checkout, an unpushed SHA, or a candidate without a fresh secret-scan receipt.
 
 ```bash
 git clone https://github.com/therealjaysun/pi-robotics.git
@@ -95,8 +95,7 @@ cd pi-robotics
 git remote add upstream https://github.com/Physical-Intelligence/openpi.git
 git remote set-url --push upstream DISABLED
 git fetch --no-tags upstream main:refs/remotes/upstream/main
-# While the stack is open, use the exact active branch from PLANS/STATUS.md.
-git switch --track origin/codex/06-hardening-docs
+git switch main
 cp .env.example .env
 # Edit only .env: select Ubuntu-24.04 and any intentional non-secret overrides.
 
@@ -147,12 +146,12 @@ Simulation only—no PC required:
 make smoke-sim
 ```
 
-The optional Push-PI suite uses four fixed prompts and scenario IDs. Each prompt explicitly names the active arm(s). There is no text-prompt box: select the task before launch. Every newly recorded active episode MP4 (and optional `ALOHA_DISPLAY=1` view) places overhead, left-wrist, and right-wrist feeds side-by-side in that order. Each applied step also records exact target coverage and timing.
+The optional Push-PI suite uses four fixed prompts and scenario IDs. Each prompt explicitly names the requested arm(s). There is no text-prompt box: select the task before launch. Every newly recorded active episode MP4 (and optional `ALOHA_DISPLAY=1` view) places overhead, left-wrist, and right-wrist feeds side-by-side in that order. Each applied step also records exact target coverage and timing.
 
 ```bash
 ALOHA_SCENARIO=push_pi_single ALOHA_DISPLAY=1 ALOHA_EPISODES=1 make smoke-sim
 # Other IDs: push_pi_dual, push_letters_single, push_letters_dual
-make scenario-calibrate  # Mac only; fixed geometry, visibility, contact, and park checks
+make scenario-calibrate  # Mac only; fixed geometry, visibility, and contact checks
 ```
 
 Policy only—starts the owned WSL server and Mac tunnel, verifies one bounded client workload, then stops server-first:
@@ -183,6 +182,10 @@ For the exact Push-PI evaluation, replace `make run` with one `make scenario-mat
 `ALOHA_EPISODE_STEPS` defaults to the accepted 300-step limit. A single diagnostic run may raise it to at most 6,000 steps (120 simulated seconds at 50 Hz); the acceptance matrix rejects overrides so its results remain comparable.
 
 Scenario 1 sends this complete instruction once and works with either validated profile: `Using only the left arm, first tilt the wrist down to see the pi-shaped block and its matching outline, then lower the gripper close to the table beside the block and make short incremental pushes that move the block into the outline; recheck alignment after each push and do not lift the block.`
+
+Scenario 2 likewise sends all three stages once: `Using both arms, first tilt both wrists down to see the pi-shaped block and its matching outline; then lower both grippers close to the table on opposite sides of the block without lifting it; finally make short coordinated incremental pushes that move the block into the outline, rechecking alignment after each push.`
+
+All scenarios pass the model's complete finite 14-joint action to MuJoCo unchanged. “Single arm” is prompt intent and an observed behavior label only; the project does not park either arm or override either gripper. Reset positions and MuJoCo's native joint/actuator limits still apply.
 
 ```bash
 profile=pi0_aloha_sim  # or pi05_aloha_base
@@ -225,7 +228,7 @@ See [Troubleshooting](docs/TROUBLESHOOTING.md) for fail-closed recovery. Do not 
 
 ## Review, source, and license
 
-Development is a seven-PR stack. Review and merge it in numerical order, using merge commits while descendants remain stacked; after each merge retarget and verify the next incremental diff. Do not enable auto-merge or automatic branch deletion. See [PR stack](PLANS/PR_STACK.md) and [Review and merge](PLANS/REVIEW_AND_MERGE.md).
+The original stacked implementation history and its merge procedure are retained under [Original implementation plans](PLANS/ORIGINAL_IMPLEMENTATION_0828/README.md). New work starts from updated `main` on one scoped `codex/` branch and PR.
 
 This project is derived from [Physical Intelligence's OpenPI repository](https://github.com/Physical-Intelligence/openpi) at pinned commit [`215abfb`](https://github.com/Physical-Intelligence/openpi/tree/215abfb217dbac7d5f1273282331b9b1866c0479). Read the [original OpenPI README](https://github.com/Physical-Intelligence/openpi/blob/215abfb217dbac7d5f1273282331b9b1866c0479/README.md) for model documentation, upstream setup, research context, and limitations.
 
