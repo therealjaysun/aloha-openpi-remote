@@ -40,8 +40,9 @@ def test_fixed_scenario_resolves_task_prompt_and_display(tmp_path: Path) -> None
     assert config.scenario is SCENARIOS["push_letters_single"]
     assert config.task == "pi_robotics/PushLettersSingleArm-v0"
     assert config.scenario.prompt == (
-        "P and I blocks and their dotted target outlines are on the table. Using only the left arm, push each block "
-        "until it covers and aligns with its matching target outline."
+        "A red P-shaped block, a blue I-shaped block, and their dotted target outlines are on the table. Using only "
+        "the left arm, push the red P-shaped block onto the red dotted P outline and the blue I-shaped block onto "
+        "the blue dotted I outline, until each block covers and aligns with its outline."
     )
     assert config.display is True
 

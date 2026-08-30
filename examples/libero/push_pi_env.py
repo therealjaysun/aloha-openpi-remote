@@ -179,7 +179,7 @@ _BDDL = {
 )""",
     "push_p_i": """(define (problem PushLettersLibero)
   (:domain robosuite)
-  (:language Push the P and I blocks onto their matching dotted target outlines)
+  (:language Push the red P-shaped block onto the red dotted P outline and the blue I-shaped block onto the blue dotted I outline)
   (:regions
     (p_spawn_region (:target main_table) (:ranges ((-0.26 -0.22 -0.08 -0.04))) (:yaw_rotation ((0 0))))
     (i_spawn_region (:target main_table) (:ranges ((0.07 -0.22 0.23 -0.04))) (:yaw_rotation ((0 0))))

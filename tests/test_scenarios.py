@@ -65,8 +65,9 @@ def test_fixed_scenario_contract_uses_uppercase_dotless_letters() -> None:
             "covers and aligns with the target outline."
         ),
         "push_letters_single": (
-            "P and I blocks and their dotted target outlines are on the table. Using only the left arm, push each "
-            "block until it covers and aligns with its matching target outline."
+            "A red P-shaped block, a blue I-shaped block, and their dotted target outlines are on the table. Using "
+            "only the left arm, push the red P-shaped block onto the red dotted P outline and the blue I-shaped block "
+            "onto the blue dotted I outline, until each block covers and aligns with its outline."
         ),
         "push_letters_dual": (
             "P and I blocks and their dotted target outlines are on the table. Using both arms, push each block until "
@@ -200,7 +201,7 @@ def test_scene_hash_covers_only_physical_xml_assets_and_kind(monkeypatch: pytest
 
 
 def test_descriptor_hash_freezes_every_calibrated_value() -> None:
-    assert descriptor_sha256() == "7c6b551eb62448fe3e43bca7439d1026a56f333df5340c7732bd2a1cd0bbae00"
+    assert descriptor_sha256() == "1aa4f0f1a63adf7bb20f290c0a4021f689dd69f8d8d5cc9b37a4bcd9699e6814"
 
 
 @pytest.mark.parametrize(

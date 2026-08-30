@@ -253,8 +253,9 @@ SCENARIOS = {
         "pi_robotics/PushLettersSingleArm-v0",
         "letters",
         "left",
-        "P and I blocks and their dotted target outlines are on the table. Using only the left arm, push each "
-        "block until it covers and aligns with its matching target outline.",
+        "A red P-shaped block, a blue I-shaped block, and their dotted target outlines are on the table. Using "
+        "only the left arm, push the red P-shaped block onto the red dotted P outline and the blue I-shaped block "
+        "onto the blue dotted I outline, until each block covers and aligns with its outline.",
     ),
     "push_letters_dual": ScenarioSpec(
         "push_letters_dual",
