@@ -84,7 +84,7 @@ SCENARIOS = {
     "coke_taylor": (
         "CokeOnTaylorLibero",
         (),
-        "Put the Coke can on Taylor Swift",
+        "Put the red can on Taylor Swift.",
     ),
 }
 
@@ -395,7 +395,7 @@ _BDDL = {
 )""",
     "coke_taylor": """(define (problem CokeOnTaylorLibero)
   (:domain robosuite)
-  (:language Put the Coke can on Taylor Swift)
+  (:language Put the red can on Taylor Swift.)
   (:regions
     (taylor_swift_region (:target main_table) (:ranges ((-0.201 0.119 -0.199 0.121))) (:yaw_rotation ((0 0))))
     (ian_mckellen_region (:target main_table) (:ranges ((-0.201 -0.121 -0.199 -0.119))) (:yaw_rotation ((0 0))))
@@ -647,7 +647,7 @@ def scenario_hash(scenario: str) -> str:
 
 def self_check() -> None:
     assert set(SCENARIOS) == {"push_pi", "push_p_i", "coke_taylor"}
-    assert SCENARIOS["coke_taylor"][2] == "Put the Coke can on Taylor Swift"
+    assert SCENARIOS["coke_taylor"][2] == "Put the red can on Taylor Swift."
     assert CONTROL_HZ * 6 == 120
     assert CONTROL_HZ * 30 == 600
     assert CONTROL_HZ * 300 == 6000
