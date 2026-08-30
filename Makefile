@@ -94,8 +94,8 @@ test:
 
 lint:
 	@test -x "$(RUFF)" || { echo 'Missing Phase 01 environment; run: make setup-mac' >&2; exit 1; }
-	"$(RUFF)" check tools/remote_aloha tests scripts/serve_policy.py examples/aloha_sim/saver.py examples/aloha_sim/push_pi_env.py examples/libero/main.py examples/libero/push_pi_env.py
-	"$(RUFF)" format --check tools/remote_aloha tests scripts/serve_policy.py examples/aloha_sim/saver.py examples/aloha_sim/push_pi_env.py examples/libero/main.py examples/libero/push_pi_env.py
+	"$(RUFF)" check tools/remote_aloha tools/libero tests scripts/serve_policy.py examples/aloha_sim/saver.py examples/aloha_sim/push_pi_env.py examples/libero/main.py examples/libero/push_pi_env.py
+	"$(RUFF)" format --check tools/remote_aloha tools/libero tests scripts/serve_policy.py examples/aloha_sim/saver.py examples/aloha_sim/push_pi_env.py examples/libero/main.py examples/libero/push_pi_env.py
 	"$(RUFF)" check examples/convert_jax_model_to_pytorch.py
 	"$(RUFF)" format --check examples/convert_jax_model_to_pytorch.py
 	"$(RUFF)" check packages/openpi-client/src/openpi_client/websocket_client_policy.py src/openpi/serving/websocket_policy_server.py

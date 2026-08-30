@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import json
 import pathlib
+import random
 import re
 import tempfile
 
@@ -34,6 +36,11 @@ from tools.remote_aloha.scenarios import target_outline_points
 CONTROL_HZ = 20
 LIBERO_TARGET_DOT_RADIUS = 0.003
 LIBERO_TARGET_DOT_SPACING = 0.012
+LIBERO_PI_BLOCK_CENTER = (-0.12, -0.13)
+LIBERO_PI_TARGET_CENTER = (0.14, 0.12)
+LIBERO_PI_LAYOUT_JITTER = 0.02
+LIBERO_PI_MIN_SEPARATION = 0.30
+LIBERO_PI_SPAWN_HALF_RANGE = 0.09
 _TABLE_HALF_HEIGHT = 0.05
 SCENARIOS = {
     "push_pi": (
@@ -150,6 +157,13 @@ class _PushPiTask(TASK_MAPPING["libero_tabletop_manipulation"]):
         values["overall"] = covered_area / total_area
         return values
 
+    def layout(self) -> dict[str, dict[str, object]]:
+        values = {}
+        for body, movable_name, target_name in self.body_pairs:
+            values[movable_name] = dataclasses.asdict(self._state(movable_name, body.name))
+            values[target_name] = dataclasses.asdict(self._state(target_name, body.name))
+        return values
+
     def _check_success(self):
         return bool(self.obj_body_id) and all(value >= 0.95 for value in self.coverage().values())
 
@@ -169,8 +183,8 @@ _BDDL = {
   (:domain robosuite)
   (:language Push the PI-shaped block onto its dotted target outline)
   (:regions
-    (pi_spawn_region (:target main_table) (:ranges ((-0.22 -0.22 -0.02 -0.04))) (:yaw_rotation ((0 0))))
-    (pi_target_region (:target main_table) (:ranges ((0.139 0.119 0.141 0.121))) (:yaw_rotation ((0 0))))
+    (pi_spawn_region (:target main_table) (:ranges (({spawn_x_min} {spawn_y_min} {spawn_x_max} {spawn_y_max}))) (:yaw_rotation ((0 0))))
+    (pi_target_region (:target main_table) (:ranges (({target_x_min} {target_y_min} {target_x_max} {target_y_max}))) (:yaw_rotation ((0 0))))
   )
   (:fixtures main_table - table pi_target_1 - pi_target)
   (:objects pi_1 - pi_block)
@@ -201,6 +215,51 @@ _BDDL = {
 }
 
 
+def push_pi_layout(seed: int) -> dict[str, object]:
+    if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed <= 2**32 - 1:
+        raise ValueError("LIBERO layout seed must be an unsigned 32-bit integer")
+    rng = random.Random(seed)
+    jitter = LIBERO_PI_LAYOUT_JITTER
+    block = tuple(center + rng.uniform(-jitter, jitter) for center in LIBERO_PI_BLOCK_CENTER)
+    target = tuple(center + rng.uniform(-jitter, jitter) for center in LIBERO_PI_TARGET_CENTER)
+    distance = ((target[0] - block[0]) ** 2 + (target[1] - block[1]) ** 2) ** 0.5
+    if distance < LIBERO_PI_MIN_SEPARATION:
+        raise RuntimeError("sampled LIBERO Push-PI layout violates separation")
+    layout = {
+        "block_xy": [round(value, 6) for value in block],
+        "target_xy": [round(value, 6) for value in target],
+        "center_distance": round(distance, 6),
+    }
+    layout["layout_hash"] = hashlib.sha256(
+        json.dumps(layout, separators=(",", ":"), sort_keys=True).encode()
+    ).hexdigest()
+    return layout
+
+
+def scenario_bddl(scenario: str, seed: int) -> str:
+    try:
+        template = _BDDL[scenario]
+    except KeyError as error:
+        raise ValueError(f"scenario must be one of: {', '.join(SCENARIOS)}") from error
+    if scenario != "push_pi":
+        return template
+    layout = push_pi_layout(seed)
+    block_x, block_y = layout["block_xy"]
+    target_x, target_y = layout["target_xy"]
+    spawn = LIBERO_PI_SPAWN_HALF_RANGE
+    target_half_range = 0.001
+    return template.format(
+        spawn_x_min=f"{block_x - spawn:.6f}",
+        spawn_y_min=f"{block_y - spawn:.6f}",
+        spawn_x_max=f"{block_x + spawn:.6f}",
+        spawn_y_max=f"{block_y + spawn:.6f}",
+        target_x_min=f"{target_x - target_half_range:.6f}",
+        target_y_min=f"{target_y - target_half_range:.6f}",
+        target_x_max=f"{target_x + target_half_range:.6f}",
+        target_y_max=f"{target_y + target_half_range:.6f}",
+    )
+
+
 def create_env(scenario: str, *, resolution: int, seed: int, horizon: int):
     try:
         _, _, prompt = SCENARIOS[scenario]
@@ -208,7 +267,7 @@ def create_env(scenario: str, *, resolution: int, seed: int, horizon: int):
         raise ValueError(f"scenario must be one of: {', '.join(SCENARIOS)}") from error
     temporary = tempfile.TemporaryDirectory(prefix="libero-push-pi-")
     bddl_path = pathlib.Path(temporary.name) / f"{scenario}.bddl"
-    bddl_path.write_text(_BDDL[scenario], encoding="utf-8")
+    bddl_path.write_text(scenario_bddl(scenario, seed), encoding="utf-8")
     env = OffScreenRenderEnv(
         bddl_file_name=bddl_path,
         camera_heights=resolution,
@@ -219,6 +278,10 @@ def create_env(scenario: str, *, resolution: int, seed: int, horizon: int):
     env.seed(seed)
     env.push_pi_temporary_directory = temporary
     return env, prompt
+
+
+def snapshot_layout(environment) -> dict[str, dict[str, object]]:
+    return environment.env.layout()
 
 
 def scenario_hash(scenario: str) -> str:
@@ -238,6 +301,11 @@ def self_check() -> None:
     assert [
         len(target_outline_points(body, spacing=LIBERO_TARGET_DOT_SPACING)) for body in (PI_BODY, P_BODY, I_BODY)
     ] == [60, 57, 48]
+    layouts = [push_pi_layout(seed) for seed in range(12)]
+    assert len({tuple(layout["block_xy"]) for layout in layouts}) == 12
+    assert len({tuple(layout["target_xy"]) for layout in layouts}) == 12
+    assert all(layout["center_distance"] >= LIBERO_PI_MIN_SEPARATION for layout in layouts)
+    assert len({layout["layout_hash"] for layout in layouts}) == 12
     assert all(len(scenario_hash(name)) == 64 for name in SCENARIOS)
 
 

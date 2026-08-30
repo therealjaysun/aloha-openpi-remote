@@ -190,8 +190,10 @@ def _policy_element(obs, prompt: str, resize_size: int):
 def _eval_push_pi(args: Args) -> None:
     from examples.libero.push_pi_env import CONTROL_HZ
     from examples.libero.push_pi_env import create_env
+    from examples.libero.push_pi_env import push_pi_layout
     from examples.libero.push_pi_env import scenario_hash
-    from tools.remote_aloha.libero_run import run_scenario
+    from examples.libero.push_pi_env import snapshot_layout
+    from tools.libero.run import run_scenario
 
     result = run_scenario(
         scenario=args.scenario,
@@ -209,6 +211,8 @@ def _eval_push_pi(args: Args) -> None:
         create_env=create_env,
         policy_element=_policy_element,
         scene_hash=scenario_hash(args.scenario),
+        scene_metadata=push_pi_layout(args.seed) if args.scenario == "push_pi" else None,
+        layout_snapshot=snapshot_layout,
     )
     print(json.dumps(result, sort_keys=True))
 

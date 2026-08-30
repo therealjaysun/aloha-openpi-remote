@@ -133,6 +133,8 @@ def run_scenario(
     create_env: Callable[..., tuple[object, str]],
     policy_element: Callable[[Mapping[str, object], str, int], tuple[dict[str, object], np.ndarray]],
     scene_hash: str,
+    scene_metadata: Mapping[str, object] | None = None,
+    layout_snapshot: Callable[[object], Mapping[str, object]] | None = None,
 ) -> dict[str, object]:
     seconds, step_limit = policy_step_limit(duration_seconds, smoke=smoke, control_hz=control_hz)
     remote = replace(
@@ -179,6 +181,7 @@ def run_scenario(
     primary: BaseException | None = None
     cleanup_pending = False
     video_validation = None
+    sampled_layout = settled_layout = None
     trajectory: dict[str, object] = {
         "sample_count": 0,
         "joint_count": len(PANDA_JOINT_LIMITS),
@@ -200,6 +203,7 @@ def run_scenario(
         "source_sha": source_sha,
         "seed": seed,
         "scenario": scenario,
+        "layout": json_safe(scene_metadata) if scene_metadata is not None else None,
         "errors": errors,
     }
     _atomic_json(manifest_path, initial_manifest)
@@ -265,9 +269,16 @@ def run_scenario(
         )
         server_metadata = dict(client.get_server_metadata())
         validate_server_metadata(server_metadata, remote.policy_profile, source_sha, remote.policy_backend)
+        seed_environment = getattr(environment, "seed", None)
+        if callable(seed_environment):
+            seed_environment(seed)
         observation = environment.reset()
+        if layout_snapshot is not None:
+            sampled_layout = json_safe(layout_snapshot(environment))
         for _ in range(settle_steps):
             observation, _, _, _ = environment.step(dummy_action)
+        if layout_snapshot is not None:
+            settled_layout = json_safe(layout_snapshot(environment))
         initial_coverage = float(environment.env.coverage()["overall"])
         best_coverage = initial_coverage
         first_element, _ = policy_element(observation, prompt, resize_size)
@@ -524,6 +535,9 @@ def run_scenario(
             "reward_final": rewards[-1] if rewards else None,
             "wall_seconds": wall_seconds,
         }
+        layout = dict(json_safe(scene_metadata)) if scene_metadata is not None else None
+        if layout is not None:
+            layout.update({"sampled": sampled_layout, "settled": settled_layout})
         manifest = {
             "schema": 1,
             "status": status,
@@ -542,6 +556,7 @@ def run_scenario(
             "task": f"libero/{scenario}",
             "scenario": scenario,
             "scene_hash": scene_hash,
+            "layout": layout,
             "seed": seed,
             "action_horizon": replan_steps,
             "episode": episode,

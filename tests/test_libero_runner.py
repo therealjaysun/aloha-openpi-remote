@@ -6,11 +6,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from tools.remote_aloha import libero_run
+from tools.libero import run as libero_run
+from tools.libero.run import _video_observation
+from tools.libero.run import policy_step_limit
 from tools.remote_aloha.config import POLICY_PROFILES
 from tools.remote_aloha.config import RemoteConfig
-from tools.remote_aloha.libero_run import _video_observation
-from tools.remote_aloha.libero_run import policy_step_limit
 
 
 def test_libero_duration_limits_cover_smoke_default_and_five_minutes() -> None:
@@ -102,6 +102,10 @@ def test_libero_run_writes_established_episode_artifact_set(tmp_path: Path, monk
         def coverage() -> dict[str, float]:
             return {"pi": 0.0, "overall": 0.0}
 
+        @staticmethod
+        def layout() -> dict[str, dict[str, float]]:
+            return {"pi_1": {"x": -0.1, "y": -0.1}, "pi_target_1": {"x": 0.1, "y": 0.1}}
+
     class Environment:
         env = Task()
 
@@ -114,6 +118,10 @@ def test_libero_run_writes_established_episode_artifact_set(tmp_path: Path, monk
 
         def reset(self) -> dict[str, np.ndarray]:
             return self.observation()
+
+        @staticmethod
+        def seed(_: int) -> None:
+            return None
 
         def step(self, _: list[float]) -> tuple[dict[str, np.ndarray], float, bool, dict]:
             self.steps += 1
@@ -173,6 +181,8 @@ def test_libero_run_writes_established_episode_artifact_set(tmp_path: Path, monk
         create_env=lambda *_args, **_kwargs: (Environment(), "push"),
         policy_element=element,
         scene_hash="d" * 64,
+        scene_metadata={"layout_hash": "c" * 64},
+        layout_snapshot=lambda environment: environment.env.layout(),
     )
     root = Path(result["output"])
     assert root.relative_to(tmp_path).parts[0] == "libero_0829"
@@ -190,6 +200,8 @@ def test_libero_run_writes_established_episode_artifact_set(tmp_path: Path, monk
     assert manifest["status"] == "complete"
     assert manifest["episode"]["steps_applied"] == manifest["video"]["frames"] == 20
     assert manifest["trajectory"]["joint_count"] == 7
+    assert manifest["layout"]["layout_hash"] == "c" * 64
+    assert manifest["layout"]["sampled"] == manifest["layout"]["settled"]
     rows = [json.loads(line) for line in (episode / "telemetry.jsonl").read_text().splitlines()]
     steps = [row for row in rows if row["event"] == "step"]
     assert len(steps) == 20
