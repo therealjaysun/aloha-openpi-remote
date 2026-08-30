@@ -11,6 +11,7 @@ from tools.remote_aloha.run import _scenario_info_fields  # noqa: E402
 from tools.remote_aloha.scenarios import CUSTOM_SCENARIOS  # noqa: E402
 from tools.remote_aloha.scenarios import SCENARIOS  # noqa: E402
 from tools.remote_aloha.scenarios import TABLETOP_SHA256  # noqa: E402
+from tools.remote_aloha.scenarios import OutcomeState  # noqa: E402
 from tools.remote_aloha.scenarios import descriptor_sha256  # noqa: E402
 from tools.remote_aloha.scenarios import effective_layout_seed  # noqa: E402
 from tools.remote_aloha.scenarios import sample_layout  # noqa: E402
@@ -97,6 +98,31 @@ def test_custom_episode_limit_is_applied() -> None:
         assert not truncated
         _, _, _, truncated, info = environment.step(command)
         assert truncated
+        assert info["terminal_reason"] == "time_limit"
+    finally:
+        environment.close()
+
+
+def test_off_table_is_recorded_without_ending_the_episode() -> None:
+    environment = gym.make(
+        SCENARIOS["push_pi_single"].gym_id,
+        obs_type="pixels_agent_pos",
+        episode_steps=2,
+        max_episode_steps=2,
+    )
+    try:
+        environment.reset(seed=0)
+        environment.unwrapped._push_task.outcome = OutcomeState(off_table=True, terminal_reason="off_table")  # noqa: SLF001
+        command = environment.unwrapped.home_joint_positions
+        _, _, terminated, truncated, info = environment.step(command)
+        assert not terminated
+        assert not truncated
+        assert info["off_table"] is True
+        assert info["terminal_reason"] == "off_table"
+        _, _, terminated, truncated, info = environment.step(command)
+        assert not terminated
+        assert truncated
+        assert info["off_table"] is True
         assert info["terminal_reason"] == "time_limit"
     finally:
         environment.close()

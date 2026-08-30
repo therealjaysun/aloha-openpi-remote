@@ -2,7 +2,7 @@
 
 ## Handoff
 
-- **Status:** S5B is retained by an explicit benefit-over-equivalence override; S6 was retried, rejected, and removed. Final hardware validation must be repeated on retained S5B.
+- **Status:** S5B is retained by an explicit benefit-over-equivalence override; S6 was retried, rejected, and removed. Final hardware validation is being repeated after removing off-table early termination by user decision.
 - **Base candidate:** main after merged plan PR #9 (`3ebf8b017384e1e38ba97261d65a723966596b45`).
 - **Optimization scope:** `pi05_aloha_base` only. By user decision on 2026-08-29, do not run, benchmark, optimize, or qualify π₀. Keep existing π₀ support unchanged for compatibility.
 - **Order:** P0 clean baseline → implement B0 instrumentation plus disabled R1/R2 switches → B0 measurements → isolated R1/R2 trials → S1–S6 measured speed work → final hardware validation.
@@ -47,6 +47,7 @@ Exact retained hardware-code candidate `010bb9d` passed the four-call π₀.₅ 
 ## Fixed constraints
 
 - Keep BF16 weights, the π₀.₅ checkpoint, all three `224×224` camera inputs, 14 unlocked controls, the 50-action model output, one in-flight request, WebSocket over SSH, and existing telemetry/output systems.
+- Record off-table state as task-failure evidence but do not terminate the episode for it; diagnostic runs continue to success, fall, or the configured step limit.
 - A fixed scenario sends one prompt once. Crossfade only time-aligned chunks produced by the same checkpoint and prompt stage.
 - Never crossfade across a prompt-stage transition; clear the old buffer first.
 - Every applied command must contain exactly 14 finite values and remain attributable to model output.
@@ -213,7 +214,7 @@ Only if B0 shows material CPU/input-transfer cost, remove redundant `np.array` c
 4. **Isolated runtime trials — complete:** Short matched baseline, R1, R2, and combined π₀.₅ runs are recorded above; no default is promoted yet.
 5. **Speed A/B — complete:** S1 passed strict equivalence; S2–S5 were rejected. S5B is retained by the documented benefit-over-equivalence override; the S6 retry was rejected and removed.
 6. **Combined smoke — repeat required:** `010bb9d` passed previously, but the retained S5B/S6 result must pass the same four-call π₀.₅ smoke and 300-step three-camera episode.
-7. **Final hardware run — repeat required:** The prior exact `010bb9d` run passed infrastructure and failed the task at 0% coverage. Repeat Scenario 2 seed 0 on the new retained code candidate.
+7. **Final hardware run — repeat required:** The retained S5B run first ended at 2,137 steps when the piece left the table. After the explicit off-table-continuation change, repeat Scenario 2 seed 0 to the next valid terminal condition or 6,000-step limit.
 8. **Closeout:** Run exact-candidate local gates, stop the server/tunnel, confirm the policy port is free, and record the final PC SHA.
 
 ## Minimal file ownership
