@@ -2,12 +2,12 @@
 
 ## Handoff
 
-- **Status:** P0/B0 and short R1/R2 trials are complete. S1 is retained; S2/S3 and both S4 trials were rejected and reverted. S5 is next.
+- **Status:** P0/B0 and short R1/R2 trials are complete. S1 is retained; S2–S5 were rejected and reverted, and S6 was skipped by its measured-cost gate. Speed A/B is complete; combined smoke is next.
 - **Base candidate:** main after merged plan PR #9 (`3ebf8b017384e1e38ba97261d65a723966596b45`).
 - **Optimization scope:** `pi05_aloha_base` only. By user decision on 2026-08-29, do not run, benchmark, optimize, or qualify π₀. Keep existing π₀ support unchanged for compatibility.
 - **Order:** P0 clean baseline → implement B0 instrumentation plus disabled R1/R2 switches → B0 measurements → isolated R1/R2 trials → S1–S6 measured speed work → final hardware validation.
 - **Ownership:** One integrating agent owns shared files and final validation. Read-only agents may inspect independent candidates.
-- **PC boundary:** S4 is closed and its server is stopped. Restore the exact retained candidate on the PC before the isolated S5 trial.
+- **PC boundary:** Speed trials are closed and the server is stopped. Restore the exact retained candidate on the PC before combined smoke.
 
 ## Objective
 
@@ -173,11 +173,15 @@ After S1, test `torch.compile(..., mode="default")` on the fixed-shape denoise s
 
 **Keep only if:** Cold compile time/memory are reported separately; there is no OOM, graph churn, or silent eager fallback; warmed p95 passes.
 
+**Result:** Rejected and reverted on `774f945`. Full-graph Inductor compiled the first denoise call, then immediately recompiled on the second denoise iteration because `x_t` lost the `ADInplaceOrView` dispatch key after the Euler update. The two compiles took about 41 seconds, GPU use was about 15.8 GiB when sampled, and the first policy request had still not returned when the bounded trial was stopped. Per the declared gate, no cache/graph adapter was attempted and parity/speed qualification was not run.
+
 ### S6 — Remove proven host-copy overhead
 
 Only if B0 shows material CPU/input-transfer cost, remove redundant `np.array` copies and consolidate host-to-device transfers. Use pinned/nonblocking copies only when profiling proves real overlap and safe ownership.
 
 **Keep only if:** Input tensors are byte-identical, lifetimes remain safe, and synchronized warmed p95 improves.
+
+**Result:** Skipped by the declared materiality gate. Input-transfer p95 was 6.48 ms in the matched eager run and 4.61 ms in the S4 prefix run, only about 1.3–1.8% of server p95. Even eliminating it entirely cannot meet the 3% retention threshold, so pinned/nonblocking ownership complexity is not justified.
 
 ## Deferred because they do not fit this pass
 
@@ -195,7 +199,7 @@ Only if B0 shows material CPU/input-transfer cost, remove redundant `np.array` c
 2. **Mac candidate — complete:** B0 instrumentation and selectable R1/R2 passed local gates and were pushed.
 3. **PC timing baseline — complete:** Exact `8faea85` synced; doctor/setup, captured three-camera observation, and tunneled fixed-noise 5+50 replay passed for π₀.₅.
 4. **Isolated runtime trials — complete:** Short matched baseline, R1, R2, and combined π₀.₅ runs are recorded above; no default is promoted yet.
-5. **Speed A/B — active:** S1 retained on `36bbf1a`; S2/S3/S4 rejected and reverted. Apply S5–S6 one at a time and remove losers. Do not run a 120-second episode per experiment.
+5. **Speed A/B — complete:** S1 retained on `36bbf1a`; S2–S5 rejected and reverted; S6 skipped because its measured upper bound cannot pass the speed gate.
 6. **Combined smoke:** Run the existing four-call π₀.₅ policy smoke plus one 300-step three-camera episode. Verify finite 14D actions, crossfade/buffer metrics, video, trajectory, and cleanup.
 7. **Final hardware run:** Run the same 120-second Scenario 2 seed/profile pair used by the π₀.₅ baseline. Inspect its video and all 14 trajectory series; compare task coverage/time honestly.
 8. **Closeout:** Re-run local gates on the exact pushed SHA, update status/evidence only after the final candidate passes, run `make stop`, confirm the policy port is free, and tell the user the PC can be switched off.
