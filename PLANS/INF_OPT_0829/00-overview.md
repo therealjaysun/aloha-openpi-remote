@@ -2,12 +2,12 @@
 
 ## Handoff
 
-- **Status:** Ready for implementation; P0 repository hygiene is the first required step.
-- **Base candidate:** `42a9e10088650750ac0a940b13fbc324912d497a`.
-- **Default profile:** `pi05_aloha_base`; `pi0_aloha_sim` remains an explicit option and must pass the same infrastructure checks.
-- **Order:** P0 clean baseline → implement B0 instrumentation plus disabled R1/R2 switches → B0 measurements → isolated R1/R2 trials → S1–S6 measured speed work → final hardware validation.
+- **Status:** Complete. S5B is retained by an explicit benefit-over-equivalence override; S6 was rejected and removed. Hardware-code candidate `5ea5446` completed the post-change rerun and all required outputs.
+- **Base candidate:** main after merged plan PR #9 (`3ebf8b017384e1e38ba97261d65a723966596b45`).
+- **Optimization scope:** `pi05_aloha_base` only. By user decision on 2026-08-29, do not run, benchmark, optimize, or qualify π₀. Keep existing π₀ support unchanged for compatibility.
+- **Order:** P0 clean baseline → implement B0 instrumentation plus disabled R1/R2 switches → B0 measurements → isolated R1/R2 trials → S1–S6 measured speed work, including S5B → final hardware validation.
 - **Ownership:** One integrating agent owns shared files and final validation. Read-only agents may inspect independent candidates.
-- **PC boundary:** Finish Mac B0/R1/R2 code and tests, with baseline settings `crossfade=0` and `30/25`, then push the exact candidate. Ask the user to start the PC before B0 and stop it after final evidence is copied back.
+- **PC boundary:** The PC hardware run used exact candidate `5ea5446`; the owned server/tunnel is stopped and the policy port is free.
 
 ## Objective
 
@@ -15,7 +15,7 @@
 2. Test whether a larger execution buffer reduces ordinary underruns.
 3. Reduce warmed model inference time on the RTX 3090 without changing checkpoints, cameras, image resolution, prompts, or the default ten denoising steps.
 
-R1 and R2 improve motion continuity or latency tolerance; they do **not** make an individual model inference faster. Only S1–S6 count as inference-speed work.
+R1 and R2 improve motion continuity or latency tolerance; they do **not** make an individual model inference faster. Only S1–S6, including the S5B retry, count as inference-speed work.
 
 ## Current evidence
 
@@ -24,13 +24,32 @@ The latest comparable 120-second Scenario 2 runs used three cameras, one fixed p
 | Profile | Warm tunneled p95 | Server infer p95 | Underruns | Replacement command-jump p95 |
 | --- | ---: | ---: | ---: | ---: |
 | `pi05_aloha_base` | 649.82 ms | 398.25 ms | 5 | 23.208% of joint range |
-| `pi0_aloha_sim` | 621.02 ms | 362.86 ms | 2 | 7.655% of joint range |
 
 The repeated jolts align with wholesale chunk replacement, not dropped video frames. Fixed 50 fps playback makes them look more abrupt because the runs advanced at about 33–34 wall-clock steps/s, but every applied step still has one recorded frame.
 
+Exact candidate `e00768e` adds a timing-only π₀.₅ smoke result of 659.85 ms warmed tunnel p95 and 448.19 ms server-inference p95 over 50 measured requests. Its matched 300-step seed-0 runtime trials were:
+
+| Horizon/prefetch | Crossfade | Underruns | Receipt depth p50 | Command-jump p95 |
+| --- | ---: | ---: | ---: | ---: |
+| `30/25` | 0 | 1 | 5 | 31.299% |
+| `30/25` | 5 | 1 | 6 | 6.052% |
+| `45/40` | 0 | 0 | 12 | 22.347% |
+| `45/40` | 5 | 0 | 13 | 6.554% |
+
+All four preserved 300/300 step/trajectory/video coverage. `45/40 + 5` addresses both observed failure modes, but its jump p95 still misses the 5% gate; no runtime default is promoted yet.
+
+Exact candidate `8faea85` completed B0 with one captured three-camera Scenario 2 observation, fixed noise seed 7, 5 warmups, and 50 measured π₀.₅ requests. Bitwise action replay passed (`observation ff33e919…`, `actions 38f302fd…`). Warmed server-inference p95 was 459.74 ms; denoise p95 was 302.91 ms. All 50 stage totals reconciled.
+
+Retained S1 candidate `36bbf1a` preserved the same action digest in three 5+50 replays. Server-inference p95 was 373.51, 365.30, then 360.72 ms; the last two runs differ by 1.25% and improve on B0 by at least 20.5%. Their denoise p95 values were 228.01 and 229.55 ms.
+
+Exact retained-S1 hardware candidate `010bb9d` passed the four-call π₀.₅ smoke, then a 300-step combined episode and a 6,000-step/120-simulated-second Scenario 2 run. Both episodes preserved exact step/trajectory/video coverage, all 14 actual and commanded joint series, and three side-by-side cameras. The final run had server-inference p95 372.45 ms, denoise p95 235.87 ms, two underruns, and 32.32 active steps/s. It remained a task failure: target coverage stayed at 0%, with no contact or two-arm participation.
+
+Final hardware-code candidate `5ea5446` retained S1+S5B and removed only off-table early termination. Its π₀.₅ Scenario 2 seed-0 post-change rerun completed 6,000/6,000 steps and continued beyond the former 2,137-step stop, but no off-table event recurred; a focused source-contract check locks the terminating reasons to success and fall. The run recorded 6,000 exact 14-joint actual/commanded samples, a passed trajectory plot, and a complete 120-second MP4 with all three camera views. Server-inference p50/p95 was 192.36/213.77 ms, denoise p95 was 81.78 ms, active rate was 33.79 steps/s, and no underrun occurred. Infrastructure passed, but task success remained false: coverage stayed at 0%, with no contact, lift, fall, or off-table event. The episode ended only at the configured time limit.
+
 ## Fixed constraints
 
-- Keep BF16 weights, both checkpoints, all three `224×224` camera inputs, 14 unlocked controls, the 50-action model output, one in-flight request, WebSocket over SSH, and existing telemetry/output systems.
+- Keep BF16 weights, the π₀.₅ checkpoint, all three `224×224` camera inputs, 14 unlocked controls, the 50-action model output, one in-flight request, WebSocket over SSH, and existing telemetry/output systems.
+- Record off-table state as task-failure evidence but do not terminate the episode for it; diagnostic runs continue to success, fall, or the configured step limit.
 - A fixed scenario sends one prompt once. Crossfade only time-aligned chunks produced by the same checkpoint and prompt stage.
 - Never crossfade across a prompt-stage transition; clear the old buffer first.
 - Every applied command must contain exactly 14 finite values and remain attributable to model output.
@@ -43,17 +62,17 @@ The repeated jolts align with wholesale chunk replacement, not dropped video fra
 ### Runtime continuity
 
 - Trial `ALOHA_CHUNK_CROSSFADE_STEPS=5` and horizon/prefetch `45/40` independently before combining them. Promote them to defaults only after their hardware gates pass; `0` keeps raw replacement for A/B diagnosis.
-- Crossfade reduces replacement-step normalized command-jump p95 to at most 5% for π0.5 and does not regress π0.
+- Crossfade reduces replacement-step normalized command-jump p95 to at most 5% for π₀.₅.
 - The selected buffer configuration records zero underruns and no stale, repeated, or out-of-order action.
-- Buffer qualification uses observed depth at request submission, not `prefetch_steps × 20 ms`: elapsed-prefix removal often leaves fewer than 40 usable actions.
+- Buffer qualification uses each completed warm request's observed submission depth, not `prefetch_steps × 20 ms`: elapsed-prefix removal often leaves fewer than 40 usable actions.
 - Initial requests, empty/late slices, failures, Ctrl+C, and prompt transitions preserve existing fail-closed behavior.
 - Telemetry records the exact crossfaded command applied at every successful simulation step.
 
 ### Inference speed
 
-- Use 5 warmups plus 50 synchronized measured requests per profile on a captured three-camera observation and fixed noise.
-- Keep a speed candidate only if warmed server-inference p95 improves by at least 3% on one profile and regresses by no more than 2% on the other. Repeat results within that noise band.
-- Combined target: at least 10% lower warmed server-inference p95 for both profiles versus B0.
+- Use 5 warmups plus 50 synchronized measured π₀.₅ requests on a captured three-camera observation and fixed noise.
+- Keep a speed candidate only if warmed server-inference p95 improves by at least 3% versus B0 and a repeat remains within 2% of that result.
+- Combined target: at least 10% lower warmed π₀.₅ server-inference p95 versus B0.
 - Preserve fixed-input/fixed-noise actions exactly when operation order is unchanged; otherwise declare a tight numeric tolerance before the A/B run.
 - No OOM, process exit, steady-state recompile, silent kernel/backend fallback, or checkpoint/task-contract change.
 
@@ -72,10 +91,14 @@ The runtime work may complete even if no speed candidate survives measurement; r
 
 ### B0 — Correct baseline and timing
 
+**Current boundary:** Complete on `8faea85`. The private captured observation and fixed local noise seed produced bitwise-identical actions across all warmup and measured calls; synchronized stage totals reconciled.
+
+**Completed work; do not rerun B0:**
+
 1. Reuse existing request telemetry; add only enough CUDA-event timing to separate input transfer, three-camera SigLIP, Gemma prefix/KV, ten-step denoising, and device-to-host output.
 2. Include the final CUDA-to-CPU synchronization that the current `Policy.infer` timer misses.
 3. Record buffer depth at request submission and at result receipt, usable fresh actions, elapsed-prefix count, and replacement-step command delta.
-4. Capture one valid observation per profile and run the acceptance benchmark locally in WSL and through the Mac tunnel.
+4. Capture one valid π₀.₅ observation and run the acceptance benchmark locally in WSL and through the Mac tunnel.
 5. Record cold load/warmup separately from warmed requests.
 
 **Exit:** Stage totals reconcile with synchronized request time, fixed-noise replay is stable, and evidence names the exact source SHA and active profile.
@@ -115,6 +138,8 @@ Extend existing atomic buffer replacement; do not add a second controller.
 
 **Decision:** Approved for implementation on 2026-08-29.
 
+**Result:** Retained on `36bbf1a`; exact action parity passed and stable server-inference p95 improved by more than the 3% gate.
+
 1. Replace the CUDA-tensor-controlled `while` with `for _ in range(num_steps)` while preserving the current tensor timestep update sequence. The project default remains `num_steps=10`; do not hard-code it again.
 2. Hoist suffix masks, prefix offsets, position IDs, and attention configuration that are invariant during those iterations.
 3. Serve under `torch.inference_mode()`; `no_grad()` already exists, so measure the incremental value.
@@ -127,11 +152,15 @@ Stack the ordered overhead/left-wrist/right-wrist tensors, call the existing Sig
 
 **Keep only if:** Pixels, masks, order, output shape, and declared parity hold; peak VRAM remains safe; vision-stage and warmed p95 improve.
 
+**Result:** Rejected and reverted. Candidate `547bd0c` reduced vision p95 to 26.18 ms and server p95 to 350.26 ms, but changed the fixed-input action digest. Against S1, action error was max 0.003765, p95 0.003030, and at most 0.112% of a joint range: below 0.01-scale change but above the declared numerical-equivalence band.
+
 ### S3 — Trim masked language padding
 
 Crop only trailing language positions whose masks are false for the whole batch. Never truncate a valid token. If compilation later needs stable shapes, derive the smallest buckets from observed valid lengths.
 
-**Keep only if:** Retained tokens/masks match baseline, no prompt truncation occurs, and warmed p95 improves without bucket churn. Measure π0 and π0.5 separately.
+**Keep only if:** Retained tokens/masks match baseline, no prompt truncation occurs, and warmed π₀.₅ p95 improves without bucket churn.
+
+**Result:** Rejected and reverted. Candidate `61be2fd` reduced prefix/KV p95 to 70.17 ms and server p95 to 348.37 ms, but changed every fixed-input action value versus S1. Error was max 0.004600, p95 0.002937, mean 0.000804, and at most 0.148% of a joint range; none reached 0.01, but the result exceeded the declared numerical-equivalence band.
 
 ### S4 — Test native fused attention
 
@@ -139,17 +168,35 @@ Test PyTorch SDPA independently for SigLIP, Gemma prefix attention, and the acti
 
 **Keep only if:** Profiler evidence proves a fused CUDA kernel ran, numeric parity holds, and warmed p95 improves. A silent eager/math fallback fails.
 
+**Expert result:** Rejected and reverted. Forced efficient-only SDPA required a BF16 mask, then ran without fallback on `22d0201`, but changed the action digest and regressed server p95 to 369.71 ms.
+
+**Prefix result:** Rejected and reverted. Forced efficient-only SDPA ran without fallback on `52d2f91` and reached 353.21 ms server p95, only 2.08% below the stronger retained S1 run. Its fixed action digest changed from `38f302fd…` to `2f5dd9a0…`; all 700 values changed, with max error 0.003506, p95 0.002453, mean 0.001135, and at most 0.106% of a joint range. No value reached 0.01, but 696 exceeded the declared `1e-5` numerical-equivalence limit.
+
 ### S5 — Compile only the stable denoise step
 
 After S1, test `torch.compile(..., mode="default")` on the fixed-shape denoise step. Warm it before readiness and retain explicit eager selection. Do not retry the previously failing whole-sampler `max-autotune` path.
 
 **Keep only if:** Cold compile time/memory are reported separately; there is no OOM, graph churn, or silent eager fallback; warmed p95 passes.
 
+**Result:** Rejected and reverted on `774f945`. Full-graph Inductor compiled the first denoise call, then immediately recompiled on the second denoise iteration because `x_t` lost the `ADInplaceOrView` dispatch key after the Euler update. The two compiles took about 41 seconds, GPU use was about 15.8 GiB when sampled, and the first policy request had still not returned when the bounded trial was stopped. Per the declared gate, no cache/graph adapter was attempted and parity/speed qualification was not run.
+
+### S5B — Normalize initial denoise tensor provenance
+
+Retry S5 once with only `x_t = noise.clone()` inside the existing π₀.₅ inference-mode context before the first compiled denoise call. Preserve S1, the S5 compile settings, and every benchmark control. The original gate required one stable graph, unchanged `1e-5` action equivalence, and repeatable material speed. Retry S6 only after S5B is retained.
+
+**Result:** Retained by explicit user override on 2026-08-29. The one-line clone fixed graph reuse: one clean process produced one graph, zero recompiles, and reused it for all ten denoising iterations across more than 100 replay requests. Compiler work took about 20.85 seconds and the compile-inclusive cold request took 23.37 seconds. GPU memory peaked at 15,780 MiB and server RSS at 2,042,720 KiB.
+
+Two 5+50 warm replays measured server p50/p95 of 190.43/206.90 and 192.29/208.86 ms; denoise p50/p95 was 62.64/77.74 and 62.39/70.15 ms; tunneled end-to-end p50/p95 was 277.33/354.53 and 282.84/376.25 ms. This was a repeatable 42.1–42.6% server-p95 improvement versus the strongest S1 result, but it failed the unchanged equivalence gate. Its digest was `bfc3802f…` versus S1 `38f302fd…`; all 700 values changed, max error was 0.002139, p95 was 0.001031, 687 values exceeded `1e-5`, and none exceeded 0.01.
+
+**Intentional override:** The user accepted this measured, bounded numerical change because the roughly 42% repeatable server-p95 improvement materially benefits the local demo. This is a benefit-over-equivalence decision, not a claim of numerical equivalence. Checkpoint, BF16 precision, cameras, prompt, action horizon, and ten denoising steps remain unchanged.
+
 ### S6 — Remove proven host-copy overhead
 
 Only if B0 shows material CPU/input-transfer cost, remove redundant `np.array` copies and consolidate host-to-device transfers. Use pinned/nonblocking copies only when profiling proves real overlap and safe ownership.
 
 **Keep only if:** Input tensors are byte-identical, lifetimes remain safe, and synchronized warmed p95 improves.
+
+**Result:** Retried after S5B promotion, then rejected and removed. The one-line candidate replaced the redundant per-leaf `np.array` host copy with direct `torch.as_tensor(..., device=...)`. It preserved the S5B action digest, one graph, zero recompiles, and a 15,780 MiB GPU peak, but provided no speed benefit. Two 5+50 runs produced input-transfer p95 4.63 and 6.62 ms versus S5B's 4.54 and 4.51 ms; server p95 regressed to 222.28 and 229.67 ms versus S5B's 206.90 and 208.86 ms. No pinning, asynchronous transfer, or camera-packing complexity was attempted.
 
 ## Deferred because they do not fit this pass
 
@@ -163,14 +210,14 @@ Only if B0 shows material CPU/input-transfer cost, remove redundant `np.array` c
 
 ## Validation and evidence sequence
 
-1. **Clean baseline:** Complete P0 and verify the pushed documentation-only SHA.
-2. **Mac before PC:** Implement B0 instrumentation and R1/R2 as selectable settings, keeping `crossfade=0` and `30/25` for exact baseline behavior. Run focused CPU tests, `make test`, `make lint`, `make secret-scan`, `make public-audit`, and `git diff --check`; commit/push the exact candidate.
-3. **PC baseline:** User starts the PC. Sync the exact SHA, run doctor/setup/smoke, then B0 for both profiles.
-4. **Isolate runtime changes:** Compare `30/25 + crossfade 0`, `30/25 + 5`, and `45/40 + 0` with short identical episodes. Test combined `45/40 + 5` only after both independent candidates pass.
-5. **Speed A/B:** Apply S1–S6 one at a time. Benchmark both profiles after each; remove losers before continuing. Do not run a 120-second episode per experiment.
-6. **Combined smoke:** Run the existing four-call policy smoke plus one 300-step three-camera episode per profile. Verify finite 14D actions, crossfade/buffer metrics, videos, trajectories, and cleanup.
-7. **Final hardware run:** Run the same 120-second Scenario 2 seed/profile pair used by the baseline, once for π0.5 and once for π0. Inspect both videos and all 14 trajectory series; compare task coverage/time honestly.
-8. **Closeout:** Re-run local gates on the exact pushed SHA, update status/evidence only after the final candidate passes, run `make stop`, confirm the policy port is free, and tell the user the PC can be switched off.
+1. **Clean baseline — complete:** P0 and documentation-only SHA merged.
+2. **Mac candidate — complete:** B0 instrumentation and selectable R1/R2 passed local gates and were pushed.
+3. **PC timing baseline — complete:** Exact `8faea85` synced; doctor/setup, captured three-camera observation, and tunneled fixed-noise 5+50 replay passed for π₀.₅.
+4. **Isolated runtime trials — complete:** Short matched baseline, R1, R2, and combined π₀.₅ runs are recorded above; no default is promoted yet.
+5. **Speed A/B — complete:** S1 passed strict equivalence; S2–S5 were rejected. S5B is retained by the documented benefit-over-equivalence override; the S6 retry was rejected and removed.
+6. **Combined smoke — complete:** Exact retained-S5B candidate `7ca073d` passed the four-call π₀.₅ smoke and 300-step three-camera episode with exact step/trajectory/video coverage.
+7. **Final hardware run — complete:** Exact hardware-code candidate `5ea5446` completed Scenario 2 seed 0 through the 6,000-step limit. The 14 actual and 14 commanded trajectory series and complete three-camera MP4 were inspected.
+8. **Closeout — complete:** Mac lint, format, shell, 461-test non-MuJoCo, secret, public, and diff gates passed; the focused off-table termination-contract check and ten WSL model/source tests passed. The MuJoCo test module remains excluded because its import hangs on both hosts; the 6,000-step production run validated the simulator path. The server/tunnel is stopped, the policy port is free, and the PC remains on hardware-code SHA `5ea5446`.
 
 ## Minimal file ownership
 

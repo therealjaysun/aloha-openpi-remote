@@ -119,7 +119,11 @@ def create_policy(args: Args) -> _policy.Policy:
         train_config = _config.get_config(config_name)
         train_config = dataclasses.replace(
             train_config,
-            model=dataclasses.replace(train_config.model, pytorch_compile_mode=None),
+            model=dataclasses.replace(
+                train_config.model,
+                pytorch_compile_mode=None,
+                pytorch_denoise_compile_mode="default" if train_config.model.pi05 else None,
+            ),
         )
         return _policy_config.create_trained_policy(
             train_config,

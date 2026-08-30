@@ -668,8 +668,8 @@ def _candidate() -> tuple[str, str]:
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise RemoteError("local candidate SHA is invalid")
     branch = _git("branch", "--show-current")
-    if branch not in {"main", "codex/06-hardening-docs", "codex/push-pi-scenarios"}:
-        raise RemoteError("remote work requires main, codex/06-hardening-docs, or codex/push-pi-scenarios")
+    if branch != "main" and not re.fullmatch(r"codex/[a-z0-9][a-z0-9._-]{0,127}", branch):
+        raise RemoteError("remote work requires main or a safe codex/* branch")
     if _git("status", "--porcelain", "--untracked-files=all"):
         raise RemoteError("remote work requires a clean candidate checkout")
     if _git("rev-parse", f"origin/{branch}") != sha:

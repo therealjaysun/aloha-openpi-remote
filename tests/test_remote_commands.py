@@ -117,11 +117,9 @@ def test_default_tilde_setup_path_resolves_inside_wsl(tmp_path: Path) -> None:
     assert result.stdout == str(tmp_path / "src" / "openpi")
 
 
-def test_candidate_rejects_an_older_phase_branch(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        remote_module, "_git", lambda *args: "codex/05-observability" if args[0] == "branch" else "a" * 40
-    )
-    with pytest.raises(RemoteError, match="codex/06-hardening-docs"):
+def test_candidate_rejects_a_non_project_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(remote_module, "_git", lambda *args: "feature/unscoped" if args[0] == "branch" else "a" * 40)
+    with pytest.raises(RemoteError, match=r"safe codex/\*"):
         _candidate_sha()
 
 
@@ -565,7 +563,9 @@ def test_candidate_gate_rejects_every_unpublished_or_unscanned_state(
         _candidate_sha()
 
 
-@pytest.mark.parametrize("branch", ["codex/06-hardening-docs", "codex/push-pi-scenarios"])
+@pytest.mark.parametrize(
+    "branch", ["main", "codex/06-hardening-docs", "codex/push-pi-scenarios", "codex/inference-runtime-optimization"]
+)
 def test_candidate_gate_accepts_exact_clean_pushed_scan(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, branch: str
 ) -> None:

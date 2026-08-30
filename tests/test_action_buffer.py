@@ -29,12 +29,120 @@ def _observation() -> dict:
 
 def test_action_buffer_replaces_with_elapsed_bounded_slice() -> None:
     buffer = ActionBuffer(10)
-    buffer.replace(_actions(), 0)
+    assert buffer.replace(_actions(), 0) == 0
     assert [buffer.pop()[0] for _ in range(10)] == list(range(10))
-    buffer.replace(_actions(), 5)
+    assert buffer.replace(_actions(), 5) == 0
     assert [buffer.pop()[0] for _ in range(10)] == list(range(5, 15))
-    buffer.replace(_actions(), 50)
+    assert buffer.replace(_actions(), 50) == 0
     assert len(buffer) == 0
+
+
+def test_action_buffer_crossfades_aligned_slices_without_changing_fresh_order_or_length() -> None:
+    buffer = ActionBuffer(8)
+    buffer.replace(_actions(), 0)
+    buffer.pop()
+    buffer.pop()
+
+    fresh = _actions(100)
+    assert buffer.replace(fresh, 3, crossfade_steps=5) == 5
+    actual = np.asarray([buffer.pop() for _ in range(8)])
+    old = _actions()[2:7]
+    new = fresh[3:8]
+    alpha = np.arange(1, 6, dtype=np.float64)[:, None] / 5
+    np.testing.assert_allclose(actual[:5], old * (1 - alpha) + new * alpha)
+    np.testing.assert_array_equal(actual[5:], fresh[8:11])
+
+
+def test_action_buffer_crossfade_uses_available_partial_overlap() -> None:
+    buffer = ActionBuffer(6)
+    buffer.replace(_actions(), 0)
+    for _ in range(4):
+        buffer.pop()
+
+    fresh = _actions(100)
+    assert buffer.replace(fresh, 7, crossfade_steps=5) == 2
+    actual = np.asarray([buffer.pop() for _ in range(6)])
+    np.testing.assert_allclose(actual[0], (_actions()[4] + fresh[7]) / 2)
+    np.testing.assert_array_equal(actual[1:], fresh[8:13])
+
+
+def test_action_buffer_crossfade_with_no_overlap_keeps_the_fresh_slice() -> None:
+    buffer = ActionBuffer(4)
+    fresh = _actions(100)
+    assert buffer.replace(fresh, 9, crossfade_steps=5) == 0
+    np.testing.assert_array_equal(np.asarray([buffer.pop() for _ in range(4)]), fresh[9:13])
+
+    buffer.replace(_actions(), 0)
+    assert buffer.replace(fresh, 50, crossfade_steps=5) == 0
+    assert len(buffer) == 0
+
+
+@pytest.mark.parametrize("crossfade_steps", [-1, 1, 4, 6, 5.0, False])
+def test_action_buffer_rejects_invalid_crossfade_steps(crossfade_steps: object) -> None:
+    buffer = ActionBuffer(10)
+    with pytest.raises(ValueError, match="crossfade steps"):
+        buffer.replace(_actions(), 0, crossfade_steps=crossfade_steps)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "actions",
+    [
+        np.zeros(14, dtype=np.float64),
+        np.zeros((50, 13), dtype=np.float64),
+        np.zeros((50, 14), dtype=np.int64),
+        np.full((50, 14), np.nan),
+        np.full((50, 14), np.inf),
+        np.full((50, 14), "not-numeric"),
+    ],
+)
+def test_action_buffer_rejects_invalid_or_nonfinite_actions_atomically(actions: np.ndarray) -> None:
+    buffer = ActionBuffer(3)
+    buffer.replace(_actions(), 0)
+    with pytest.raises(ValueError, match="finite 14D"):
+        buffer.replace(actions, 0, crossfade_steps=5)
+    assert [buffer.pop()[0] for _ in range(3)] == [0, 1, 2]
+
+
+def test_buffered_policy_records_aligned_crossfade_and_observed_depths() -> None:
+    class Policy:
+        calls = 0
+
+        def infer(self, observation: dict) -> dict:
+            result = {"actions": _actions(self.calls * 100)}
+            self.calls += 1
+            return result
+
+        def close(self) -> None:
+            return None
+
+    events = []
+    policy = BufferedPolicy(
+        Policy(),
+        POLICY_PROFILES["pi0_aloha_sim"],
+        4,
+        3,
+        emit=lambda event, **fields: events.append({"event": event, **fields}),
+        chunk_crossfade_steps=5,
+    )
+    assert policy.infer(_observation(), 0)[0] == 0
+    assert policy.infer(_observation(), 1)[0] == 1
+    future = policy._future  # noqa: SLF001 - synchronize the completed replacement under test
+    assert future is not None
+    future.result(timeout=1)
+    np.testing.assert_allclose(policy.infer(_observation(), 2), np.full(14, 51.5))
+
+    stats = policy.stats
+    assert stats["request_buffer_depths"] == [0, 3]
+    assert stats["completed_request_buffer_depths"] == [0, 3]
+    assert stats["result_buffer_depths"] == [0, 2]
+    assert stats["elapsed_prefix_actions"] == [0, 1]
+    assert stats["usable_fresh_actions"] == [4, 4]
+    assert stats["replacement_count"] == stats["crossfade_replacement_count"] == 1
+    assert stats["crossfade_action_count"] == 2
+    result = [event for event in events if event["event"] == "policy_result"][-1]
+    assert result["crossfade_actions"] == 2
+    assert result["metrics"]["replacement_command_delta_percent"] == 4950.0
+    policy.close()
 
 
 def test_prefetch_uses_one_request_drops_elapsed_prefix_and_waits_without_repeating() -> None:
@@ -225,7 +333,21 @@ def test_policy_events_report_request_and_previous_server_timing() -> None:
             timing = {"infer_ms": float(self.calls)}
             if self.calls == 2:
                 timing["prev_total_ms"] = 12.5
-            return {"actions": _actions(), "server_timing": timing}
+            return {
+                "actions": _actions(),
+                "server_timing": timing,
+                "policy_timing": {
+                    "infer_ms": float(self.calls),
+                    "input_transfer_ms": 0.0,
+                    "model_ms": 0.5,
+                    "output_transfer_ms": 0.0,
+                    "vision_ms": 0.0,
+                    "language_embed_ms": 0.0,
+                    "prefix_kv_ms": 0.0,
+                    "denoise_ms": 0.5,
+                    "model_stages_ms": 0.5,
+                },
+            }
 
         def close(self) -> None:
             return None
@@ -247,7 +369,10 @@ def test_policy_events_report_request_and_previous_server_timing() -> None:
     assert results[1]["previous_timing_for_request_id"] == 0
     assert results[1]["previous_request_total_ms"] == 12.5
     assert results[1]["metrics"]["server_total_ms"] == 12.5
+    assert results[1]["metrics"]["policy_denoise_ms"] == 0.5
     assert policy.stats["server_total_ms"] == [12.5, None]
+    assert policy.stats["policy_timings"][-1]["infer_ms"] == 2.0
+    assert policy.stats["policy_timings"][-1]["denoise_ms"] == 0.5
 
 
 def test_prompt_transition_discards_old_buffer_and_prefetch_before_new_action() -> None:
@@ -270,6 +395,7 @@ def test_prompt_transition_discards_old_buffer_and_prefetch_before_new_action() 
         3,
         2,
         emit=lambda event, **fields: events.append({"event": event, **fields}),
+        chunk_crossfade_steps=5,
     )
     orient = {**_observation(), "prompt": "orient prompt"}
     approach = {**_observation(), "prompt": "approach prompt"}
@@ -282,6 +408,7 @@ def test_prompt_transition_discards_old_buffer_and_prefetch_before_new_action() 
     assert transport.prompts == ["orient prompt", "orient prompt", "approach prompt"]
     assert policy.stats["prompt_transition_count"] == 2
     assert policy.stats["underrun_count"] == 0
+    assert policy.stats["replacement_count"] == policy.stats["crossfade_action_count"] == 0
     assert [event["prompt_stage_id"] for event in events if event["event"] == "policy_request"] == [
         "orient",
         "orient",
@@ -390,6 +517,8 @@ def test_close_timeout_is_bounded_when_transport_does_not_unblock() -> None:
     policy.infer(_observation(), 0)
     policy.infer(_observation(), 1)
     assert transport.started.wait(1)
+    assert policy.stats["request_buffer_depths"] == [0, 1]
+    assert policy.stats["completed_request_buffer_depths"] == [0]
     started = time.monotonic()
     with pytest.raises(TimeoutError, match="did not drain"):
         policy.close()
@@ -435,3 +564,15 @@ def test_interrupted_wait_retains_live_future_for_bounded_close() -> None:
 def test_invalid_buffer_configuration_is_rejected(horizon: int, prefetch: int) -> None:
     with pytest.raises(ValueError, match="buffering"):
         BufferedPolicy(object(), POLICY_PROFILES["pi0_aloha_sim"], horizon, prefetch)
+
+
+@pytest.mark.parametrize("crossfade", [-1, 1, 6, False])
+def test_invalid_buffered_policy_crossfade_is_rejected(crossfade: object) -> None:
+    with pytest.raises(ValueError, match="crossfade"):
+        BufferedPolicy(
+            object(),
+            POLICY_PROFILES["pi0_aloha_sim"],
+            10,
+            5,
+            chunk_crossfade_steps=crossfade,  # type: ignore[arg-type]
+        )

@@ -19,6 +19,13 @@ from openpi.shared import array_typing as at
 from openpi.shared import nnx_utils
 
 BasePolicy: TypeAlias = _base_policy.BasePolicy
+_BENCHMARK_NOISE_SEED = "__openpi_benchmark_noise_seed"
+
+
+def _validate_benchmark_noise_seed(seed: object) -> int:
+    if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed <= 2**32 - 1:
+        raise ValueError("benchmark noise seed must be a uint32")
+    return seed
 
 
 class Policy(BasePolicy):
@@ -69,6 +76,13 @@ class Policy(BasePolicy):
 
     @override
     def infer(self, obs: dict, *, noise: np.ndarray | None = None) -> dict:  # type: ignore[misc]
+        benchmark_noise_seed = None
+        if _BENCHMARK_NOISE_SEED in obs:
+            benchmark_noise_seed = obs[_BENCHMARK_NOISE_SEED]
+            if noise is not None or not self._is_pytorch_model:
+                raise ValueError("fixed benchmark noise requires PyTorch and no explicit noise")
+            obs = {key: value for key, value in obs.items() if key != _BENCHMARK_NOISE_SEED}
+            benchmark_noise_seed = _validate_benchmark_noise_seed(benchmark_noise_seed)
         # Make a copy since transformations may modify the inputs in place.
         inputs = jax.tree.map(lambda x: x, obs)
         inputs = self._input_transform(inputs)
@@ -83,6 +97,7 @@ class Policy(BasePolicy):
             inputs = jax.tree.map(lambda x: jnp.asarray(x)[np.newaxis, ...], inputs)
             self._rng, sample_rng_or_pytorch_device = jax.random.split(self._rng)
         else:
+            policy_started = time.monotonic()
             # Convert inputs to PyTorch tensors and move to correct device
             inputs = jax.tree.map(lambda x: torch.from_numpy(np.array(x)).to(self._pytorch_device)[None, ...], inputs)
             sample_rng_or_pytorch_device = self._pytorch_device
@@ -96,22 +111,52 @@ class Policy(BasePolicy):
                 noise = noise[None, ...]  # Make it (1, action_horizon, action_dim)
             sample_kwargs["noise"] = noise
 
+        if self._is_pytorch_model:
+            pytorch_device = torch.device(self._pytorch_device)
+            if pytorch_device.type == "cuda":
+                torch.cuda.synchronize(pytorch_device)
+            input_transfer_ms = (time.monotonic() - policy_started) * 1000
+
         observation = _model.Observation.from_dict(inputs)
         start_time = time.monotonic()
+        if benchmark_noise_seed is not None:
+            generator = torch.Generator(device=self._pytorch_device).manual_seed(benchmark_noise_seed)
+            sample_kwargs["noise"] = torch.normal(
+                mean=0.0,
+                std=1.0,
+                size=(1, self._model.config.action_horizon, self._model.config.action_dim),
+                generator=generator,
+                dtype=torch.float32,
+                device=self._pytorch_device,
+            )
         outputs = {
             "state": inputs["state"],
             "actions": self._sample_actions(sample_rng_or_pytorch_device, observation, **sample_kwargs),
         }
-        model_time = time.monotonic() - start_time
         if self._is_pytorch_model:
+            if pytorch_device.type == "cuda":
+                torch.cuda.synchronize(pytorch_device)
+            model_ms = (time.monotonic() - start_time) * 1000
+            cuda_timing = getattr(self._model, "last_inference_cuda_timing", dict)()
+            output_started = time.monotonic()
             outputs = jax.tree.map(lambda x: np.asarray(x[0, ...].detach().cpu()), outputs)
+            output_transfer_ms = (time.monotonic() - output_started) * 1000
         else:
             outputs = jax.tree.map(lambda x: np.asarray(x[0, ...]), outputs)
+            model_ms = (time.monotonic() - start_time) * 1000
 
         outputs = self._output_transform(outputs)
-        outputs["policy_timing"] = {
-            "infer_ms": model_time * 1000,
-        }
+        outputs["policy_timing"] = (
+            {
+                "infer_ms": (time.monotonic() - policy_started) * 1000,
+                "input_transfer_ms": input_transfer_ms,
+                "model_ms": model_ms,
+                "output_transfer_ms": output_transfer_ms,
+                **cuda_timing,
+            }
+            if self._is_pytorch_model
+            else {"infer_ms": model_ms}
+        )
         return outputs
 
     @property

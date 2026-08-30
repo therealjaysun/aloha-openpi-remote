@@ -42,6 +42,7 @@ _PUBLISHABLE_METADATA = {
     "action_horizon",
     "camera_views",
     "checkpoint_label",
+    "chunk_crossfade_steps",
     "model_action_horizon",
     "package_versions",
     "prefetch_steps",
@@ -94,12 +95,18 @@ _PUBLISHABLE_RESULTS = {
     "time_limit_count",
     "videos_passed",
     "coverage_sample_count",
+    "crossfade_action_count",
+    "crossfade_replacement_count",
     "initial_target_area_coverage_percent",
     "final_target_area_coverage_percent",
     "best_target_area_coverage_percent",
     "best_target_area_coverage_step",
     "time_to_best_target_area_coverage_seconds",
     "episode_elapsed_seconds",
+    "replacement_count",
+    "request_buffer_depth_min",
+    "request_buffer_depth_p5",
+    "zero_overlap_replacements",
 }
 _PUBLISHABLE_EVENTS = {
     "episode",
@@ -119,7 +126,9 @@ _PUBLISHABLE_METRICS = {
     "active_step_interval_ms",
     "buffer_wait_ms",
     "cold_inference_ms",
+    "chunk_crossfade_actions",
     "dropped_leading_actions",
+    "elapsed_prefix_actions",
     "gpu_memory_mib",
     "gpu_utilization_percent",
     "reward",
@@ -128,9 +137,22 @@ _PUBLISHABLE_METRICS = {
     "server_total_ms",
     "sim_step_ms",
     "prompt_transition_wait_ms",
+    "policy_denoise_ms",
+    "policy_infer_ms",
+    "policy_input_transfer_ms",
+    "policy_language_embed_ms",
+    "policy_model_ms",
+    "policy_model_stages_ms",
+    "policy_output_transfer_ms",
+    "policy_prefix_kv_ms",
+    "policy_vision_ms",
+    "replacement_command_delta_percent",
+    "request_buffer_depth",
+    "result_buffer_depth",
     "telemetry_write_ms",
     "wall_episode_hz",
     "warm_inference_ms",
+    "usable_fresh_actions",
     "body_0_height_error",
     "body_0_pitch",
     "body_0_roll",
@@ -164,8 +186,8 @@ def json_safe(value: object, depth: int = 0) -> object:
     if isinstance(value, np.ndarray):
         raise ValueError("NumPy arrays are not valid telemetry fields")
     if isinstance(value, Mapping):
-        if len(value) > 40 or not all(isinstance(key, str) for key in value):
-            raise ValueError("telemetry mappings must have at most 40 string keys")
+        if len(value) > 50 or not all(isinstance(key, str) for key in value):
+            raise ValueError("telemetry mappings must have at most 50 string keys")
         return {key: json_safe(item, depth + 1) for key, item in value.items()}
     if isinstance(value, list | tuple) and len(value) <= 100:
         return [json_safe(item, depth + 1) for item in value]
@@ -419,6 +441,11 @@ def _valid_publishable_metadata(metadata: Mapping[str, object]) -> dict[str, obj
         value = result.get(key)
         if value is not None and (isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 50):
             raise ValueError(f"publishable telemetry {key} is invalid")
+    crossfade_steps = result.get("chunk_crossfade_steps")
+    if crossfade_steps is not None and (
+        isinstance(crossfade_steps, bool) or not isinstance(crossfade_steps, int) or crossfade_steps not in {0, 5}
+    ):
+        raise ValueError("publishable telemetry chunk_crossfade_steps is invalid")
     if "camera_views" in result and result["camera_views"] != ["cam_high", "cam_left_wrist", "cam_right_wrist"]:
         raise ValueError("publishable telemetry camera views are invalid")
     prompt_schedule = result.get("prompt_schedule")
@@ -480,6 +507,11 @@ def _valid_publishable_result(result: Mapping[str, object]) -> dict[str, object]
         "videos_passed",
         "coverage_sample_count",
         "best_target_area_coverage_step",
+        "crossfade_action_count",
+        "crossfade_replacement_count",
+        "replacement_count",
+        "request_buffer_depth_min",
+        "zero_overlap_replacements",
     ):
         value = safe.get(key)
         if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
@@ -534,6 +566,7 @@ def _valid_publishable_result(result: Mapping[str, object]) -> dict[str, object]
         "best_target_area_coverage_percent",
         "time_to_best_target_area_coverage_seconds",
         "episode_elapsed_seconds",
+        "request_buffer_depth_p5",
     ):
         value = safe.get(key)
         if value is not None and (
@@ -552,6 +585,8 @@ def _valid_publishable_result(result: Mapping[str, object]) -> dict[str, object]
         value = safe.get(key)
         if value is not None and value < 0:
             raise ValueError(f"publishable result {key} is invalid")
+    if safe.get("request_buffer_depth_p5") is not None and safe["request_buffer_depth_p5"] < 0:
+        raise ValueError("publishable request buffer depth is invalid")
     best_step = safe.get("best_target_area_coverage_step")
     if best_step is not None and (steps_applied is None or not 1 <= best_step <= steps_applied):
         raise ValueError("publishable area coverage best step is invalid")

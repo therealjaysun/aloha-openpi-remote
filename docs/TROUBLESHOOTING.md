@@ -173,8 +173,10 @@ Tune only from Mac-through-tunnel measurements and preserve:
 
 ```text
 1 <= ALOHA_PREFETCH_STEPS < ALOHA_ACTION_HORIZON <= 50
-warmed p95 + explicit margin < prefetch steps × 20 ms
+warmed p95 + explicit margin < minimum completed warm request's submission depth × 20 ms
 ```
+
+The optional continuity trial additionally accepts only `ALOHA_CHUNK_CROSSFADE_STEPS=0` or `5`; keep `0` for the baseline. The observed-depth budget is intentional because elapsed-prefix removal can leave less usable runway than the configured prefetch threshold suggests.
 
 If the gate still fails at a justified larger threshold/horizon, report the waits and measured rate. Do not repeat the last action, append a late chunk, lower the margin to manufacture a pass, or call a WSL-local timing the end-to-end p95.
 

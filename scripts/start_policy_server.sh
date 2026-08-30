@@ -75,6 +75,7 @@ fi
 data_home="${data_home:-$HOME/.cache/openpi}"
 mkdir -p "$data_home"
 backend_args=("--policy-backend=$backend")
+compiler_env=()
 if [[ "$backend" == pytorch ]]; then
     checkpoint_label="$profile"
     [[ "$profile" != pi05_aloha_base ]] || checkpoint_label=pi05_base
@@ -86,6 +87,11 @@ if [[ "$backend" == pytorch ]]; then
     }
     jax_platform=cpu
     backend_args+=("--pytorch-checkpoint-dir=$checkpoint" --require-torch-device=3090)
+    if [[ "$profile" == pi05_aloha_base ]]; then
+        inductor_cache="$(mktemp -d "$state_dir/torchinductor-${expected_sha:0:12}.XXXXXX")"
+        chmod 700 "$inductor_cache"
+        compiler_env+=("TORCHINDUCTOR_CACHE_DIR=$inductor_cache" TORCH_LOGS=dynamo,recompiles,graph_breaks)
+    fi
 else
     jax_platform=cuda
     backend_args+=(--require-jax-platform=gpu --require-jax-device=3090)
@@ -97,6 +103,7 @@ command=(
     "XLA_PYTHON_CLIENT_MEM_FRACTION=$jax_mem_fraction"
     "JAX_PLATFORMS=$jax_platform"
     CUDA_VISIBLE_DEVICES=0
+    "${compiler_env[@]}"
     "$repo_root/.venv/bin/python"
     "$repo_root/scripts/serve_policy.py"
     "--host=$host"

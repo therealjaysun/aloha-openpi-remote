@@ -15,6 +15,7 @@ from tools.remote_aloha.config import validate_output_root
 from tools.remote_aloha.run import _connect_with_retry
 from tools.remote_aloha.run import _convert_environment_observation
 from tools.remote_aloha.run import _gpu_events
+from tools.remote_aloha.run import _prefetch_evidence
 from tools.remote_aloha.run import _prompt_stage
 from tools.remote_aloha.run import _run_seed
 from tools.remote_aloha.run import _scenario_step_info
@@ -150,6 +151,45 @@ def test_gpu_events_require_exact_identity_sequence_and_cadence(tmp_path: Path) 
     assert result["gpu_span_ms"] == result["gpu_max_gap_ms"] == 1000
 
 
+def test_prefetch_gate_uses_only_completed_warm_request_submission_depths() -> None:
+    with pytest.raises(ValueError, match="qualification evidence"):
+        _prefetch_evidence(
+            {
+                "request_latencies_ms": [900.0, 200.0],
+                "completed_request_buffer_depths": [0],
+                "underrun_count": 0,
+            }
+        )
+    for invalid in (
+        {"request_latencies_ms": [1.0], "completed_request_buffer_depths": [51], "underrun_count": 0},
+        {"request_latencies_ms": [1.0], "completed_request_buffer_depths": [0], "underrun_count": False},
+    ):
+        with pytest.raises(ValueError, match="qualification evidence"):
+            _prefetch_evidence(invalid)
+
+    pending_only = _prefetch_evidence(
+        {
+            "request_latencies_ms": [900.0],
+            "request_buffer_depths": [0, 40],
+            "completed_request_buffer_depths": [0],
+            "underrun_count": 0,
+        }
+    )
+    assert pending_only["budget_ms"] is None
+    assert pending_only["qualified"] is False
+
+    completed = _prefetch_evidence(
+        {
+            "request_latencies_ms": [900.0, 200.0],
+            "completed_request_buffer_depths": [0, 20],
+            "underrun_count": 0,
+        }
+    )
+    assert completed["request_depth_min"] == completed["request_depth_p5"] == 20
+    assert completed["budget_ms"] == 400.0
+    assert completed["qualified"] is True
+
+
 @pytest.mark.parametrize(
     ("row", "field", "value"),
     [
@@ -238,7 +278,15 @@ def test_performance_summary_rejects_gpu_samples_that_do_not_span_the_mac_run(tm
                     "plot_status": "passed",
                     "plot_id": "run-seed-0-joint-trajectory",
                 },
-                "buffer": {},
+                "buffer": {
+                    "request_count": 3,
+                    "request_buffer_depths": [0, 7, 9],
+                    "completed_request_buffer_depths": [0, 7, 9],
+                    "replacement_count": 2,
+                    "crossfade_replacement_count": 1,
+                    "crossfade_action_count": 5,
+                    "zero_overlap_replacements": 1,
+                },
                 "connection": {},
             }
         ],
@@ -257,6 +305,10 @@ def test_performance_summary_rejects_gpu_samples_that_do_not_span_the_mac_run(tm
     }
     for key, value in expected_trajectory.items():
         assert local_performance["result"][key] == value
+    assert local_performance["result"]["replacement_count"] == 2
+    assert local_performance["result"]["crossfade_action_count"] == 5
+    assert local_performance["result"]["request_buffer_depth_min"] == 7
+    assert local_performance["result"]["request_buffer_depth_p5"] == pytest.approx(7.1)
     encoded = json.dumps(local_performance)
     assert str(tmp_path) not in encoded
     assert "trajectory.path" not in encoded
@@ -332,7 +384,9 @@ def test_connection_retry_exhaustion_reports_exact_bounded_counts(monkeypatch: p
     assert progress == {"failures": 3, "retries": 2}
 
 
-def test_control_episode_uses_exact_seed_steps_and_non_catchup_cadence() -> None:
+def test_control_episode_uses_exact_seed_steps_and_non_catchup_cadence(tmp_path: Path) -> None:
+    from openpi_client import msgpack_numpy
+
     class Clock:
         def __init__(self) -> None:
             self.now = 0.0
@@ -380,17 +434,19 @@ def test_control_episode_uses_exact_seed_steps_and_non_catchup_cadence() -> None
     environment = Environment(clock)
     video = Video()
     events = []
+    capture_path = tmp_path / "policy-observation.msgpack"
     result = control_episode(
         environment,
         Policy(),
         video,
         seed=2,
         prompt=None,
-        profile=POLICY_PROFILES["pi0_aloha_sim"],
+        profile=POLICY_PROFILES["pi05_aloha_base"],
         max_steps=10,
         monotonic=clock.monotonic,
         sleep=clock.sleep,
         emit=lambda event, **fields: events.append({"event": event, **fields}),
+        capture_path=capture_path,
     )
     assert environment.seed == 2
     assert environment.steps == result["steps_applied"] == video.frames == 3
@@ -405,6 +461,10 @@ def test_control_episode_uses_exact_seed_steps_and_non_catchup_cadence() -> None
     assert [event["elapsed_seconds"] for event in steps] == pytest.approx([0.01, 0.03, 0.05])
     assert [event["actual_joint_positions"] for event in steps] == [[float(value)] * 14 for value in (1, 2, 3)]
     assert all(event["commanded_joint_positions"] == [0.0] * 14 for event in steps)
+    captured = msgpack_numpy.unpackb(capture_path.read_bytes())
+    assert capture_path.stat().st_mode & 0o077 == 0
+    assert captured["state"].shape == (14,)
+    assert set(captured["images"]) == {"cam_high", "cam_left_wrist", "cam_right_wrist"}
 
 
 def test_custom_episode_passes_all_model_joints_into_sim_video_and_telemetry() -> None:
@@ -472,7 +532,7 @@ def test_custom_episode_passes_all_model_joints_into_sim_video_and_telemetry() -
     assert result["best_target_area_coverage_step"] == 1
 
 
-def test_custom_episode_tracks_earliest_best_coverage_time_and_preserves_failure_progress() -> None:
+def test_custom_episode_tracks_earliest_best_coverage_time_and_preserves_failure_progress(tmp_path: Path) -> None:
     scenario = SCENARIOS["push_pi_single"]
 
     class Clock:
@@ -535,6 +595,7 @@ def test_custom_episode_tracks_earliest_best_coverage_time_and_preserves_failure
         def on_step(self, observation: dict, action: dict) -> None:
             raise KeyboardInterrupt
 
+    capture_path = tmp_path / "partial-policy-observation.msgpack"
     with pytest.raises(KeyboardInterrupt):
         control_episode(
             Environment(Clock()),
@@ -542,12 +603,14 @@ def test_custom_episode_tracks_earliest_best_coverage_time_and_preserves_failure
             FailingVideo(),
             seed=0,
             prompt=scenario.prompt,
-            profile=POLICY_PROFILES["pi0_aloha_sim"],
+            profile=POLICY_PROFILES["pi05_aloha_base"],
             scenario=scenario,
             progress=progress,
+            capture_path=capture_path,
         )
     assert progress["coverage_sample_count"] == progress["steps_applied"] == 1
     assert progress["best_target_area_coverage_step"] == 1
+    assert capture_path.is_file()
 
 
 @pytest.mark.parametrize(

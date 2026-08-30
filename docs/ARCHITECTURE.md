@@ -45,12 +45,12 @@ The handshake must identify the selected profile, config, checkpoint variant, ba
 
 ## Buffered control
 
-The control loop targets one action every 20 ms using a monotonic clock; it never executes catch-up bursts. Defaults are execution horizon 30 and prefetch threshold 25, constrained by `1 <= prefetch < horizon <= 50`.
+The control loop targets one action every 20 ms using a monotonic clock; it never executes catch-up bursts. Defaults are execution horizon 30, prefetch threshold 25, and replacement crossfade 0. The accepted experiment settings are horizon/prefetch `45/40` and a five-step same-prompt crossfade; neither becomes a default before hardware validation.
 
 1. The first request blocks until a valid chunk arrives.
 2. At the threshold, one worker submits at most one new request using the current observation and request step.
 3. While it runs, the loop consumes the old FIFO.
-4. On completion, the buffer drops the response prefix for simulation steps already elapsed and replaces—not appends to—the old remainder with at most one execution horizon.
+4. On completion, the buffer drops the response prefix for simulation steps already elapsed and replaces—not appends to—the old remainder with at most one execution horizon. When the five-step experiment is enabled, only the aligned old/fresh overlap is blended; prompt-stage transitions explicitly bypass it.
 5. An empty or fully elapsed result triggers fresh inference. An underrun waits without advancing Gym; the last action is never repeated.
 6. Termination, truncation, error, or interrupt closes the client/worker and environment and finalizes an exact complete or partial manifest, video, and trajectory plot.
 
@@ -80,7 +80,7 @@ Initial retry exhaustion stops before the episode starts. Any later inference ti
 
 Raw evidence lives under ignored `outputs/` and `.runtime/`. Each local JSONL record has a schema version, UTC timestamp, monotonic timestamp, event name, and bounded JSON-safe fields. After every successfully applied step, that same event records the exact zero-based simulation step, one-based applied step, monotonic elapsed time, and finite actual/commanded vectors of exactly 14 joints. NumPy scalars are normalized; arrays and non-finite values are rejected. The writer is line-buffered with no per-event network call or `fsync`, so complete lines survive interruption and only a malformed final fragment is discarded.
 
-The local aggregator reports count, mean, p50, p95, and max for allowed metrics, event counts, terminal/partial status, and coverage. After a complete or partial episode, one PNG overlays all 14 actual trajectories and dashed commands against the pinned gym-aloha 0.1.1 ranges; it never normalizes from observed run extrema. The plot uses monotonic elapsed time, arm color groups, and atomic replacement. `server_timing.prev_total_ms` describes request N-1 and is associated with that request or excluded from current-request aggregates. Summaries keep cold/warm inference, sim cadence, buffer waits, retries/failures, rewards/success, and GPU memory/utilization separate by profile. The 50 Hz claim additionally requires warmed p95 plus the explicit margin to fit the prefetch budget, zero underruns, and measured active rate at the gate.
+The local aggregator reports count, mean, p50, p95, and max for allowed metrics, event counts, terminal/partial status, and coverage. After a complete or partial episode, one PNG overlays all 14 actual trajectories and dashed commands against the pinned gym-aloha 0.1.1 ranges; it never normalizes from observed run extrema. The plot uses monotonic elapsed time, arm color groups, and atomic replacement. `server_timing.prev_total_ms` describes request N-1 and is associated with that request or excluded from current-request aggregates. Summaries keep cold/warm and synchronized PyTorch stage timing, observed request/result buffer depths, elapsed prefixes, usable suffixes, crossfade counts, sim cadence, waits, retries/failures, rewards/success, and GPU metrics separate by profile. The 50 Hz claim uses the minimum completed warm request's submission depth as runway, plus the explicit margin, zero underruns, and measured active rate.
 
 Raw logs are never rewritten to look public. A publishable JSON/Markdown summary is constructed from a fixed field/metric allowlist, names the model profile and source SHAs, and omits machine identities and absolute paths. It identifies private videos and trajectory plots only with safe local IDs, never filesystem paths; raw joint rows and PNGs remain ignored.
 

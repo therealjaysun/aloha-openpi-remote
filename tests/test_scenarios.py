@@ -78,6 +78,11 @@ def test_fixed_scenario_contract_uses_uppercase_dotless_letters() -> None:
     assert bodies[1].yaw_period == math.pi
 
 
+def test_off_table_is_recorded_without_ending_the_episode() -> None:
+    source = Path("examples/aloha_sim/push_pi_env.py").read_text(encoding="utf-8")
+    assert 'terminated = info["terminal_reason"] in {"success", "fallen"}' in source
+
+
 def test_layout_is_deterministic_and_arm_mode_independent() -> None:
     for object_kind in ("pi", "letters"):
         for seed in range(3):

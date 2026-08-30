@@ -187,6 +187,7 @@ def test_publishable_summary_is_allowlisted_labels_profile_and_does_not_mutate_r
                 source_sha="a" * 40,
                 upstream_sha="b" * 40,
                 run_id="c" * 32,
+                chunk_crossfade_steps=5,
                 private_hostname="private.example",
                 absolute_path=private_path,
             ),
@@ -200,18 +201,31 @@ def test_publishable_summary_is_allowlisted_labels_profile_and_does_not_mutate_r
                 trajectory_step_coverage=1.0,
                 trajectory_plot_status="passed",
                 trajectory_plot_id="run-seed-0-joint-trajectory",
+                replacement_count=4,
+                crossfade_replacement_count=3,
+                crossfade_action_count=15,
+                zero_overlap_replacements=1,
+                request_buffer_depth_min=5,
+                request_buffer_depth_p5=5.5,
                 private_username="secret-user",
-                metrics={"warm_inference_ms": 350.0, "private_metric": 1.0},
+                metrics={
+                    "warm_inference_ms": 350.0,
+                    "replacement_command_delta_percent": 4.5,
+                    "private_metric": 1.0,
+                },
             ),
         ]
     )
     public = publishable_summary(raw)
     encoded = json.dumps(public, sort_keys=True)
     assert public["metadata"]["profile"] == "pi05_aloha_base"
-    assert public["metrics"].keys() == {"warm_inference_ms"}
+    assert public["metadata"]["chunk_crossfade_steps"] == 5
+    assert public["metrics"].keys() == {"replacement_command_delta_percent", "warm_inference_ms"}
     assert public["result"]["trajectory_sample_count"] == 300
     assert public["result"]["trajectory_joint_count"] == 14
     assert public["result"]["trajectory_plot_id"] == "run-seed-0-joint-trajectory"
+    assert public["result"]["crossfade_action_count"] == 15
+    assert public["result"]["request_buffer_depth_p5"] == 5.5
     assert "private.example" not in encoded
     assert private_path not in encoded
     assert "secret-user" not in encoded
@@ -386,12 +400,14 @@ def test_publishable_per_episode_counts_are_bounded_without_aggregate_episode_fi
         ("metadata", "package_versions", {"numpy": "/" + "Users/name"}),
         ("metadata", "package_versions", {"numpy": "DESKTOP-" + "EXAMPLE"}),
         ("metadata", "camera_views", ["cam_high"]),
+        ("metadata", "chunk_crossfade_steps", 1),
         ("result", "request_count", "192" + ".168.1.2"),
         ("result", "trajectory_plot_id", "/" + "Users/private/plot.png"),
         ("result", "trajectory_joint_count", 13),
         ("result", "trajectory_step_coverage", 1.01),
         ("result", "best_target_area_coverage_percent", 101.0),
         ("result", "time_to_best_target_area_coverage_seconds", -1.0),
+        ("result", "request_buffer_depth_p5", -1.0),
         ("metrics", "warm_inference_ms", {"count": 1, "mean": "raw error", "p50": 1, "p95": 1, "max": 1}),
     ],
 )

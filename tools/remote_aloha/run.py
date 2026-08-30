@@ -15,6 +15,7 @@ import time
 import uuid
 
 import numpy as np
+from openpi_client import msgpack_numpy
 from openpi_client import websocket_client_policy
 from websockets.exceptions import ConnectionClosed
 
@@ -34,6 +35,7 @@ from tools.remote_aloha.connection_check import verify_ready_tunnel
 from tools.remote_aloha.observation_contract import POLICY_CAMERA_VIEWS
 from tools.remote_aloha.observation_contract import convert_gym_artifact_observation
 from tools.remote_aloha.observation_contract import convert_gym_observation
+from tools.remote_aloha.observation_contract import validate_policy_observation
 from tools.remote_aloha.policy_contract import validate_policy_action
 from tools.remote_aloha.policy_contract import validate_server_metadata
 from tools.remote_aloha.remote import UPSTREAM_SHA
@@ -93,6 +95,23 @@ def _atomic_json(path: Path, payload: object) -> None:
             os.chmod(temporary, 0o600)
             json.dump(payload, stream, allow_nan=False, sort_keys=True)
             stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def _atomic_policy_observation(path: Path, observation: dict) -> None:
+    validate_policy_observation(observation)
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile("wb", dir=path.parent, delete=False) as stream:
+            temporary = Path(stream.name)
+            os.chmod(temporary, 0o600)
+            stream.write(msgpack_numpy.Packer().pack(observation))
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
@@ -228,6 +247,43 @@ def _percentile(values: list[float], percentile: float) -> float | None:
     return float(np.percentile(values, percentile)) if values else None
 
 
+def _prefetch_evidence(stats: Mapping[str, object]) -> dict[str, object]:
+    latencies = stats.get("request_latencies_ms", [])
+    depths = stats.get("completed_request_buffer_depths", [])
+    underrun_count = stats.get("underrun_count", 0)
+    if (
+        not isinstance(latencies, list)
+        or any(
+            isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value) or value < 0
+            for value in latencies
+        )
+        or not isinstance(depths, list)
+        or any(isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 50 for value in depths)
+        or len(latencies) != len(depths)
+        or isinstance(underrun_count, bool)
+        or not isinstance(underrun_count, int)
+        or underrun_count < 0
+    ):
+        raise ValueError("buffer qualification evidence is invalid")
+    warmed_latencies = latencies[1:]
+    warmed_depths = depths[1:]
+    warmed_p95_ms = _percentile(warmed_latencies, 95)
+    depth_min = min(warmed_depths, default=None)
+    budget_ms = depth_min * _STEP_SECONDS * 1000 if depth_min is not None else None
+    return {
+        "warmed_p95_ms": warmed_p95_ms,
+        "request_depth_min": depth_min,
+        "request_depth_p5": _percentile(warmed_depths, 5),
+        "budget_ms": budget_ms,
+        "qualified": bool(
+            warmed_p95_ms is not None
+            and budget_ms is not None
+            and warmed_p95_ms + _INFERENCE_MARGIN_MS < budget_ms
+            and underrun_count == 0
+        ),
+    }
+
+
 def _convert_environment_observation(environment, raw_observation: object, prompt: str | None) -> dict:
     pixels = raw_observation.get("pixels") if isinstance(raw_observation, Mapping) else None
     if isinstance(pixels, Mapping) and set(pixels) == {"top"}:
@@ -276,6 +332,7 @@ def control_episode(
     sleep=time.sleep,
     progress: dict[str, object] | None = None,
     emit: Callable[..., None] | None = None,
+    capture_path: Path | None = None,
 ) -> dict[str, object]:
     raw_observation, reset_info = environment.reset(seed=seed)
     home_joint_positions = validate_joint_vector(
@@ -283,6 +340,8 @@ def control_episode(
     )
     _, _, initial_prompt = _prompt_stage(prompt_schedule, prompt, 0)
     observation = _convert_environment_observation(environment, raw_observation, initial_prompt)
+    if capture_path is not None:
+        _atomic_policy_observation(capture_path, observation)
     video.on_episode_start()
     display_error = None
     if display is not None:
@@ -705,6 +764,7 @@ def _run_seed(
             action_horizon=sim_config.action_horizon,
             model_action_horizon=remote_config.policy_profile.action_horizon,
             prefetch_steps=sim_config.prefetch_steps,
+            chunk_crossfade_steps=sim_config.chunk_crossfade_steps,
             package_versions=versions,
         )
         transport, server_metadata = _connect_with_retry(remote_config, source_sha, connection, emit=emit)
@@ -715,6 +775,7 @@ def _run_seed(
             sim_config.prefetch_steps,
             remote_config.policy_close_timeout_seconds,
             emit,
+            chunk_crossfade_steps=sim_config.chunk_crossfade_steps,
         )
         if (
             environment.spec is None
@@ -738,6 +799,11 @@ def _run_seed(
             max_steps=sim_config.episode_steps,
             progress=result,
             emit=emit,
+            capture_path=(
+                output_dir / "policy-observation.msgpack"
+                if remote_config.policy_profile.name == "pi05_aloha_base"
+                else None
+            ),
         )
         control_finished = True
         status = "complete"
@@ -811,15 +877,12 @@ def _run_seed(
                 status = "failed"
 
         stats = policy.stats if policy is not None else {}
-        latencies = stats.get("request_latencies_ms", [])
-        warmed_latencies = latencies[1:] if isinstance(latencies, list) else []
-        warmed_p95_ms = _percentile(warmed_latencies, 95)
-        budget_ms = sim_config.prefetch_steps * _STEP_SECONDS * 1000
-        prefetch_qualified = bool(
-            warmed_p95_ms is not None
-            and warmed_p95_ms + _INFERENCE_MARGIN_MS < budget_ms
-            and stats.get("underrun_count") == 0
-        )
+        prefetch_evidence = _prefetch_evidence(stats)
+        warmed_p95_ms = prefetch_evidence["warmed_p95_ms"]
+        request_depth_min = prefetch_evidence["request_depth_min"]
+        request_depth_p5 = prefetch_evidence["request_depth_p5"]
+        budget_ms = prefetch_evidence["budget_ms"]
+        prefetch_qualified = bool(prefetch_evidence["qualified"])
         active_hz = result.get("active_step_hz")
         uninterrupted_50hz = bool(
             status == "complete"
@@ -928,6 +991,12 @@ def _run_seed(
                 infrastructure_pass=infrastructure_pass,
                 steps_applied=int(result.get("steps_applied", 0)),
                 request_count=int(stats.get("request_count", 0)),
+                replacement_count=int(stats.get("replacement_count", 0)),
+                crossfade_replacement_count=int(stats.get("crossfade_replacement_count", 0)),
+                crossfade_action_count=int(stats.get("crossfade_action_count", 0)),
+                zero_overlap_replacements=int(stats.get("zero_overlap_replacements", 0)),
+                request_buffer_depth_min=request_depth_min,
+                request_buffer_depth_p5=request_depth_p5,
                 retries=connection["retries"],
                 failures=connection["failures"],
                 task_success=result.get("task_success"),
@@ -995,8 +1064,11 @@ def _run_seed(
             "seed": seed,
             "action_horizon": sim_config.action_horizon,
             "prefetch_steps": sim_config.prefetch_steps,
+            "chunk_crossfade_steps": sim_config.chunk_crossfade_steps,
             "prompt_schedule": sim_config.prompt_schedule,
             "prefetch_budget_ms": budget_ms,
+            "request_buffer_depth_min": request_depth_min,
+            "request_buffer_depth_p5": request_depth_p5,
             "inference_margin_ms": _INFERENCE_MARGIN_MS,
             "warmed_request_p95_ms": warmed_p95_ms,
             "prefetch_budget_qualified": prefetch_qualified,
@@ -1327,6 +1399,15 @@ def _write_performance_summary(root: Path, summary: Mapping[str, object], gpu_pa
         }
     rewards = [episode["episode"].get("reward_max") for episode in manifests]
     reward_max = max((value for value in rewards if isinstance(value, int | float)), default=None)
+    buffers = [episode["buffer"] for episode in manifests]
+    request_depth_groups = [buffer.get("completed_request_buffer_depths", []) for buffer in buffers]
+    if any(
+        not isinstance(group, list)
+        or any(isinstance(depth, bool) or not isinstance(depth, int) or not 0 <= depth <= 50 for depth in group)
+        for group in request_depth_groups
+    ):
+        raise ValueError("performance summary request depths are invalid")
+    warm_request_depths = [depth for request_depths in request_depth_groups for depth in request_depths[1:]]
     trajectory_sample_count = sum(int(episode.get("trajectory", {}).get("sample_count", 0)) for episode in manifests)
     trajectory_steps = sum(int(episode["episode"].get("steps_applied", 0)) for episode in manifests)
     trajectory_plot_ids = [
@@ -1359,6 +1440,12 @@ def _write_performance_summary(root: Path, summary: Mapping[str, object], gpu_pa
             "episodes": len(manifests),
             "infrastructure_pass": all(bool(episode.get("infrastructure_pass")) for episode in manifests),
             "request_count": sum(int(episode["buffer"].get("request_count", 0)) for episode in manifests),
+            "replacement_count": sum(int(buffer.get("replacement_count", 0)) for buffer in buffers),
+            "crossfade_replacement_count": sum(int(buffer.get("crossfade_replacement_count", 0)) for buffer in buffers),
+            "crossfade_action_count": sum(int(buffer.get("crossfade_action_count", 0)) for buffer in buffers),
+            "zero_overlap_replacements": sum(int(buffer.get("zero_overlap_replacements", 0)) for buffer in buffers),
+            "request_buffer_depth_min": min(warm_request_depths, default=None),
+            "request_buffer_depth_p5": _percentile(warm_request_depths, 5),
             "retries": sum(int(episode["connection"].get("retries", 0)) for episode in manifests),
             "failures": sum(int(episode["connection"].get("failures", 0)) for episode in manifests),
             "steps_applied": sum(int(episode["episode"].get("steps_applied", 0)) for episode in manifests),
