@@ -2,12 +2,12 @@
 
 ## Handoff
 
-- **Status:** P0/B0 and short R1/R2 trials are complete. S1 is retained; S2–S5 were rejected and reverted, and S6 was skipped by its measured-cost gate. Speed A/B is complete; combined smoke is next.
+- **Status:** S5B is retained by an explicit benefit-over-equivalence override; S6 is reopened for one bounded retry. Final hardware validation must be repeated on the resulting candidate.
 - **Base candidate:** main after merged plan PR #9 (`3ebf8b017384e1e38ba97261d65a723966596b45`).
 - **Optimization scope:** `pi05_aloha_base` only. By user decision on 2026-08-29, do not run, benchmark, optimize, or qualify π₀. Keep existing π₀ support unchanged for compatibility.
 - **Order:** P0 clean baseline → implement B0 instrumentation plus disabled R1/R2 switches → B0 measurements → isolated R1/R2 trials → S1–S6 measured speed work → final hardware validation.
 - **Ownership:** One integrating agent owns shared files and final validation. Read-only agents may inspect independent candidates.
-- **PC boundary:** Speed trials are closed and the server is stopped. Restore the exact retained candidate on the PC before combined smoke.
+- **PC boundary:** The PC is on S1 candidate `010bb9d`; the owned server and tunnel are stopped before the S5B/S6 candidate sync.
 
 ## Objective
 
@@ -41,6 +41,8 @@ All four preserved 300/300 step/trajectory/video coverage. `45/40 + 5` addresses
 Exact candidate `8faea85` completed B0 with one captured three-camera Scenario 2 observation, fixed noise seed 7, 5 warmups, and 50 measured π₀.₅ requests. Bitwise action replay passed (`observation ff33e919…`, `actions 38f302fd…`). Warmed server-inference p95 was 459.74 ms; denoise p95 was 302.91 ms. All 50 stage totals reconciled.
 
 Retained S1 candidate `36bbf1a` preserved the same action digest in three 5+50 replays. Server-inference p95 was 373.51, 365.30, then 360.72 ms; the last two runs differ by 1.25% and improve on B0 by at least 20.5%. Their denoise p95 values were 228.01 and 229.55 ms.
+
+Exact retained hardware-code candidate `010bb9d` passed the four-call π₀.₅ smoke, then a 300-step combined episode and a 6,000-step/120-simulated-second Scenario 2 run. Both episodes preserved exact step/trajectory/video coverage, all 14 actual and commanded joint series, and three side-by-side cameras. The final run had server-inference p95 372.45 ms, denoise p95 235.87 ms, two underruns, and 32.32 active steps/s. It remained a task failure: target coverage stayed at 0%, with no contact or two-arm participation.
 
 ## Fixed constraints
 
@@ -175,13 +177,23 @@ After S1, test `torch.compile(..., mode="default")` on the fixed-shape denoise s
 
 **Result:** Rejected and reverted on `774f945`. Full-graph Inductor compiled the first denoise call, then immediately recompiled on the second denoise iteration because `x_t` lost the `ADInplaceOrView` dispatch key after the Euler update. The two compiles took about 41 seconds, GPU use was about 15.8 GiB when sampled, and the first policy request had still not returned when the bounded trial was stopped. Per the declared gate, no cache/graph adapter was attempted and parity/speed qualification was not run.
 
+### S5B — Normalize initial denoise tensor provenance
+
+Retry S5 once with only `x_t = noise.clone()` inside the existing π₀.₅ inference-mode context before the first compiled denoise call. Preserve S1, the S5 compile settings, and every benchmark control. The original gate required one stable graph, unchanged `1e-5` action equivalence, and repeatable material speed. Retry S6 only after S5B is retained.
+
+**Result:** Retained by explicit user override on 2026-08-29. The one-line clone fixed graph reuse: one clean process produced one graph, zero recompiles, and reused it for all ten denoising iterations across more than 100 replay requests. Compiler work took about 20.85 seconds and the compile-inclusive cold request took 23.37 seconds. GPU memory peaked at 15,780 MiB and server RSS at 2,042,720 KiB.
+
+Two 5+50 warm replays measured server p50/p95 of 190.43/206.90 and 192.29/208.86 ms; denoise p50/p95 was 62.64/77.74 and 62.39/70.15 ms; tunneled end-to-end p50/p95 was 277.33/354.53 and 282.84/376.25 ms. This was a repeatable 42.1–42.6% server-p95 improvement versus the strongest S1 result, but it failed the unchanged equivalence gate. Its digest was `bfc3802f…` versus S1 `38f302fd…`; all 700 values changed, max error was 0.002139, p95 was 0.001031, 687 values exceeded `1e-5`, and none exceeded 0.01.
+
+**Intentional override:** The user accepted this measured, bounded numerical change because the roughly 42% repeatable server-p95 improvement materially benefits the local demo. This is a benefit-over-equivalence decision, not a claim of numerical equivalence. Checkpoint, BF16 precision, cameras, prompt, action horizon, and ten denoising steps remain unchanged.
+
 ### S6 — Remove proven host-copy overhead
 
 Only if B0 shows material CPU/input-transfer cost, remove redundant `np.array` copies and consolidate host-to-device transfers. Use pinned/nonblocking copies only when profiling proves real overlap and safe ownership.
 
 **Keep only if:** Input tensors are byte-identical, lifetimes remain safe, and synchronized warmed p95 improves.
 
-**Result:** Skipped by the declared materiality gate. Input-transfer p95 was 6.48 ms in the matched eager run and 4.61 ms in the S4 prefix run, only about 1.3–1.8% of server p95. Even eliminating it entirely cannot meet the 3% retention threshold, so pinned/nonblocking ownership complexity is not justified.
+**Prior result:** Initially skipped because input-transfer p95 was only about 1.3–1.8% of eager server p95. Reopened by user decision after S5B promotion; retry once against S5B and preserve the existing promotion gates.
 
 ## Deferred because they do not fit this pass
 
@@ -199,10 +211,10 @@ Only if B0 shows material CPU/input-transfer cost, remove redundant `np.array` c
 2. **Mac candidate — complete:** B0 instrumentation and selectable R1/R2 passed local gates and were pushed.
 3. **PC timing baseline — complete:** Exact `8faea85` synced; doctor/setup, captured three-camera observation, and tunneled fixed-noise 5+50 replay passed for π₀.₅.
 4. **Isolated runtime trials — complete:** Short matched baseline, R1, R2, and combined π₀.₅ runs are recorded above; no default is promoted yet.
-5. **Speed A/B — complete:** S1 retained on `36bbf1a`; S2–S5 rejected and reverted; S6 skipped because its measured upper bound cannot pass the speed gate.
-6. **Combined smoke:** Run the existing four-call π₀.₅ policy smoke plus one 300-step three-camera episode. Verify finite 14D actions, crossfade/buffer metrics, video, trajectory, and cleanup.
-7. **Final hardware run:** Run the same 120-second Scenario 2 seed/profile pair used by the π₀.₅ baseline. Inspect its video and all 14 trajectory series; compare task coverage/time honestly.
-8. **Closeout:** Re-run local gates on the exact pushed SHA, update status/evidence only after the final candidate passes, run `make stop`, confirm the policy port is free, and tell the user the PC can be switched off.
+5. **Speed A/B — active:** S1 passed strict equivalence; S2–S5 were rejected. S5B is retained by the documented benefit-over-equivalence override, and S6 is reopened for one bounded retry.
+6. **Combined smoke — repeat required:** `010bb9d` passed previously, but the retained S5B/S6 result must pass the same four-call π₀.₅ smoke and 300-step three-camera episode.
+7. **Final hardware run — repeat required:** The prior exact `010bb9d` run passed infrastructure and failed the task at 0% coverage. Repeat Scenario 2 seed 0 on the new retained code candidate.
+8. **Closeout:** Run exact-candidate local gates, stop the server/tunnel, confirm the policy port is free, and record the final PC SHA.
 
 ## Minimal file ownership
 
