@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
+import math
 import pathlib
 import random
 import re
@@ -13,6 +14,7 @@ from libero.libero.envs.base_object import register_object
 from libero.libero.envs.bddl_base_domain import TASK_MAPPING
 from libero.libero.envs.bddl_base_domain import register_problem
 from libero.libero.envs.regions import REGION_SAMPLERS
+from libero.libero.envs.regions import MultiRegionRandomSampler
 from libero.libero.envs.regions import TableRegionSampler
 from robosuite.models.objects import CompositeObject
 
@@ -36,11 +38,20 @@ from tools.remote_aloha.scenarios import target_outline_points
 CONTROL_HZ = 20
 LIBERO_TARGET_DOT_RADIUS = 0.003
 LIBERO_TARGET_DOT_SPACING = 0.012
-LIBERO_PI_BLOCK_CENTER = (-0.12, -0.13)
-LIBERO_PI_TARGET_CENTER = (0.14, 0.12)
-LIBERO_PI_LAYOUT_JITTER = 0.02
-LIBERO_PI_MIN_SEPARATION = 0.30
-LIBERO_PI_SPAWN_HALF_RANGE = 0.09
+LIBERO_PI_TABLE_HALF_SIZE = (0.5, 0.6)
+LIBERO_PI_PLACEMENT_MARGIN = PI_BODY.footprint_radius + LIBERO_TARGET_DOT_RADIUS
+LIBERO_PI_X_RANGE = tuple(value * (LIBERO_PI_TABLE_HALF_SIZE[0] - LIBERO_PI_PLACEMENT_MARGIN) for value in (-1, 1))
+LIBERO_PI_Y_RANGE = tuple(value * (LIBERO_PI_TABLE_HALF_SIZE[1] - LIBERO_PI_PLACEMENT_MARGIN) for value in (-1, 1))
+LIBERO_PI_MIN_SEPARATION = 2 * LIBERO_PI_PLACEMENT_MARGIN + 0.02
+LIBERO_PI_REGION_HALF_RANGE = 0.001
+LIBERO_AGENTVIEW_RESOLUTION = 256
+LIBERO_AGENTVIEW_PIXEL_MARGIN = 4
+# Pinned LIBERO tabletop agentview world-to-pixel transform at 256x256.
+_AGENTVIEW_TRANSFORM = (
+    (-99.5837977, 309.019317, -80.4181527, 195.088575),
+    (94.5627061, -0.0000419308495, -320.834606, 454.375772),
+    (-0.777998244, -0.000000152115266, -0.62826645, 1.52412879),
+)
 _TABLE_HALF_HEIGHT = 0.05
 SCENARIOS = {
     "push_pi": (
@@ -54,7 +65,20 @@ SCENARIOS = {
         get_scenario("push_letters_single").prompt.replace("Using only the left arm", "Using the LIBERO arm"),
     ),
 }
-REGION_SAMPLERS.update({problem.lower(): {"table": TableRegionSampler} for problem, _, _ in SCENARIOS.values()})
+
+
+class _SeededTableRegionSampler(MultiRegionRandomSampler):
+    def __init__(self, *args, **kwargs):
+        kwargs.update(ensure_object_boundary_in_range=False, z_offset=0.01)
+        super().__init__(*args, **kwargs)
+
+
+REGION_SAMPLERS.update(
+    {
+        SCENARIOS["push_pi"][0].lower(): {"table": _SeededTableRegionSampler},
+        SCENARIOS["push_p_i"][0].lower(): {"table": TableRegionSampler},
+    }
+)
 
 _PROPERTIES = {
     "articulation": {"default_open_ranges": [], "default_close_ranges": []},
@@ -64,6 +88,7 @@ _PROPERTIES = {
 
 class _Block(CompositeObject):
     descriptor: BodyDescriptor
+    layout_yaw = 0.0
 
     def __init__(self, name="block", joints="default"):
         body = self.descriptor
@@ -88,7 +113,7 @@ class _Block(CompositeObject):
             duplicate_collision_geoms=True,
         )
         self.category_name = "_".join(re.sub(r"([A-Z0-9])", r" \1", self.__class__.__name__).split()).lower()
-        self.rotation = (0.0, 0.0)
+        self.rotation = (self.layout_yaw, self.layout_yaw)
         self.rotation_axis = "z"
         self.object_properties = _PROPERTIES
 
@@ -160,8 +185,9 @@ class _PushPiTask(TASK_MAPPING["libero_tabletop_manipulation"]):
     def layout(self) -> dict[str, dict[str, object]]:
         values = {}
         for body, movable_name, target_name in self.body_pairs:
-            values[movable_name] = dataclasses.asdict(self._state(movable_name, body.name))
-            values[target_name] = dataclasses.asdict(self._state(target_name, body.name))
+            for name in (movable_name, target_name):
+                state = self._state(name, body.name)
+                values[name] = {**dataclasses.asdict(state), "yaw_radians": quaternion_euler(state)[2]}
         return values
 
     def _check_success(self):
@@ -183,8 +209,8 @@ _BDDL = {
   (:domain robosuite)
   (:language Push the PI-shaped block onto its dotted target outline)
   (:regions
-    (pi_spawn_region (:target main_table) (:ranges (({spawn_x_min} {spawn_y_min} {spawn_x_max} {spawn_y_max}))) (:yaw_rotation ((0 0))))
-    (pi_target_region (:target main_table) (:ranges (({target_x_min} {target_y_min} {target_x_max} {target_y_max}))) (:yaw_rotation ((0 0))))
+    (pi_spawn_region (:target main_table) (:ranges (({spawn_x_min} {spawn_y_min} {spawn_x_max} {spawn_y_max}))) (:yaw_rotation (({block_yaw} {block_yaw}))))
+    (pi_target_region (:target main_table) (:ranges (({target_x_min} {target_y_min} {target_x_max} {target_y_max}))) (:yaw_rotation (({target_yaw} {target_yaw}))))
   )
   (:fixtures main_table - table pi_target_1 - pi_target)
   (:objects pi_1 - pi_block)
@@ -219,21 +245,53 @@ def push_pi_layout(seed: int) -> dict[str, object]:
     if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed <= 2**32 - 1:
         raise ValueError("LIBERO layout seed must be an unsigned 32-bit integer")
     rng = random.Random(seed)
-    jitter = LIBERO_PI_LAYOUT_JITTER
-    block = tuple(center + rng.uniform(-jitter, jitter) for center in LIBERO_PI_BLOCK_CENTER)
-    target = tuple(center + rng.uniform(-jitter, jitter) for center in LIBERO_PI_TARGET_CENTER)
-    distance = ((target[0] - block[0]) ** 2 + (target[1] - block[1]) ** 2) ** 0.5
-    if distance < LIBERO_PI_MIN_SEPARATION:
-        raise RuntimeError("sampled LIBERO Push-PI layout violates separation")
+    block_yaw = rng.uniform(-math.pi, math.pi)
+    target_yaw = rng.uniform(-math.pi, math.pi)
+    for _ in range(1000):
+        block = (rng.uniform(*LIBERO_PI_X_RANGE), rng.uniform(*LIBERO_PI_Y_RANGE))
+        target = (rng.uniform(*LIBERO_PI_X_RANGE), rng.uniform(*LIBERO_PI_Y_RANGE))
+        distance = math.dist(block, target)
+        if distance >= LIBERO_PI_MIN_SEPARATION and _agentview_contains(block) and _agentview_contains(target):
+            break
+    else:
+        raise RuntimeError("could not sample a separated LIBERO Push-PI layout")
     layout = {
         "block_xy": [round(value, 6) for value in block],
         "target_xy": [round(value, 6) for value in target],
+        "block_yaw_radians": round(block_yaw, 6),
+        "target_yaw_radians": round(target_yaw, 6),
         "center_distance": round(distance, 6),
+        "agentview_visible": True,
     }
     layout["layout_hash"] = hashlib.sha256(
         json.dumps(layout, separators=(",", ":"), sort_keys=True).encode()
     ).hexdigest()
     return layout
+
+
+def _agentview_contains(center: tuple[float, float]) -> bool:
+    for index in range(32):
+        angle = 2 * math.pi * index / 32
+        world = (
+            center[0] + LIBERO_PI_PLACEMENT_MARGIN * math.cos(angle),
+            center[1] + LIBERO_PI_PLACEMENT_MARGIN * math.sin(angle),
+            0.912,
+            1.0,
+        )
+        projected = [
+            math.fsum(value * coordinate for value, coordinate in zip(row, world, strict=True))
+            for row in _AGENTVIEW_TRANSFORM
+        ]
+        if projected[2] <= 0:
+            return False
+        pixel = (projected[0] / projected[2], projected[1] / projected[2])
+        if any(
+            value < LIBERO_AGENTVIEW_PIXEL_MARGIN
+            or value >= LIBERO_AGENTVIEW_RESOLUTION - LIBERO_AGENTVIEW_PIXEL_MARGIN
+            for value in pixel
+        ):
+            return False
+    return True
 
 
 def scenario_bddl(scenario: str, seed: int) -> str:
@@ -246,17 +304,18 @@ def scenario_bddl(scenario: str, seed: int) -> str:
     layout = push_pi_layout(seed)
     block_x, block_y = layout["block_xy"]
     target_x, target_y = layout["target_xy"]
-    spawn = LIBERO_PI_SPAWN_HALF_RANGE
-    target_half_range = 0.001
+    half_range = LIBERO_PI_REGION_HALF_RANGE
     return template.format(
-        spawn_x_min=f"{block_x - spawn:.6f}",
-        spawn_y_min=f"{block_y - spawn:.6f}",
-        spawn_x_max=f"{block_x + spawn:.6f}",
-        spawn_y_max=f"{block_y + spawn:.6f}",
-        target_x_min=f"{target_x - target_half_range:.6f}",
-        target_y_min=f"{target_y - target_half_range:.6f}",
-        target_x_max=f"{target_x + target_half_range:.6f}",
-        target_y_max=f"{target_y + target_half_range:.6f}",
+        spawn_x_min=f"{block_x - half_range:.6f}",
+        spawn_y_min=f"{block_y - half_range:.6f}",
+        spawn_x_max=f"{block_x + half_range:.6f}",
+        spawn_y_max=f"{block_y + half_range:.6f}",
+        target_x_min=f"{target_x - half_range:.6f}",
+        target_y_min=f"{target_y - half_range:.6f}",
+        target_x_max=f"{target_x + half_range:.6f}",
+        target_y_max=f"{target_y + half_range:.6f}",
+        block_yaw=f"{layout['block_yaw_radians']:.6f}",
+        target_yaw=f"{layout['target_yaw_radians']:.6f}",
     )
 
 
@@ -268,6 +327,10 @@ def create_env(scenario: str, *, resolution: int, seed: int, horizon: int):
     temporary = tempfile.TemporaryDirectory(prefix="libero-push-pi-")
     bddl_path = pathlib.Path(temporary.name) / f"{scenario}.bddl"
     bddl_path.write_text(scenario_bddl(scenario, seed), encoding="utf-8")
+    layout = push_pi_layout(seed) if scenario == "push_pi" else None
+    if scenario == "push_pi":
+        # ponytail: class-scoped pose config assumes sequential environment construction; pass task context if parallel creation is added.
+        PiBlock.layout_yaw = layout["block_yaw_radians"]
     env = OffScreenRenderEnv(
         bddl_file_name=bddl_path,
         camera_heights=resolution,
@@ -277,11 +340,47 @@ def create_env(scenario: str, *, resolution: int, seed: int, horizon: int):
     )
     env.seed(seed)
     env.push_pi_temporary_directory = temporary
+    env.push_pi_layout = layout
     return env, prompt
 
 
-def snapshot_layout(environment) -> dict[str, dict[str, object]]:
-    return environment.env.layout()
+def snapshot_layout(environment) -> dict[str, object]:
+    actual = environment.env.layout()
+    planned = environment.push_pi_layout
+    if planned is None:
+        return actual
+    block = actual["pi_1"]
+    target = actual["pi_target_1"]
+    block_xy = (block["x"], block["y"])
+    target_xy = (target["x"], target["y"])
+    validation = {
+        "agentview_visible": _agentview_contains(block_xy) and _agentview_contains(target_xy),
+        "block_xy_error": math.dist(planned["block_xy"], block_xy),
+        "block_yaw_error": abs(_wrapped_angle(block["yaw_radians"] - planned["block_yaw_radians"])),
+        "non_overlapping": math.dist(block_xy, target_xy) >= LIBERO_PI_MIN_SEPARATION,
+        "target_xy_error": math.dist(planned["target_xy"], target_xy),
+        "target_yaw_error": abs(_wrapped_angle(target["yaw_radians"] - planned["target_yaw_radians"])),
+        "within_table": all(
+            abs(point[axis]) + LIBERO_PI_PLACEMENT_MARGIN <= LIBERO_PI_TABLE_HALF_SIZE[axis]
+            for point in (block_xy, target_xy)
+            for axis in (0, 1)
+        ),
+    }
+    if not (
+        validation["agentview_visible"]
+        and validation["non_overlapping"]
+        and validation["within_table"]
+        and validation["block_xy_error"] <= 0.002
+        and validation["target_xy_error"] <= 0.002
+        and validation["block_yaw_error"] <= 1e-6
+        and validation["target_yaw_error"] <= 1e-6
+    ):
+        raise ValueError("actual LIBERO Push-PI layout failed seeded pose validation")
+    return {**actual, "validation": validation}
+
+
+def _wrapped_angle(angle: float) -> float:
+    return math.atan2(math.sin(angle), math.cos(angle))
 
 
 def scenario_hash(scenario: str) -> str:
@@ -304,7 +403,16 @@ def self_check() -> None:
     layouts = [push_pi_layout(seed) for seed in range(12)]
     assert len({tuple(layout["block_xy"]) for layout in layouts}) == 12
     assert len({tuple(layout["target_xy"]) for layout in layouts}) == 12
+    assert len({layout["block_yaw_radians"] for layout in layouts}) == 12
+    assert len({layout["target_yaw_radians"] for layout in layouts}) == 12
     assert all(layout["center_distance"] >= LIBERO_PI_MIN_SEPARATION for layout in layouts)
+    assert all(layout["agentview_visible"] for layout in layouts)
+    assert all(
+        abs(layout[name][axis]) + LIBERO_PI_PLACEMENT_MARGIN <= LIBERO_PI_TABLE_HALF_SIZE[axis]
+        for layout in layouts
+        for name in ("block_xy", "target_xy")
+        for axis in (0, 1)
+    )
     assert len({layout["layout_hash"] for layout in layouts}) == 12
     assert all(len(scenario_hash(name)) == 64 for name in SCENARIOS)
 
