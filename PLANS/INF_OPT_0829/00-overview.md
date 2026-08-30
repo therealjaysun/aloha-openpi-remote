@@ -2,7 +2,7 @@
 
 ## Handoff
 
-- **Status:** S5B is retained by an explicit benefit-over-equivalence override; S6 is reopened for one bounded retry. Final hardware validation must be repeated on the resulting candidate.
+- **Status:** S5B is retained by an explicit benefit-over-equivalence override; S6 was retried, rejected, and removed. Final hardware validation must be repeated on retained S5B.
 - **Base candidate:** main after merged plan PR #9 (`3ebf8b017384e1e38ba97261d65a723966596b45`).
 - **Optimization scope:** `pi05_aloha_base` only. By user decision on 2026-08-29, do not run, benchmark, optimize, or qualify π₀. Keep existing π₀ support unchanged for compatibility.
 - **Order:** P0 clean baseline → implement B0 instrumentation plus disabled R1/R2 switches → B0 measurements → isolated R1/R2 trials → S1–S6 measured speed work → final hardware validation.
@@ -193,7 +193,7 @@ Only if B0 shows material CPU/input-transfer cost, remove redundant `np.array` c
 
 **Keep only if:** Input tensors are byte-identical, lifetimes remain safe, and synchronized warmed p95 improves.
 
-**Prior result:** Initially skipped because input-transfer p95 was only about 1.3–1.8% of eager server p95. Reopened by user decision after S5B promotion; retry once against S5B and preserve the existing promotion gates.
+**Result:** Retried after S5B promotion, then rejected and removed. The one-line candidate replaced the redundant per-leaf `np.array` host copy with direct `torch.as_tensor(..., device=...)`. It preserved the S5B action digest, one graph, zero recompiles, and a 15,780 MiB GPU peak, but provided no speed benefit. Two 5+50 runs produced input-transfer p95 4.63 and 6.62 ms versus S5B's 4.54 and 4.51 ms; server p95 regressed to 222.28 and 229.67 ms versus S5B's 206.90 and 208.86 ms. No pinning, asynchronous transfer, or camera-packing complexity was attempted.
 
 ## Deferred because they do not fit this pass
 
@@ -211,7 +211,7 @@ Only if B0 shows material CPU/input-transfer cost, remove redundant `np.array` c
 2. **Mac candidate — complete:** B0 instrumentation and selectable R1/R2 passed local gates and were pushed.
 3. **PC timing baseline — complete:** Exact `8faea85` synced; doctor/setup, captured three-camera observation, and tunneled fixed-noise 5+50 replay passed for π₀.₅.
 4. **Isolated runtime trials — complete:** Short matched baseline, R1, R2, and combined π₀.₅ runs are recorded above; no default is promoted yet.
-5. **Speed A/B — active:** S1 passed strict equivalence; S2–S5 were rejected. S5B is retained by the documented benefit-over-equivalence override, and S6 is reopened for one bounded retry.
+5. **Speed A/B — complete:** S1 passed strict equivalence; S2–S5 were rejected. S5B is retained by the documented benefit-over-equivalence override; the S6 retry was rejected and removed.
 6. **Combined smoke — repeat required:** `010bb9d` passed previously, but the retained S5B/S6 result must pass the same four-call π₀.₅ smoke and 300-step three-camera episode.
 7. **Final hardware run — repeat required:** The prior exact `010bb9d` run passed infrastructure and failed the task at 0% coverage. Repeat Scenario 2 seed 0 on the new retained code candidate.
 8. **Closeout:** Run exact-candidate local gates, stop the server/tunnel, confirm the policy port is free, and record the final PC SHA.
