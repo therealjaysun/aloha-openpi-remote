@@ -17,6 +17,7 @@ from libero.libero.envs.regions import REGION_SAMPLERS
 from libero.libero.envs.regions import MultiRegionRandomSampler
 from libero.libero.envs.regions import TableRegionSampler
 from robosuite.models.objects import CompositeObject
+from robosuite.models.objects import MujocoXMLObject
 from robosuite.utils.mjcf_utils import CustomMaterial
 
 from tools.remote_aloha.scenarios import GEOM_CONDIM
@@ -49,12 +50,12 @@ LIBERO_AGENTVIEW_RESOLUTION = 256
 LIBERO_AGENTVIEW_PIXEL_MARGIN = 4
 LIBERO_PORTRAIT_HALF_SIZE = (0.10, 0.075)
 LIBERO_PORTRAIT_HALF_THICKNESS = 0.001
-LIBERO_COKE_CAN_RADIUS = 0.027
+LIBERO_COKE_CAN_RADIUS = 0.022
 LIBERO_COKE_CAN_HALF_HEIGHT = 0.061
+LIBERO_COKE_CAN_PROFILE_SIDES = 8
 LIBERO_COKE_CAN_CENTER = (0.18, 0.0)
 LIBERO_COKE_LIGHT_AMBIENT = 0.25
 LIBERO_COKE_LIGHT_DIFFUSE = 1.0
-LIBERO_COKE_RED = (0.95, 0.0, 0.01, 1.0)
 LIBERO_PORTRAIT_CENTERS = {
     "taylor_swift": (-0.20, 0.12),
     "ian_mckellen": (-0.20, -0.12),
@@ -207,42 +208,13 @@ class _Portrait(CompositeObject):
 
 
 @register_object
-class CokeCan(CompositeObject):
+class CokeCan(MujocoXMLObject):
     def __init__(self, name="coke_can", joints="default"):
         super().__init__(
+            str(_PORTRAIT_ASSET_DIR / "octagonal_coke_can.xml"),
             name=name,
-            total_size=(LIBERO_COKE_CAN_RADIUS, LIBERO_COKE_CAN_RADIUS, LIBERO_COKE_CAN_HALF_HEIGHT),
-            geom_types=["cylinder", "cylinder", "cylinder", "ellipsoid", "ellipsoid"],
-            geom_sizes=[
-                (LIBERO_COKE_CAN_RADIUS, LIBERO_COKE_CAN_HALF_HEIGHT),
-                (LIBERO_COKE_CAN_RADIUS * 1.02, 0.001),
-                (LIBERO_COKE_CAN_RADIUS * 1.02, 0.001),
-                (0.012, 0.006, 0.0015),
-                (0.0065, 0.0025, 0.001),
-            ],
-            geom_locations=[
-                (0.0, 0.0, 0.0),
-                (0.0, 0.0, LIBERO_COKE_CAN_HALF_HEIGHT),
-                (0.0, 0.0, -LIBERO_COKE_CAN_HALF_HEIGHT),
-                (0.0, 0.006, LIBERO_COKE_CAN_HALF_HEIGHT + 0.0025),
-                (0.0, 0.006, LIBERO_COKE_CAN_HALF_HEIGHT + 0.004),
-            ],
-            geom_names=["body", "top", "bottom", "pull_tab", "pull_tab_opening"],
-            geom_rgbas=[
-                LIBERO_COKE_RED,
-                (0.75, 0.75, 0.75, 1.0),
-                (0.75, 0.75, 0.75, 1.0),
-                (0.55, 0.55, 0.55, 1.0),
-                (0.08, 0.08, 0.08, 1.0),
-            ],
-            geom_frictions=[GEOM_FRICTION] * 5,
-            geom_condims=[GEOM_CONDIM] * 5,
-            density=[900.0, None, None, None, None],
-            solref=GEOM_SOLREF,
-            solimp=GEOM_SOLIMP,
-            locations_relative_to_center=True,
             joints=joints,
-            obj_types=["all", "visual", "visual", "visual", "visual"],
+            obj_type="all",
             duplicate_collision_geoms=False,
         )
         self.category_name = "coke_can"
@@ -462,6 +434,7 @@ def coke_taylor_layout() -> dict[str, object]:
             "bottom_row": ["ed_sheeran", "emma_stone", "snoop_dogg"],
         },
         "can_dimensions_m": {"diameter": 2 * LIBERO_COKE_CAN_RADIUS, "height": 2 * LIBERO_COKE_CAN_HALF_HEIGHT},
+        "can_profile_sides": LIBERO_COKE_CAN_PROFILE_SIDES,
         "can_xy": list(LIBERO_COKE_CAN_CENTER),
         "lighting": {"ambient": LIBERO_COKE_LIGHT_AMBIENT, "diffuse": LIBERO_COKE_LIGHT_DIFFUSE},
         "portrait_asset_sha256": {
@@ -675,7 +648,8 @@ def self_check() -> None:
         "bottom_row": ["ed_sheeran", "emma_stone", "snoop_dogg"],
     }
     assert coke_layout["lighting"] == {"ambient": 0.25, "diffuse": 1.0}
-    assert coke_layout["can_dimensions_m"] == {"diameter": 0.054, "height": 0.122}
+    assert coke_layout["can_dimensions_m"] == {"diameter": 0.044, "height": 0.122}
+    assert coke_layout["can_profile_sides"] == 8
     assert len(set(coke_layout["portrait_asset_sha256"].values())) == 5
     assert all(len(value) == 64 for value in coke_layout["portrait_asset_sha256"].values())
     assert all(
