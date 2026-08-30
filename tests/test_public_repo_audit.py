@@ -74,16 +74,3 @@ def test_security_guidance_documents_loopback_ssh_and_raw_evidence_boundary() ->
     assert "Publish only newly constructed, allowlisted summaries" in security
     assert "make public-audit" in security
     assert "raw logs, or raw telemetry" in contributing
-
-
-def test_baseline_security_workflow_prepares_exact_remotes_before_public_audit() -> None:
-    workflow = Path(".github/workflows/baseline-security.yml").read_text(encoding="utf-8")
-    prepare = workflow.index("Prepare audited remotes")
-    audit = workflow.index("scripts/public_repo_audit.sh")
-    assert prepare < audit
-    assert "fetch-depth: 0" in workflow
-    assert "persist-credentials: false" in workflow
-    assert "git remote set-url origin https://github.com/therealjaysun/pi-robotics.git" in workflow
-    assert "git remote add upstream https://github.com/Physical-Intelligence/openpi.git" in workflow
-    assert "git remote set-url --push upstream DISABLED" in workflow
-    assert "git fetch --no-tags upstream main:refs/remotes/upstream/main" in workflow

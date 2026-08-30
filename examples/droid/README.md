@@ -3,8 +3,10 @@
 We offer instructions for:
 - [Running inference for our best $pi_{0.5}$-DROID policy](./README.md#running-droid-inference)
 - [Running inference for other pre-trained DROID policies ($\pi_0$, $\pi_0$-FAST, ...)](./README.md#running-roboarena-baseline-policies)
-- [Pre-training *generalist* policies on the *full* DROID dataset](./README_train.md#training-on-droid)
-- [Fine-tuning expert $\pi_{0.5}$ on your custom DROID dataset](./README_train.md#fine-tuning-on-custom-droid-datasets)
+
+This inference-only fork omits the upstream training pipeline. See the
+[pinned upstream documentation](https://github.com/Physical-Intelligence/openpi/tree/215abfb217dbac7d5f1273282331b9b1866c0479)
+for training and dataset-conversion instructions.
 
 ## Running DROID Inference
 

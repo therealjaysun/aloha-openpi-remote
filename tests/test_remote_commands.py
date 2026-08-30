@@ -161,6 +161,7 @@ def test_setup_migrates_only_the_known_pre_rename_origin() -> None:
     script = _setup_script(RemoteConfig(), "a" * 40, "codex/06-hardening-docs")
     assert "legacy_repo_url" in script
     assert 'remote set-url origin "$repo_url"' in script
+    assert "uv sync --locked --reinstall-package transformers" in script
     assert [line for line in script.splitlines() if line.startswith("progress '")] == [
         "progress 'validating workspace and storage'",
         "progress 'syncing the exact source candidate'",

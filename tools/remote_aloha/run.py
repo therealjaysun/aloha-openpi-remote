@@ -22,9 +22,6 @@ from websockets.exceptions import ConnectionClosed
 from examples.aloha_sim.saver import LiveDisplay
 from examples.aloha_sim.saver import VideoSaver
 from tools.remote_aloha.buffered_policy import BufferedPolicy
-from tools.remote_aloha.config import FIXED_PROMPT_SCHEDULE
-from tools.remote_aloha.config import STAGED_PROMPT_BOUNDARIES
-from tools.remote_aloha.config import STAGED_PROMPT_SCHEDULE
 from tools.remote_aloha.config import MacSimConfig
 from tools.remote_aloha.config import PolicyProfile
 from tools.remote_aloha.config import RemoteConfig
@@ -45,7 +42,6 @@ from tools.remote_aloha.scenarios import DISPLAY_EVERY_STEPS
 from tools.remote_aloha.scenarios import SCENARIOS
 from tools.remote_aloha.scenarios import TARGET_AREA_COVERAGE_METHOD
 from tools.remote_aloha.scenarios import ScenarioSpec
-from tools.remote_aloha.scenarios import project_action
 from tools.remote_aloha.sim_smoke_test import package_versions
 from tools.remote_aloha.sim_smoke_test import verify_video
 from tools.remote_aloha.telemetry import JsonlWriter
@@ -61,23 +57,6 @@ from tools.remote_aloha.trajectory import write_trajectory_plot
 _DEFAULT_EPISODE_STEPS = 300
 _STEP_SECONDS = 0.02
 _INFERENCE_MARGIN_MS = 100.0
-_STAGED_PROMPTS = (
-    (
-        "orient",
-        "Look at the pi-shaped block and matching target. Using only the left arm, tilt the wrist so the gripper "
-        "points down. Do not touch the block yet.",
-    ),
-    (
-        "approach",
-        "Using only the left arm, keep the wrist down and lower the gripper just above the table on the block's "
-        "side away from the target. Stop before contact.",
-    ),
-    (
-        "push",
-        "Using only the left arm, keep the gripper low. Make short pushes toward the matching target, rechecking "
-        "after each push; do not lift the pi-shaped block.",
-    ),
-)
 
 
 def _status(message: str) -> None:
@@ -300,21 +279,6 @@ def _convert_environment_observation(environment, raw_observation: object, promp
     return convert_gym_observation(raw_observation, prompt)
 
 
-def _prompt_stage(
-    prompt_schedule: str, default_prompt: str | None, step: int
-) -> tuple[int | None, str | None, str | None]:
-    if prompt_schedule == FIXED_PROMPT_SCHEDULE:
-        return None, None, default_prompt
-    if prompt_schedule != STAGED_PROMPT_SCHEDULE or not 0 <= step < STAGED_PROMPT_BOUNDARIES[-1]:
-        raise ValueError("prompt schedule or step is invalid")
-    for index, ((stage_id, prompt), start, end) in enumerate(
-        zip(_STAGED_PROMPTS, STAGED_PROMPT_BOUNDARIES[:-1], STAGED_PROMPT_BOUNDARIES[1:], strict=True)
-    ):
-        if start <= step < end:
-            return index, stage_id, prompt
-    raise AssertionError("staged prompt boundaries must cover the full diagnostic")
-
-
 def control_episode(
     environment,
     policy: BufferedPolicy,
@@ -323,7 +287,6 @@ def control_episode(
     seed: int,
     prompt: str | None,
     profile: PolicyProfile,
-    prompt_schedule: str = FIXED_PROMPT_SCHEDULE,
     scenario: ScenarioSpec = SCENARIOS["transfer_cube"],
     expected_scene_hash: str | None = None,
     display: LiveDisplay | None = None,
@@ -335,11 +298,7 @@ def control_episode(
     capture_path: Path | None = None,
 ) -> dict[str, object]:
     raw_observation, reset_info = environment.reset(seed=seed)
-    home_joint_positions = validate_joint_vector(
-        np.asarray(raw_observation["agent_pos"]).tolist(), "home_joint_positions"
-    )
-    _, _, initial_prompt = _prompt_stage(prompt_schedule, prompt, 0)
-    observation = _convert_environment_observation(environment, raw_observation, initial_prompt)
+    observation = _convert_environment_observation(environment, raw_observation, prompt)
     if capture_path is not None:
         _atomic_policy_observation(capture_path, observation)
     video.on_episode_start()
@@ -418,32 +377,9 @@ def control_episode(
     if emit is not None:
         emit("episode", seed=seed, status="started")
 
-    active_prompt_stage = None
     for step in range(max_steps):
-        prompt_stage_index, prompt_stage_id, step_prompt = _prompt_stage(prompt_schedule, prompt, step)
-        if step_prompt is None:
-            observation.pop("prompt", None)
-        else:
-            observation["prompt"] = step_prompt
-        if prompt_stage_id is not None and prompt_stage_id != active_prompt_stage:
-            transition = policy.transition_prompt_stage(observation, step, prompt_stage_id)
-            if emit is not None:
-                emit(
-                    "prompt_stage",
-                    prompt_stage_id=prompt_stage_id,
-                    prompt_stage_index=prompt_stage_index,
-                    start_step=step,
-                    first_applied_step=step + 1,
-                    discarded_action_count=transition["discarded_action_count"],
-                    metrics={"prompt_transition_wait_ms": transition["transition_wait_ms"]},
-                )
-            active_prompt_stage = prompt_stage_id
         raw_action = validate_policy_action(policy.infer(observation, step), profile)
-        action = (
-            validate_policy_action(project_action(raw_action, scenario, home_joint_positions), profile)
-            if scenario.is_custom
-            else raw_action
-        )
+        action = raw_action
         if last_step_started is not None:
             delay = last_step_started + _STEP_SECONDS - monotonic()
             if delay > 0:
@@ -478,9 +414,7 @@ def control_episode(
         )
         camera_error = None
         try:
-            next_step = min(step + 1, max_steps - 1)
-            _, _, next_prompt = _prompt_stage(prompt_schedule, prompt, next_step)
-            next_observation = _convert_environment_observation(environment, raw_observation, next_prompt)
+            next_observation = _convert_environment_observation(environment, raw_observation, prompt)
         except BaseException as error:
             camera_error = error
             next_observation = convert_gym_artifact_observation(raw_observation)
@@ -529,9 +463,6 @@ def control_episode(
             }
             if scenario.is_custom and step_info is not None:
                 fields["scenario_info"] = step_info
-            if prompt_stage_id is not None:
-                fields["prompt_stage_id"] = prompt_stage_id
-                fields["prompt_stage_index"] = prompt_stage_index
             emit(
                 "step",
                 **fields,
@@ -710,9 +641,7 @@ def _run_seed(
         if telemetry_writer is None:
             raise RuntimeError("telemetry writer is unavailable")
         telemetry_overheads_ms.append(telemetry_writer.write(event, **fields))
-        if event == "prompt_stage":
-            _status(f"seed={seed} prompt-stage={fields['prompt_stage_id']} start-step={fields['start_step']}")
-        elif event == "step":
+        if event == "step":
             applied_step = int(fields["applied_step"])
             if applied_step in progress_steps:
                 line = (
@@ -728,11 +657,6 @@ def _run_seed(
 
     _status(f"episode seed={seed} preparing")
     try:
-        if (
-            sim_config.prompt_schedule == STAGED_PROMPT_SCHEDULE
-            and remote_config.policy_profile.name != "pi05_aloha_base"
-        ):
-            raise ValueError("the staged prompt schedule is limited to the pi05_aloha_base diagnostic")
         telemetry_writer = JsonlWriter(telemetry_path)
         versions = package_versions()
         environment = _make_environment(sim_config)
@@ -756,11 +680,6 @@ def _run_seed(
             scene_hash=scene_id,
             target_area_coverage_method=(TARGET_AREA_COVERAGE_METHOD if sim_config.scenario.is_custom else None),
             camera_views=list(POLICY_CAMERA_VIEWS),
-            prompt_schedule=sim_config.prompt_schedule,
-            prompt_stage_count=(len(_STAGED_PROMPTS) if sim_config.prompt_schedule == STAGED_PROMPT_SCHEDULE else 1),
-            prompt_stage_boundaries=(
-                list(STAGED_PROMPT_BOUNDARIES) if sim_config.prompt_schedule == STAGED_PROMPT_SCHEDULE else None
-            ),
             action_horizon=sim_config.action_horizon,
             model_action_horizon=remote_config.policy_profile.action_horizon,
             prefetch_steps=sim_config.prefetch_steps,
@@ -792,7 +711,6 @@ def _run_seed(
             seed=seed,
             prompt=sim_config.scenario.prompt or remote_config.policy_profile.default_prompt,
             profile=remote_config.policy_profile,
-            prompt_schedule=sim_config.prompt_schedule,
             scenario=sim_config.scenario,
             expected_scene_hash=scene_id,
             display=display,
@@ -1065,7 +983,6 @@ def _run_seed(
             "action_horizon": sim_config.action_horizon,
             "prefetch_steps": sim_config.prefetch_steps,
             "chunk_crossfade_steps": sim_config.chunk_crossfade_steps,
-            "prompt_schedule": sim_config.prompt_schedule,
             "prefetch_budget_ms": budget_ms,
             "request_buffer_depth_min": request_depth_min,
             "request_buffer_depth_p5": request_depth_p5,
@@ -1471,8 +1388,6 @@ def _write_performance_summary(root: Path, summary: Mapping[str, object], gpu_pa
 def run() -> dict[str, object]:
     sim_config = load_mac_sim_config()
     remote_config = load_remote_config()
-    if sim_config.prompt_schedule == STAGED_PROMPT_SCHEDULE and remote_config.policy_profile.name != "pi05_aloha_base":
-        raise ValueError("the staged prompt schedule is limited to the pi05_aloha_base diagnostic")
     if remote_config.policy_backend != "pytorch":
         raise RemoteError("Phase 5 requires OPENPI_POLICY_BACKEND=pytorch on the validated 24 GiB PC")
     _, source_sha = verify_ready_tunnel(remote_config)

@@ -38,7 +38,6 @@ from tools.remote_aloha.scenarios import SCENARIOS
 from tools.remote_aloha.scenarios import body_descriptors
 from tools.remote_aloha.scenarios import descriptor_payload
 from tools.remote_aloha.scenarios import descriptor_sha256
-from tools.remote_aloha.scenarios import project_action
 
 EXPECTED_RAW_IMAGE_SHAPE = (480, 640, 3)
 EXPECTED_POLICY_IMAGE_SHAPE = (3, 224, 224)
@@ -438,7 +437,7 @@ def _run_episode(config: MacSimConfig, seed: int, run_dir: Path, *, record: bool
         success_seen = bool(info.get("is_success", False)) if source_success else None
         terminated = truncated = False
         for step in range(1, EPISODE_STEPS + 1):
-            action = project_action(home if config.scenario.is_custom else state, config.scenario, home)
+            action = home if config.scenario.is_custom else state
             validate_action(action)
             started = time.perf_counter_ns()
             observation, reward, terminated, truncated, info = env.step(action)

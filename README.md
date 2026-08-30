@@ -25,7 +25,7 @@ The complete workflow was validated on the exact Phase 5 candidate `2065dd9` wit
 | `pi0_aloha_sim` | π₀ fine-tuned for this simulator | 3/3 | 2/3 success | 761 | 46.91 / 47.02 Hz | 359.21 ms | 15,401 MiB |
 | `pi05_aloha_base` (default) | Experimental π₀.₅ base model with ALOHA transforms | 3/3 | 0/3 success | 900 | 48.13 / 48.38 Hz | 502.35 ms | 15,857 MiB |
 
-GPU coverage passed for both runs (31 and 24 samples respectively), with no request retries or failures. The 1,661 successful simulator steps produced exactly 1,661 trajectory samples and six plots; each plot contains all 14 actual joints plus thinner dashed commands, normalized against pinned simulator limits. The π₀.₅ base checkpoint is not simulator-fine-tuned, so its zero task successes do not negate the separately reported infrastructure result. Neither profile met the complete cadence/underrun gate, so this project does **not** claim uninterrupted 50 Hz. The completed evidence ledger is archived in [Original implementation status](PLANS/ORIGINAL_IMPLEMENTATION_0828/STATUS.md); current work is defined by the [runtime and inference plan](PLANS/INF_OPT_0829/00-overview.md).
+GPU coverage passed for both runs (31 and 24 samples respectively), with no request retries or failures. The 1,661 successful simulator steps produced exactly 1,661 trajectory samples and six plots; each plot contains all 14 actual joints plus thinner dashed commands, normalized against pinned simulator limits. The π₀.₅ base checkpoint is not simulator-fine-tuned, so its zero task successes do not negate the separately reported infrastructure result. Neither profile met the complete cadence/underrun gate, so this project does **not** claim uninterrupted 50 Hz. The completed evidence ledger is archived in [Original implementation status](PLANS/ORIGINAL_IMPLEMENTATION_0828/STATUS.md); the latest optimization evidence is in the [runtime and inference plan](PLANS/INF_OPT_0829/00-overview.md).
 
 The pre-trajectory hardening candidate `90b0fed` also passed exact-SHA WSL setup and a fresh four-call tunneled smoke for each profile, then verified cleanup and a free policy port. Phase 5 candidate `2065dd9` remains the newer hardware proof and the source of the full-episode figures above.
 
@@ -127,7 +127,7 @@ OPENPI_WSL_DISTRO=Ubuntu-24.04 make setup-pc
 
 `make doctor-pc` discovers WSL, architecture, disk, RAM, NVIDIA/CUDA visibility, ports, and tools before setup changes the WSL project environment. It must identify an RTX 3090; CPU fallback is rejected. The PC must remain awake only for conversion, policy smoke tests, and full runs; after `make stop` succeeds, it is safe to switch off.
 
-`make setup-pc` and `make server` stream only exact allowlisted setup/model-loading stages to the Mac terminal, including a bounded server-loading heartbeat. `make run` keeps final JSON on stdout and writes safe episode, staged-prompt, 10% progress, coverage, and terminal status lines to stderr; `make scenario-matrix` keeps its summary-path stdout contract and adds matrix lifecycle status. Private raw evidence remains in ignored outputs.
+`make setup-pc` refreshes the pinned Transformers 4.53.2 wheel and streams only exact allowlisted setup stages; `make server` likewise shows bounded model-loading progress. `make run` keeps final JSON on stdout and writes safe episode, 10% progress, coverage, and terminal status lines to stderr; `make scenario-matrix` keeps its summary-path stdout contract and adds matrix lifecycle status. Private raw evidence remains in ignored outputs.
 
 Converted weights are PC-local and ignored. Current work uses only π₀.₅; convert it once, or again after its artifact is removed or the source/runtime pin changes:
 
@@ -189,7 +189,6 @@ All scenarios pass the model's complete finite 14-joint action to MuJoCo unchang
 ```bash
 profile=pi05_aloha_base
 ALOHA_SCENARIO=push_pi_single ALOHA_EPISODES=1 ALOHA_EPISODE_STEPS=6000 \
-  ALOHA_PROMPT_SCHEDULE=fixed \
   OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make run
 ```
 
@@ -217,7 +216,6 @@ make test
 make lint
 make secret-scan
 make public-audit
-make pr-status
 # Select the profile whose latest run should be checked:
 OPENPI_POLICY_PROFILE=pi05_aloha_base make metrics
 git status --short
@@ -227,10 +225,10 @@ See [Troubleshooting](docs/TROUBLESHOOTING.md) for fail-closed recovery. Do not 
 
 ## Review, source, and license
 
-The original stacked implementation history and its merge procedure are retained under [Original implementation plans](PLANS/ORIGINAL_IMPLEMENTATION_0828/README.md). New work starts from updated `main` on one scoped `codex/` branch and PR.
+The original implementation history is retained under [Original implementation plans](PLANS/ORIGINAL_IMPLEMENTATION_0828/README.md). New work starts from updated `main` on one scoped `codex/` branch and PR.
 
 This project is derived from [Physical Intelligence's OpenPI repository](https://github.com/Physical-Intelligence/openpi) at pinned commit [`215abfb`](https://github.com/Physical-Intelligence/openpi/tree/215abfb217dbac7d5f1273282331b9b1866c0479). Read the [original OpenPI README](https://github.com/Physical-Intelligence/openpi/blob/215abfb217dbac7d5f1273282331b9b1866c0479/README.md) for model documentation, upstream setup, research context, and limitations.
 
 The original Git history, [`LICENSE`](LICENSE), and other upstream attribution are retained. Project additions include Mac/WSL setup, strict profile/config and data contracts, memory-bounded BF16 conversion, loopback server metadata and health checks, finite receive/close deadlines, SSH/WSL process ownership, buffered seeded control, atomic evidence/video/trajectory validation, bounded retries, and local/GPU telemetry. The project does not train or redistribute weights and does not imply upstream endorsement.
 
-Security summary: secrets and machine identities stay in the Mac SSH config, ignored `.env`, or ignored raw evidence; weights/caches/videos/logs/telemetry are ignored; `origin` is the user repository and official `upstream` has push disabled. GitHub Actions is disabled for this local-only project, while the preserved workflow files stay inert; local secret scanning fails closed before a remote candidate is accepted.
+Security summary: secrets and machine identities stay in the Mac SSH config, ignored `.env`, or ignored raw evidence; weights/caches/videos/logs/telemetry are ignored; `origin` is the user repository and official `upstream` has push disabled. This local-only project has no GitHub Actions workflows; local secret scanning fails closed before a remote candidate is accepted.

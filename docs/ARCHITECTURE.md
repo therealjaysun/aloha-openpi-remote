@@ -96,6 +96,6 @@ The repository retains upstream history and licenses but adds a bounded demo int
 - finite WebSocket receive/close deadlines with bounded observations and idempotent close;
 - Windows-shell/WSL discovery, exact-SHA setup, process records, server lifetime holder, and private SSH tunnel ownership;
 - a fresh-per-seed monotonic simulator loop, step-aware one-request buffer, atomic video/result/trajectory finalization, bounded retry, local JSONL aggregation, and owned GPU sampling;
-- public-repository secret gates, pinned CI actions, structured phase plans, and a seven-PR review stack.
+- public-repository secret gates, local validation targets, and structured phase plans.
 
 OpenPI model behavior, transforms, and research limitations remain upstream concerns. This project does not train, publish, or redistribute checkpoint weights.

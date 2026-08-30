@@ -41,7 +41,7 @@ Do not call a Push-PI result a PushT benchmark result, reuse PushT's 95% score, 
 | `push_letters_single` | `pi_robotics/PushLettersSingleArm-v0` | Separate rigid uppercase `P` and `I` | Left arm requested; all 14 commands pass | `Using only the left arm, push the P and I blocks onto their matching targets.` |
 | `push_letters_dual` | `pi_robotics/PushLettersBimanual-v0` | Separate rigid uppercase `P` and `I` | Both arms requested; all 14 commands pass | `Using both arms, push the P and I blocks onto their matching targets.` |
 
-- Add `ALOHA_SCENARIO` as exactly the enum above and `ALOHA_DISPLAY=0|1`; unknown, blank-explicit, boolean-like, import-path, XML-path, or prompt values fail closed. Keep `ALOHA_TASK` pinned and backward compatible.
+- `ALOHA_SCENARIO` accepts exactly the enum above and `ALOHA_DISPLAY` accepts `0|1`; unknown, blank-explicit, boolean-like, import-path, XML-path, or prompt values fail closed. Derive the task only from the selected scenario; the redundant `ALOHA_TASK` override is removed.
 - Resolve scenario → Gym ID, descriptor, prompted arm mode, and fixed prompt once in `MacSimConfig`. A scenario prompt overrides the profile default and is immutable for an episode.
 - For every scenario, convert the pinned MuJoCo `top`, `left_wrist`, and `right_wrist` cameras to `cam_high`, `cam_left_wrist`, and `cam_right_wrist`. Missing, extra, wrong-shaped, wrong-dtype, or non-three-view requests fail closed. Record the safe ordered camera set in run metadata.
 - The optional Matplotlib window is display-only. It has no prompt text box, makes no network connection, and never changes policy input.

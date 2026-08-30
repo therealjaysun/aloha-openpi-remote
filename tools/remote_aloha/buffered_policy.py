@@ -30,9 +30,6 @@ class BufferStats:
     initial_wait_ms: float = 0.0
     underrun_count: int = 0
     underrun_wait_ms: float = 0.0
-    prompt_transition_count: int = 0
-    prompt_transition_wait_ms: float = 0.0
-    discarded_prompt_actions: int = 0
     replacement_count: int = 0
     crossfade_replacement_count: int = 0
     crossfade_action_count: int = 0
@@ -74,8 +71,6 @@ class BufferedPolicy:
         self._future: Future[tuple[object, float]] | None = None
         self._request_step = 0
         self._request_buffer_depth = 0
-        self._prompt_stage_id: str | None = None
-        self._request_prompt_stage_id: str | None = None
         self._closed = False
         self._failure: BaseException | None = None
         self._stats = BufferStats()
@@ -115,7 +110,6 @@ class BufferedPolicy:
         if self._future is not None:
             raise RuntimeError("only one inference request may be active")
         self._request_step = step
-        self._request_prompt_stage_id = self._prompt_stage_id
         request_buffer_depth = len(self._buffer)
         self._request_buffer_depth = request_buffer_depth
         self._request_buffer_depths.append(request_buffer_depth)
@@ -129,15 +123,13 @@ class BufferedPolicy:
                     "buffer_depth": request_buffer_depth,
                     "metrics": {"request_buffer_depth": request_buffer_depth},
                 }
-                if self._request_prompt_stage_id is not None:
-                    fields["prompt_stage_id"] = self._request_prompt_stage_id
                 self._emit("policy_request", **fields)
             except BaseException as error:
                 self._buffer.clear()
                 self._failure = error
                 raise
 
-    def _receive(self, step: int, *, waited: bool, allow_crossfade: bool = True) -> None:
+    def _receive(self, step: int, *, waited: bool) -> None:
         if self._future is None:
             raise RuntimeError("no inference request is active")
         future = self._future
@@ -181,13 +173,13 @@ class BufferedPolicy:
             crossfade_actions = self._buffer.replace(
                 actions,
                 elapsed,
-                crossfade_steps=self._chunk_crossfade_steps if allow_crossfade else 0,
+                crossfade_steps=self._chunk_crossfade_steps,
             )
             usable_fresh_actions = len(self._buffer)
             self._usable_fresh_actions.append(usable_fresh_actions)
             new_head = self._buffer.peek()
             replacement_delta_percent = None
-            if allow_crossfade and old_head is not None and new_head is not None:
+            if old_head is not None and new_head is not None:
                 ranges = np.asarray([upper - lower for _, lower, upper in JOINT_LIMITS])
                 replacement_delta_percent = float(np.max(np.abs(new_head - old_head) / ranges) * 100)
                 self._replacement_command_deltas_percent.append(replacement_delta_percent)
@@ -195,7 +187,7 @@ class BufferedPolicy:
             if crossfade_actions:
                 self._stats.crossfade_replacement_count += 1
                 self._stats.crossfade_action_count += crossfade_actions
-            elif allow_crossfade and self._chunk_crossfade_steps and self._stats.request_count > 1:
+            elif self._chunk_crossfade_steps and self._stats.request_count > 1:
                 self._stats.zero_overlap_replacements += 1
             if not self._buffer:
                 self._stats.empty_slices += 1
@@ -224,8 +216,6 @@ class BufferedPolicy:
                     "crossfade_actions": crossfade_actions,
                     "metrics": metrics,
                 }
-                if self._request_prompt_stage_id is not None:
-                    fields["prompt_stage_id"] = self._request_prompt_stage_id
                 if "prev_total_ms" in timing and request_id > 0:
                     fields["previous_timing_for_request_id"] = request_id - 1
                     fields["previous_request_total_ms"] = float(timing["prev_total_ms"])
@@ -237,30 +227,6 @@ class BufferedPolicy:
             self._buffer.clear()
             self._failure = error
             raise
-
-    def transition_prompt_stage(self, observation: dict, step: int, stage_id: str) -> dict[str, int | float]:
-        """Replace every queued or in-flight old-stage action before a prompt boundary."""
-        if self._closed:
-            raise RuntimeError("buffered policy is closed")
-        if self._failure is not None:
-            raise RuntimeError("buffered policy failed; stale actions were discarded") from self._failure
-        if stage_id not in {"orient", "approach", "push"}:
-            raise ValueError("prompt stage ID is invalid")
-        validate_policy_observation(observation)
-        started = time.monotonic()
-        discarded = len(self._buffer)
-        if self._future is not None:
-            self._receive(step, waited=False, allow_crossfade=False)
-            discarded += len(self._buffer)
-        self._buffer.clear()
-        self._prompt_stage_id = stage_id
-        self._submit(observation, step)
-        self._receive(step, waited=False, allow_crossfade=False)
-        waited_ms = (time.monotonic() - started) * 1000
-        self._stats.prompt_transition_count += 1
-        self._stats.prompt_transition_wait_ms += waited_ms
-        self._stats.discarded_prompt_actions += discarded
-        return {"discarded_action_count": discarded, "transition_wait_ms": waited_ms}
 
     def infer(self, observation: dict, step: int) -> np.ndarray:
         if self._closed:

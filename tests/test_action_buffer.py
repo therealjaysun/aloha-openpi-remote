@@ -375,53 +375,6 @@ def test_policy_events_report_request_and_previous_server_timing() -> None:
     assert policy.stats["policy_timings"][-1]["denoise_ms"] == 0.5
 
 
-def test_prompt_transition_discards_old_buffer_and_prefetch_before_new_action() -> None:
-    class Policy:
-        def __init__(self) -> None:
-            self.prompts = []
-
-        def infer(self, observation: dict) -> dict:
-            self.prompts.append(observation["prompt"])
-            return {"actions": _actions((len(self.prompts) - 1) * 100)}
-
-        def close(self) -> None:
-            return None
-
-    events = []
-    transport = Policy()
-    policy = BufferedPolicy(
-        transport,
-        POLICY_PROFILES["pi0_aloha_sim"],
-        3,
-        2,
-        emit=lambda event, **fields: events.append({"event": event, **fields}),
-        chunk_crossfade_steps=5,
-    )
-    orient = {**_observation(), "prompt": "orient prompt"}
-    approach = {**_observation(), "prompt": "approach prompt"}
-    policy.transition_prompt_stage(orient, 0, "orient")
-    assert policy.infer(orient, 0)[0] == 0
-    assert policy.infer(orient, 1)[0] == 1
-    transition = policy.transition_prompt_stage(approach, 2, "approach")
-    assert transition["discarded_action_count"] > 0
-    assert policy.infer(approach, 2)[0] == 200
-    assert transport.prompts == ["orient prompt", "orient prompt", "approach prompt"]
-    assert policy.stats["prompt_transition_count"] == 2
-    assert policy.stats["underrun_count"] == 0
-    assert policy.stats["replacement_count"] == policy.stats["crossfade_action_count"] == 0
-    assert [event["prompt_stage_id"] for event in events if event["event"] == "policy_request"] == [
-        "orient",
-        "orient",
-        "approach",
-    ]
-    policy.close()
-
-    invalid = BufferedPolicy(Policy(), POLICY_PROFILES["pi0_aloha_sim"], 3, 1)
-    with pytest.raises(ValueError, match="stage ID"):
-        invalid.transition_prompt_stage(orient, 0, "arbitrary")
-    invalid.close()
-
-
 def test_chunk_older_than_wire_horizon_is_discarded_and_refreshed() -> None:
     class ControlledPolicy:
         def __init__(self) -> None:

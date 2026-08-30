@@ -334,14 +334,6 @@ def effective_layout_seed(requested_seed: int, attempt: int) -> int:
     return (requested_seed + attempt * RESET_SEED_STRIDE) % 2**32
 
 
-def project_action(action: object, scenario: ScenarioSpec, home: object | None = None) -> np.ndarray:
-    """Validate and copy the complete model action without masking any joints."""
-    command = np.asarray(action, dtype=np.float64)
-    if command.shape != (JOINT_COUNT,) or not np.isfinite(command).all():
-        raise ValueError("scenario action must be a finite 14-vector")
-    return command.copy()
-
-
 def quaternion_euler(state: BodyState) -> tuple[float, float, float]:
     norm = math.sqrt(state.qw**2 + state.qx**2 + state.qy**2 + state.qz**2)
     if not math.isfinite(norm) or norm == 0:

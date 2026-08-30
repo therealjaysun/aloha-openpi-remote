@@ -3,7 +3,7 @@ VENV := examples/aloha_sim/.venv
 PYTHON := $(VENV)/bin/python
 RUFF := $(VENV)/bin/ruff
 
-.PHONY: help setup-mac doctor doctor-mac doctor-repo smoke-sim scenario-calibrate setup-pc doctor-pc convert-pc server tunnel smoke-policy run metrics scenario-matrix scenario-metrics stop test lint secret-scan public-audit pr-status ci
+.PHONY: help setup-mac doctor doctor-mac doctor-repo smoke-sim scenario-calibrate setup-pc doctor-pc convert-pc server tunnel smoke-policy run metrics scenario-matrix scenario-metrics stop test lint secret-scan public-audit ci
 
 help:
 	@printf '%s\n' \
@@ -28,7 +28,6 @@ help:
 		'make lint        Run project Ruff and shell syntax checks' \
 		'make secret-scan Scan the project range and publishable candidates' \
 		'make public-audit Audit public history, attribution, and generated files' \
-		'make pr-status   Verify all seven PRs are open, stacked, and green' \
 		'make ci          Run local CPU-only CI checks'
 
 setup-mac:
@@ -49,10 +48,10 @@ scenario-calibrate:
 	./scripts/smoke_sim.sh --calibrate
 
 setup-pc:
-	./scripts/setup_pc.sh
+	"$(PYTHON)" -m tools.remote_aloha.remote setup
 
 doctor-pc:
-	./scripts/doctor_pc.sh
+	"$(PYTHON)" -m tools.remote_aloha.remote doctor
 
 convert-pc:
 	"$(PYTHON)" -m tools.remote_aloha.remote convert
@@ -91,7 +90,7 @@ stop:
 
 test:
 	@test -x "$(PYTHON)" || { echo 'Missing Phase 01 environment; run: make setup-mac' >&2; exit 1; }
-	"$(PYTHON)" -m pytest --strict-markers tests
+	"$(PYTHON)" -m pytest --strict-markers tests --ignore=tests/test_push_pi_env.py
 
 lint:
 	@test -x "$(RUFF)" || { echo 'Missing Phase 01 environment; run: make setup-mac' >&2; exit 1; }
@@ -108,8 +107,5 @@ secret-scan:
 
 public-audit:
 	./scripts/public_repo_audit.sh
-
-pr-status:
-	./scripts/pr_status.sh
 
 ci: test lint

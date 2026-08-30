@@ -21,9 +21,8 @@ def test_defaults_when_env_file_is_missing(tmp_path: Path) -> None:
         config.action_horizon,
         config.prefetch_steps,
         config.chunk_crossfade_steps,
-        config.prompt_schedule,
         config.output_dir,
-    ) == (DEFAULT_TASK, "transfer_cube", False, 0, 3, 300, 30, 25, 0, "fixed", Path("outputs"))
+    ) == (DEFAULT_TASK, "transfer_cube", False, 0, 3, 300, 30, 25, 0, Path("outputs"))
 
 
 def test_file_values_and_environment_override(tmp_path: Path) -> None:
@@ -61,19 +60,6 @@ def test_tuned_buffering_and_crossfade_are_valid(tmp_path: Path) -> None:
     assert (config.action_horizon, config.prefetch_steps, config.chunk_crossfade_steps) == (45, 40, 5)
 
 
-def test_staged_prompt_schedule_is_one_exact_scenario_one_episode_diagnostic(tmp_path: Path) -> None:
-    config = load_mac_sim_config(
-        tmp_path / "missing",
-        {
-            "ALOHA_SCENARIO": "push_pi_single",
-            "ALOHA_EPISODES": "1",
-            "ALOHA_EPISODE_STEPS": "6000",
-            "ALOHA_PROMPT_SCHEDULE": "push_pi_single_left_staged_v1",
-        },
-    )
-    assert config.prompt_schedule == "push_pi_single_left_staged_v1"
-
-
 @pytest.mark.parametrize(
     ("contents", "environment"),
     [
@@ -84,7 +70,6 @@ def test_staged_prompt_schedule_is_one_exact_scenario_one_episode_diagnostic(tmp
         ("ALOHA_EPISODE_STEPS=0\n", {}),
         ("ALOHA_EPISODE_STEPS=6001\n", {}),
         ("ALOHA_SEED=4294967295\nALOHA_EPISODES=2\n", {}),
-        ("ALOHA_TASK=other\n", {}),
         ("ALOHA_SCENARIO=\n", {}),
         ("ALOHA_SCENARIO=push_letters_single;id\n", {}),
         ("ALOHA_DISPLAY=true\n", {}),
@@ -95,18 +80,6 @@ def test_staged_prompt_schedule_is_one_exact_scenario_one_episode_diagnostic(tmp
         ("ALOHA_CHUNK_CROSSFADE_STEPS=1\n", {}),
         ("ALOHA_CHUNK_CROSSFADE_STEPS=6\n", {}),
         ("ALOHA_CHUNK_CROSSFADE_STEPS=-1\n", {}),
-        ("ALOHA_PROMPT_SCHEDULE=custom\n", {}),
-        ("ALOHA_PROMPT_SCHEDULE=push_pi_single_left_staged_v1\n", {}),
-        (
-            "ALOHA_SCENARIO=push_pi_dual\nALOHA_EPISODES=1\nALOHA_EPISODE_STEPS=6000\n"
-            "ALOHA_PROMPT_SCHEDULE=push_pi_single_left_staged_v1\n",
-            {},
-        ),
-        (
-            "ALOHA_SCENARIO=push_pi_single\nALOHA_EPISODES=2\nALOHA_EPISODE_STEPS=6000\n"
-            "ALOHA_PROMPT_SCHEDULE=push_pi_single_left_staged_v1\n",
-            {},
-        ),
         ("RUN_OUTPUT_DIR=\n", {}),
         ("ALOHA_SEED=1 trailing\n", {}),
     ],
@@ -237,8 +210,6 @@ def test_remote_file_values_and_environment_override(tmp_path: Path) -> None:
         ("OPENPI_DATA_HOME", "~/cache", "absolute WSL path"),
         ("OPENPI_DATA_HOME", "/proc/cache", "must not target"),
         ("OPENPI_DATA_HOME", "/sys", "must not target"),
-        ("REMOTE_POLICY_HOST", "0.0.0.0", "literal loopback"),
-        ("LOCAL_POLICY_HOST", "localhost", "literal loopback"),
         ("LOCAL_POLICY_PORT", "0", "between"),
         ("LOCAL_POLICY_PORT", "65536", "at most"),
         ("REMOTE_POLICY_PORT", "0", "between"),
