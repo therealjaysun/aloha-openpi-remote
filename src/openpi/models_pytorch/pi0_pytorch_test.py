@@ -3,58 +3,8 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from openpi.models.pi0_config import Pi0Config
-import openpi.models_pytorch.pi0_pytorch as pi0_pytorch
 from openpi.models_pytorch.pi0_pytorch import PI0Pytorch
 from openpi.models_pytorch.pi0_pytorch import make_att_2d_masks
-
-
-def test_pi05_compile_wraps_only_the_denoise_step(monkeypatch):
-    calls = []
-
-    class PaliGemma(torch.nn.Module):
-        pass
-
-    def compiled(*_args, **_kwargs):
-        return None
-
-    def compile_step(function, **kwargs):
-        calls.append((function, kwargs))
-        return compiled
-
-    monkeypatch.setattr(
-        pi0_pytorch._gemma,  # noqa: SLF001
-        "get_config",
-        lambda _variant: SimpleNamespace(width=4),
-    )
-    monkeypatch.setattr(pi0_pytorch, "PaliGemmaWithExpertModel", lambda *_args, **_kwargs: PaliGemma())
-    monkeypatch.setattr(torch, "compile", compile_step)
-    config = SimpleNamespace(
-        pi05=True,
-        paligemma_variant="gemma_2b",
-        action_expert_variant="gemma_300m",
-        dtype="bfloat16",
-        action_dim=2,
-        pytorch_compile_mode=None,
-        pytorch_denoise_compile_mode="default",
-    )
-
-    model = PI0Pytorch(config)
-
-    assert len(calls) == 1
-    assert calls[0][0].__self__ is model
-    assert calls[0][0].__func__ is PI0Pytorch.denoise_step
-    assert calls[0][1] == {"backend": "inductor", "mode": "default", "fullgraph": True, "dynamic": False}
-    assert model._compiled_denoise_step is compiled  # noqa: SLF001
-
-
-def test_pi05_denoise_compile_requires_whole_sampler_eager():
-    with pytest.raises(AssertionError):
-        Pi0Config(pi05=True, pytorch_denoise_compile_mode="default")
-    assert (
-        Pi0Config(pi05=True, pytorch_compile_mode=None, pytorch_denoise_compile_mode="default").pytorch_compile_mode
-        is None
-    )
 
 
 def test_pi05_sampler_uses_exact_bounded_loop_and_reuses_denoise_inputs():
@@ -85,15 +35,11 @@ def test_pi05_sampler_uses_exact_bounded_loop_and_reuses_denoise_inputs():
 
     calls = []
 
-    def compiled_step(_state, _prefix_masks, cache, x_t, timestep, **prepared):
+    def denoise_step(_state, _prefix_masks, cache, x_t, timestep, **prepared):
         calls.append((timestep.clone(), prepared, cache, torch.is_inference_mode_enabled()))
         return x_t * 0.1 + timestep[:, None, None]
 
-    def eager_step(*_args, **_kwargs):
-        raise AssertionError("compiled dispatch unexpectedly used the eager denoise step")
-
-    model.denoise_step = eager_step
-    model._compiled_denoise_step = compiled_step  # noqa: SLF001
+    model.denoise_step = denoise_step
     observation = SimpleNamespace(state=state)
     noise = torch.zeros((1, 4, 2))
     actual = model.sample_actions("cpu", observation, noise=noise, num_steps=4)
@@ -135,8 +81,6 @@ def test_pi05_sampler_uses_exact_bounded_loop_and_reuses_denoise_inputs():
             model.sample_actions("cpu", observation, noise=noise, num_steps=invalid)
 
     calls.clear()
-    model.denoise_step = compiled_step
-    model._compiled_denoise_step = None  # noqa: SLF001
     model.sample_actions("cpu", observation, noise=noise)
     assert len(calls) == 10
 

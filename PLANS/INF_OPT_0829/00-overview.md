@@ -169,14 +169,7 @@ Test PyTorch SDPA independently for SigLIP, Gemma prefix attention, and the acti
 
 ### S5 — Compile only the stable denoise step
 
-After S1, test `torch.compile(..., backend="inductor", mode="default", fullgraph=True, dynamic=False)` only on the π₀.₅ denoise step that receives precomputed masks and positions. Use a separate disabled-by-default selector; keep the existing whole-sampler compile setting disabled and do not change π₀ behavior.
-
-**Matched eager baseline:** Exact candidate `9b06ff2`, fixed observation/noise, 5+50 requests: action digest `38f302fd…`, server p95 385.43 ms, denoise p95 235.12 ms. Retention must also beat the stronger prior S1 server p95 of 360.72 ms.
-
-1. Give the trial a fresh ignored Inductor cache and private Dynamo graph-break/recompile logs.
-2. Treat the first captured-observation request as compile-inclusive cold time; the remaining four warmups precede the 50 measured requests. Do not build startup-warm plumbing unless this first candidate passes parity, graph, memory, and speed gates.
-3. If it passes, add two deterministic shape-identical warm requests before production readiness: one cold compile and one new-cache reuse check. Report cold wall time, RAM, and CUDA peaks separately.
-4. Reject any graph break, recompile, fallback, OOM, cache adapter/refactor need, or action error above the declared `1e-5` limit.
+After S1, test `torch.compile(..., mode="default")` on the fixed-shape denoise step. Warm it before readiness and retain explicit eager selection. Do not retry the previously failing whole-sampler `max-autotune` path.
 
 **Keep only if:** Cold compile time/memory are reported separately; there is no OOM, graph churn, or silent eager fallback; warmed p95 passes.
 

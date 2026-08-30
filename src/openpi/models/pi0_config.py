@@ -1,5 +1,5 @@
 import dataclasses
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import flax.nnx as nnx
 import jax
@@ -33,7 +33,6 @@ class Pi0Config(_model.BaseModelConfig):
     discrete_state_input: bool = None  # type: ignore
 
     pytorch_compile_mode: str | None = "max-autotune"
-    pytorch_denoise_compile_mode: Literal["default"] | None = None
 
     def __post_init__(self):
         if self.max_token_len is None:
@@ -47,10 +46,6 @@ class Pi0Config(_model.BaseModelConfig):
                 "max-autotune",
                 "max-autotune-no-cudagraphs",
             ]
-        if self.pytorch_denoise_compile_mode is not None:
-            assert self.pi05
-            assert self.pytorch_denoise_compile_mode == "default"
-            assert self.pytorch_compile_mode is None
 
     @property
     @override
