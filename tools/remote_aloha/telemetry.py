@@ -31,10 +31,14 @@ _PACKAGE_NAMES = {
     "gymnasium",
     "imageio",
     "imageio-ffmpeg",
+    "libero",
     "matplotlib",
     "mujoco",
     "numpy",
+    "robosuite",
 }
+_LIBERO_TASK_TO_SCENARIO = {"libero/push_pi": "push_pi", "libero/push_p_i": "push_p_i"}
+_LIBERO_CAMERA_VIEWS = ["agentview", "eye_in_hand"]
 
 _PUBLISHABLE_METADATA = {
     "action_horizon",
@@ -411,16 +415,22 @@ def _valid_publishable_metadata(metadata: Mapping[str, object]) -> dict[str, obj
         raise ValueError("publishable telemetry checkpoint label is invalid")
     task = result.get("task")
     scenario = result.get("scenario")
+    libero_profile = profile == "pi05_libero"
     if (task is None) != (scenario is None):
         raise ValueError("publishable telemetry task and scenario must be provided together")
-    if task is not None and task not in TASK_TO_SCENARIO:
+    task_to_scenario = {**TASK_TO_SCENARIO, **_LIBERO_TASK_TO_SCENARIO}
+    if task is not None and task not in task_to_scenario:
         raise ValueError("publishable telemetry task is invalid")
-    if scenario is not None and scenario not in SCENARIOS:
+    if task is not None and (task in _LIBERO_TASK_TO_SCENARIO) != libero_profile:
+        raise ValueError("publishable telemetry task does not match the model profile")
+    if scenario is not None and scenario not in {*SCENARIOS, *_LIBERO_TASK_TO_SCENARIO.values()}:
         raise ValueError("publishable telemetry scenario is invalid")
-    if task is not None and scenario is not None and TASK_TO_SCENARIO[task] != scenario:
+    if task is not None and scenario is not None and task_to_scenario[task] != scenario:
         raise ValueError("publishable telemetry scenario/task pair is invalid")
     scene_id = result.get("scene_hash")
-    custom = scenario is not None and SCENARIOS[str(scenario)].is_custom
+    custom = scenario in _LIBERO_TASK_TO_SCENARIO.values() or (
+        scenario is not None and SCENARIOS[str(scenario)].is_custom
+    )
     if custom and (not isinstance(scene_id, str) or not re.fullmatch(r"[0-9a-f]{64}", scene_id)):
         raise ValueError("publishable telemetry custom scenario hash is invalid")
     if not custom and scene_id is not None:
@@ -432,14 +442,16 @@ def _valid_publishable_metadata(metadata: Mapping[str, object]) -> dict[str, obj
         raise ValueError("publishable stock telemetry must not define area coverage")
     for key in ("action_horizon", "model_action_horizon", "prefetch_steps"):
         value = result.get(key)
-        if value is not None and (isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 50):
+        minimum = 0 if key == "prefetch_steps" and profile == "pi05_libero" else 1
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= 50):
             raise ValueError(f"publishable telemetry {key} is invalid")
     crossfade_steps = result.get("chunk_crossfade_steps")
     if crossfade_steps is not None and (
         isinstance(crossfade_steps, bool) or not isinstance(crossfade_steps, int) or crossfade_steps not in {0, 5}
     ):
         raise ValueError("publishable telemetry chunk_crossfade_steps is invalid")
-    if "camera_views" in result and result["camera_views"] != ["cam_high", "cam_left_wrist", "cam_right_wrist"]:
+    expected_cameras = _LIBERO_CAMERA_VIEWS if libero_profile else ["cam_high", "cam_left_wrist", "cam_right_wrist"]
+    if "camera_views" in result and result["camera_views"] != expected_cameras:
         raise ValueError("publishable telemetry camera views are invalid")
     seeds = result.get("seeds")
     if seeds is not None and (
@@ -461,7 +473,7 @@ def _valid_publishable_metadata(metadata: Mapping[str, object]) -> dict[str, obj
     return result
 
 
-def _valid_publishable_result(result: Mapping[str, object]) -> dict[str, object]:
+def _valid_publishable_result(result: Mapping[str, object], profile: str) -> dict[str, object]:
     safe = {key: result[key] for key in _PUBLISHABLE_RESULTS if key in result}
     for key in (
         "episodes",
@@ -494,8 +506,9 @@ def _valid_publishable_result(result: Mapping[str, object]) -> dict[str, object]
         value = safe.get(key)
         if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
             raise ValueError(f"publishable result {key} is invalid")
-    if safe.get("trajectory_joint_count") not in {None, 14}:
-        raise ValueError("publishable trajectory joint count must be 14")
+    expected_joint_count = 7 if profile == "pi05_libero" else 14
+    if safe.get("trajectory_joint_count") not in {None, expected_joint_count}:
+        raise ValueError("publishable trajectory joint count does not match the model profile")
     sample_count = safe.get("trajectory_sample_count")
     steps_applied = safe.get("steps_applied")
     if sample_count is not None and steps_applied is not None and sample_count != steps_applied:
@@ -695,11 +708,12 @@ def publishable_summary(summary: Mapping[str, object]) -> dict[str, object]:
         or coverage < 0
     ):
         raise ValueError("publishable telemetry step coverage is invalid")
+    safe_metadata = _valid_publishable_metadata(metadata)
     return {
         "schema": 1,
         "status": status,
-        "metadata": _valid_publishable_metadata(metadata),
-        "result": _valid_publishable_result(result),
+        "metadata": safe_metadata,
+        "result": _valid_publishable_result(result, str(safe_metadata["profile"])),
         "event_count": event_count,
         "event_counts": safe_event_counts,
         "metrics": _valid_publishable_metrics(metrics),

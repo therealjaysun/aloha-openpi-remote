@@ -779,6 +779,72 @@ def test_video_saver_publishes_atomically_and_finalizes_once(tmp_path: Path, mon
     assert not list(tmp_path.glob("*.tmp"))
 
 
+def test_video_saver_streams_two_camera_frames_at_configured_fps(tmp_path: Path, monkeypatch) -> None:
+    frames = []
+    configured = []
+
+    class Writer:
+        def __init__(self, path: Path) -> None:
+            self.path = Path(path)
+
+        def append_data(self, frame: np.ndarray) -> None:
+            frames.append(frame.copy())
+
+        def close(self) -> None:
+            self.path.write_bytes(b"video")
+
+    def get_writer(path: Path, *, fps: int) -> Writer:
+        configured.append(fps)
+        return Writer(path)
+
+    monkeypatch.setattr("examples.aloha_sim.saver.imageio.get_writer", get_writer)
+    saver = VideoSaver(
+        tmp_path,
+        filename="episode.mp4",
+        camera_views=("agentview", "eye_in_hand"),
+        fps=20,
+        streaming=True,
+    )
+    saver.on_episode_start()
+    saver.on_step(
+        {
+            "images": {
+                "agentview": np.zeros((3, 224, 224), dtype=np.uint8),
+                "eye_in_hand": np.ones((3, 224, 224), dtype=np.uint8),
+            }
+        },
+        {},
+    )
+    saver.on_episode_end()
+    saver.on_episode_end()
+    assert configured == [20]
+    assert saver.frame_count == 1
+    assert frames[0].shape == (224, 448, 3)
+    assert saver.output_path == tmp_path / "episode.mp4"
+    assert saver.output_path.read_bytes() == b"video"
+
+
+def test_streaming_video_cleans_up_writer_after_first_frame_failure(tmp_path: Path, monkeypatch) -> None:
+    closed = []
+
+    class Writer:
+        def append_data(self, _: np.ndarray) -> None:
+            raise OSError("encode failed")
+
+        def close(self) -> None:
+            closed.append(True)
+
+    monkeypatch.setattr("examples.aloha_sim.saver.imageio.get_writer", lambda *_args, **_kwargs: Writer())
+    saver = VideoSaver(tmp_path, filename="episode.mp4", streaming=True)
+    saver.on_episode_start()
+    with pytest.raises(OSError, match="encode failed"):
+        saver.on_step({"images": {"cam_high": np.zeros((3, 224, 224), dtype=np.uint8)}}, {})
+    with pytest.raises(ValueError, match="without frames"):
+        saver.on_episode_end()
+    assert closed == [True]
+    assert not list(tmp_path.iterdir())
+
+
 def test_control_error_preserves_exact_partial_step_count() -> None:
     class Environment:
         def reset(self, *, seed: int):

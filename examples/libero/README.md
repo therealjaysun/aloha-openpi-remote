@@ -15,11 +15,17 @@ python examples/libero/main.py --args.scenario push_p_i --args.smoke
 # 30-second (600-action) runs; 30 seconds is the default
 python examples/libero/main.py --args.scenario push_pi
 python examples/libero/main.py --args.scenario push_p_i
+
+# Five-minute caps (6,000 actions)
+python examples/libero/main.py --args.scenario push_pi --args.duration-seconds 300
+python examples/libero/main.py --args.scenario push_p_i --args.duration-seconds 300
 ```
 
-The 10 initial stabilization actions are outside those durations. Videos and JSON summaries are written under
-`data/libero/videos`. The official `pi05_libero` checkpoint is trained on standard LIBERO tasks, so these custom
-runs are out-of-distribution behavior tests and may correctly report no task success.
+The 10 initial stabilization actions are outside those durations. Each run uses the established
+`outputs/libero_0829/<UTC>/pi05_libero/<scenario>/seed-<seed>/` layout with a two-camera video, raw and safe
+telemetry, actual Panda joint trace, policy observation, manifest, GPU/server evidence, and JSON/Markdown summaries.
+The official `pi05_libero` checkpoint is trained on standard LIBERO tasks, so these custom runs are
+out-of-distribution behavior tests and may correctly report no task success.
 
 The existing optimized remote server accepts the LIBERO profile:
 

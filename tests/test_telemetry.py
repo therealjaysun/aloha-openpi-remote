@@ -291,6 +291,99 @@ def test_publishable_custom_scenario_keeps_safe_identity_counts_and_omits_privat
     assert "desktop-name" not in encoded
 
 
+def test_publishable_libero_summary_keeps_two_cameras_and_seven_joint_trace() -> None:
+    raw = aggregate_events(
+        [
+            _event(
+                "metadata",
+                1,
+                profile="pi05_libero",
+                checkpoint_label="pi05_libero",
+                run_id="c" * 32,
+                task="libero/push_pi",
+                scenario="push_pi",
+                scene_hash="d" * 64,
+                target_area_coverage_method="exact-planar-union-v1",
+                camera_views=["agentview", "eye_in_hand"],
+                action_horizon=5,
+                model_action_horizon=10,
+                prefetch_steps=0,
+                package_versions={"libero": "0.1.0", "robosuite": "1.4.1"},
+            ),
+            _event(
+                "terminal",
+                2,
+                status="complete",
+                episodes=1,
+                infrastructure_pass=True,
+                steps_applied=6000,
+                trajectory_sample_count=6000,
+                trajectory_joint_count=7,
+                trajectory_step_coverage=1.0,
+                trajectory_plot_status="passed",
+                trajectory_plot_id="run-seed-0-joint-trajectory",
+                video_ids=["run-seed-0"],
+                videos_passed=1,
+                coverage_sample_count=6000,
+            ),
+        ]
+    )
+    public = publishable_summary(raw)
+    assert public["metadata"]["task"] == "libero/push_pi"
+    assert public["metadata"]["camera_views"] == ["agentview", "eye_in_hand"]
+    assert public["metadata"]["prefetch_steps"] == 0
+    assert public["result"]["trajectory_joint_count"] == 7
+
+
+@pytest.mark.parametrize(
+    ("profile", "checkpoint", "task", "scenario", "cameras", "joints"),
+    [
+        (
+            "pi05_aloha_base",
+            "pi05_base",
+            "libero/push_pi",
+            "push_pi",
+            ["agentview", "eye_in_hand"],
+            7,
+        ),
+        (
+            "pi05_libero",
+            "pi05_libero",
+            "pi_robotics/PushPiSingleArm-v0",
+            "push_pi_single",
+            ["cam_high", "cam_left_wrist", "cam_right_wrist"],
+            14,
+        ),
+    ],
+)
+def test_publishable_summary_rejects_cross_profile_telemetry_dialects(
+    profile: str,
+    checkpoint: str,
+    task: str,
+    scenario: str,
+    cameras: list[str],
+    joints: int,
+) -> None:
+    raw = aggregate_events(
+        [
+            _event(
+                "metadata",
+                1,
+                profile=profile,
+                checkpoint_label=checkpoint,
+                task=task,
+                scenario=scenario,
+                scene_hash="d" * 64,
+                target_area_coverage_method="exact-planar-union-v1",
+                camera_views=cameras,
+            ),
+            _event("terminal", 2, status="complete", trajectory_joint_count=joints),
+        ]
+    )
+    with pytest.raises(ValueError, match="profile"):
+        publishable_summary(raw)
+
+
 @pytest.mark.parametrize(
     ("task", "scenario", "scene_hash"),
     [

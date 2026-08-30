@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import pathlib
 import re
 import tempfile
@@ -219,11 +220,21 @@ def create_env(scenario: str, *, resolution: int, seed: int, horizon: int):
     return env, prompt
 
 
+def scenario_hash(scenario: str) -> str:
+    try:
+        bddl = _BDDL[scenario]
+    except KeyError as error:
+        raise ValueError(f"scenario must be one of: {', '.join(SCENARIOS)}") from error
+    return hashlib.sha256(bddl.encode()).hexdigest()
+
+
 def self_check() -> None:
     assert set(SCENARIOS) == {"push_pi", "push_p_i"}
     assert CONTROL_HZ * 6 == 120
     assert CONTROL_HZ * 30 == 600
+    assert CONTROL_HZ * 300 == 6000
     assert all(target_outline_points(body) for body in (PI_BODY, P_BODY, I_BODY))
+    assert all(len(scenario_hash(name)) == 64 for name in SCENARIOS)
 
 
 if __name__ == "__main__":

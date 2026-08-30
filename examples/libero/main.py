@@ -4,7 +4,6 @@ import json
 import logging
 import math
 import pathlib
-import time
 
 import imageio
 from libero.libero.envs import OffScreenRenderEnv
@@ -44,6 +43,7 @@ class Args:
     # Utils
     #################################################################################################################
     video_out_path: str = "data/libero/videos"  # Path to save videos
+    output_dir: str = "outputs"  # Project scenario telemetry root; matches the existing scenario runner.
 
     seed: int = 7  # Random Seed (for reproducibility)
 
@@ -190,75 +190,26 @@ def _policy_element(obs, prompt: str, resize_size: int):
 def _eval_push_pi(args: Args) -> None:
     from examples.libero.push_pi_env import CONTROL_HZ
     from examples.libero.push_pi_env import create_env
+    from examples.libero.push_pi_env import scenario_hash
+    from tools.remote_aloha.libero_run import run_scenario
 
-    seconds = 6 if args.smoke else args.duration_seconds
-    if not 1 <= seconds <= 300:
-        raise ValueError("duration_seconds must be between 1 and 300")
-    policy_steps = seconds * CONTROL_HZ
-    env, prompt = create_env(
-        args.scenario,
-        resolution=LIBERO_ENV_RESOLUTION,
+    result = run_scenario(
+        scenario=args.scenario,
+        duration_seconds=args.duration_seconds,
+        smoke=args.smoke,
         seed=args.seed,
-        horizon=policy_steps + args.num_steps_wait + 1,
+        settle_steps=args.num_steps_wait,
+        resize_size=args.resize_size,
+        replan_steps=args.replan_steps,
+        output_dir=args.output_dir,
+        host=args.host,
+        port=args.port,
+        control_hz=CONTROL_HZ,
+        dummy_action=LIBERO_DUMMY_ACTION,
+        create_env=create_env,
+        policy_element=_policy_element,
+        scene_hash=scenario_hash(args.scenario),
     )
-    client = _websocket_client_policy.WebsocketClientPolicy(args.host, args.port)
-    output = pathlib.Path(args.video_out_path)
-    output.mkdir(parents=True, exist_ok=True)
-    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    video_path = output / f"{stamp}_{args.scenario}_{seconds}s.mp4"
-    result_path = video_path.with_suffix(".json")
-    action_plan = collections.deque()
-    frames = []
-    latencies_ms = []
-    sticky_success = False
-    best_coverage = 0.0
-    final_coverage = {}
-    try:
-        obs = env.reset()
-        for _ in range(args.num_steps_wait):
-            obs, _, _, _ = env.step(LIBERO_DUMMY_ACTION)
-        for _ in tqdm.tqdm(range(policy_steps), desc=args.scenario):
-            element, image = _policy_element(obs, prompt, args.resize_size)
-            frames.append(image)
-            if not action_plan:
-                started = time.perf_counter_ns()
-                action_chunk = np.asarray(client.infer(element)["actions"])
-                latencies_ms.append((time.perf_counter_ns() - started) / 1_000_000)
-                if action_chunk.ndim != 2 or action_chunk.shape[1] != 7 or len(action_chunk) < args.replan_steps:
-                    raise ValueError("LIBERO policy actions must be a finite chunk with shape (N, 7)")
-                if not np.issubdtype(action_chunk.dtype, np.floating) or not np.isfinite(action_chunk).all():
-                    raise ValueError("LIBERO policy actions must be finite floating values")
-                action_plan.extend(action_chunk[: args.replan_steps])
-            action = np.asarray(action_plan.popleft())
-            if action.shape != (7,) or not np.isfinite(action).all():
-                raise ValueError("applied LIBERO action must be finite with shape (7,)")
-            obs, _, done, _ = env.step(action.tolist())
-            final_coverage = env.env.coverage()
-            best_coverage = max(best_coverage, final_coverage["overall"])
-            sticky_success = sticky_success or bool(done)
-    finally:
-        client.close()
-        env.close()
-
-    imageio.mimwrite(video_path, frames, fps=CONTROL_HZ)
-    result = {
-        "scenario": args.scenario,
-        "seed": args.seed,
-        "policy_steps": len(frames),
-        "policy_seconds": len(frames) / CONTROL_HZ,
-        "control_hz": CONTROL_HZ,
-        "settle_steps": args.num_steps_wait,
-        "success": sticky_success,
-        "best_coverage": best_coverage,
-        "final_coverage": final_coverage,
-        "policy_requests": len(latencies_ms),
-        "policy_latency_ms": {
-            "mean": float(np.mean(latencies_ms)),
-            "p95": float(np.percentile(latencies_ms, 95)),
-        },
-        "video": str(video_path),
-    }
-    result_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(result, sort_keys=True))
 
 

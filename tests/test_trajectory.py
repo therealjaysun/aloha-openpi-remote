@@ -89,6 +89,39 @@ def test_valid_interrupted_episode_keeps_exact_partial_coverage(tmp_path: Path) 
     assert plotted["sample_count"] == 2
 
 
+def test_libero_actual_only_joint_trace_uses_panda_limits(tmp_path: Path) -> None:
+    limits = tuple((f"joint{index}", -3.0, 3.0) for index in range(1, 8))
+    events = [
+        {
+            "schema": 1,
+            "event": "step",
+            "step": 0,
+            "applied_step": 1,
+            "elapsed_seconds": 0.05,
+            "actual_joint_positions": [0.0] * 7,
+            "osc_action": [0.0] * 7,
+        }
+    ]
+    result = trajectory.write_trajectory_plot(
+        events,
+        1,
+        tmp_path / "libero.png",
+        "libero-seed-0-joints",
+        joint_limits=limits,
+        title="LIBERO Panda joint trajectory",
+        footnote="Actual joints only.",
+    )
+    assert result == {
+        "sample_count": 1,
+        "joint_count": 7,
+        "step_coverage": 1.0,
+        "plot_status": "passed",
+        "plot_id": "libero-seed-0-joints",
+        "actual_series_count": 7,
+        "commanded_series_count": 0,
+    }
+
+
 def test_normalization_uses_fixed_physical_limits_for_a_single_sample(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

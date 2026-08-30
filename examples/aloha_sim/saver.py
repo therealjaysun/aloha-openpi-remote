@@ -31,6 +31,9 @@ class VideoSaver(_subscriber.Subscriber):
         subsample: int = 1,
         filename: str | None = None,
         camera_views: tuple[str, ...] = ("cam_high",),
+        *,
+        fps: int = 50,
+        streaming: bool = False,
     ) -> None:
         out_dir.mkdir(parents=True, exist_ok=True)
         self._out_dir = out_dir
@@ -38,31 +41,68 @@ class VideoSaver(_subscriber.Subscriber):
         self._subsample = subsample
         self._filename = filename
         self._camera_views = camera_views
+        self._fps = fps
+        self._streaming = streaming
         self._finalized = False
+        self._writer = None
+        self._temporary: pathlib.Path | None = None
+        self._streamed_frames = 0
         self.output_path: pathlib.Path | None = None
 
     @property
     def frame_count(self) -> int:
-        return len(self._images)
+        return self._streamed_frames if self._streaming else len(self._images)
 
     @override
     def on_episode_start(self) -> None:
         self._images = []
         self._finalized = False
+        self._writer = None
+        self._temporary = None
+        self._streamed_frames = 0
         self.output_path = None
 
     @override
     def on_step(self, observation: dict, action: dict) -> None:
         del action
-        self._images.append(_horizontal_camera_strip(observation, self._camera_views))
+        frame = _horizontal_camera_strip(observation, self._camera_views)
+        if not self._streaming:
+            self._images.append(frame)
+            return
+        if self._writer is None:
+            existing = list(self._out_dir.glob("out_[0-9]*.mp4"))
+            next_idx = max([int(p.stem.split("_")[1]) for p in existing], default=-1) + 1
+            self.output_path = self._out_dir / (self._filename or f"out_{next_idx}.mp4")
+            with tempfile.NamedTemporaryFile(suffix=".mp4", dir=self._out_dir, delete=False) as stream:
+                self._temporary = pathlib.Path(stream.name)
+            self._writer = imageio.get_writer(self._temporary, fps=self._fps)
+        self._writer.append_data(frame)
+        self._streamed_frames += 1
 
     @override
     def on_episode_end(self) -> None:
         if self._finalized:
             return
         self._finalized = True
-        if not self._images:
+        if not self.frame_count:
+            if self._streaming:
+                try:
+                    if self._writer is not None:
+                        self._writer.close()
+                finally:
+                    if self._temporary is not None:
+                        self._temporary.unlink(missing_ok=True)
+                    self._writer = self._temporary = None
             raise ValueError("cannot save an episode video without frames")
+        if self._streaming:
+            try:
+                self._writer.close()
+                os.replace(self._temporary, self.output_path)
+            finally:
+                if self._temporary is not None:
+                    self._temporary.unlink(missing_ok=True)
+                self._writer = self._temporary = None
+            return
         existing = list(self._out_dir.glob("out_[0-9]*.mp4"))
         next_idx = max([int(p.stem.split("_")[1]) for p in existing], default=-1) + 1
         out_path = self._out_dir / (self._filename or f"out_{next_idx}.mp4")
@@ -75,7 +115,7 @@ class VideoSaver(_subscriber.Subscriber):
             imageio.mimwrite(
                 temporary,
                 [np.asarray(x) for x in self._images[:: self._subsample]],
-                fps=50 // max(1, self._subsample),
+                fps=self._fps // max(1, self._subsample),
             )
             os.replace(temporary, out_path)
             self.output_path = out_path

@@ -207,6 +207,7 @@ def verify_video(
     path: Path,
     expected_frames: int,
     expected_shape: tuple[int, int, int] = (224, 224, 3),
+    expected_fps: float = EXPECTED_FPS,
 ) -> dict[str, Any]:
     import imageio.v2 as imageio
 
@@ -225,8 +226,8 @@ def verify_video(
     if first.shape != expected_shape or last.shape != first.shape:
         raise ValueError(f"video frames have invalid dimensions: {first.shape}, {last.shape}")
     fps = float(metadata.get("fps", 0.0))
-    if abs(fps - EXPECTED_FPS) > 0.1:
-        raise ValueError(f"video reports {fps} fps; expected {EXPECTED_FPS}")
+    if abs(fps - expected_fps) > 0.1:
+        raise ValueError(f"video reports {fps} fps; expected {expected_fps}")
     return {"bytes": path.stat().st_size, "fps": fps, "frames": frame_count, "shape": list(first.shape)}
 
 
