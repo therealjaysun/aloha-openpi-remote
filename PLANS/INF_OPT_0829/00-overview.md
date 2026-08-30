@@ -2,12 +2,12 @@
 
 ## Handoff
 
-- **Status:** S5B is retained by an explicit benefit-over-equivalence override; S6 was retried, rejected, and removed. Final hardware validation is being repeated after removing off-table early termination by user decision.
+- **Status:** Complete. S5B is retained by an explicit benefit-over-equivalence override; S6 was rejected and removed. Hardware-code candidate `5ea5446` completed the post-change rerun and all required outputs.
 - **Base candidate:** main after merged plan PR #9 (`3ebf8b017384e1e38ba97261d65a723966596b45`).
 - **Optimization scope:** `pi05_aloha_base` only. By user decision on 2026-08-29, do not run, benchmark, optimize, or qualify π₀. Keep existing π₀ support unchanged for compatibility.
-- **Order:** P0 clean baseline → implement B0 instrumentation plus disabled R1/R2 switches → B0 measurements → isolated R1/R2 trials → S1–S6 measured speed work → final hardware validation.
+- **Order:** P0 clean baseline → implement B0 instrumentation plus disabled R1/R2 switches → B0 measurements → isolated R1/R2 trials → S1–S6 measured speed work, including S5B → final hardware validation.
 - **Ownership:** One integrating agent owns shared files and final validation. Read-only agents may inspect independent candidates.
-- **PC boundary:** The PC is on S1 candidate `010bb9d`; the owned server and tunnel are stopped before the S5B/S6 candidate sync.
+- **PC boundary:** The PC hardware run used exact candidate `5ea5446`; the owned server/tunnel is stopped and the policy port is free.
 
 ## Objective
 
@@ -15,7 +15,7 @@
 2. Test whether a larger execution buffer reduces ordinary underruns.
 3. Reduce warmed model inference time on the RTX 3090 without changing checkpoints, cameras, image resolution, prompts, or the default ten denoising steps.
 
-R1 and R2 improve motion continuity or latency tolerance; they do **not** make an individual model inference faster. Only S1–S6 count as inference-speed work.
+R1 and R2 improve motion continuity or latency tolerance; they do **not** make an individual model inference faster. Only S1–S6, including the S5B retry, count as inference-speed work.
 
 ## Current evidence
 
@@ -42,7 +42,9 @@ Exact candidate `8faea85` completed B0 with one captured three-camera Scenario 2
 
 Retained S1 candidate `36bbf1a` preserved the same action digest in three 5+50 replays. Server-inference p95 was 373.51, 365.30, then 360.72 ms; the last two runs differ by 1.25% and improve on B0 by at least 20.5%. Their denoise p95 values were 228.01 and 229.55 ms.
 
-Exact retained hardware-code candidate `010bb9d` passed the four-call π₀.₅ smoke, then a 300-step combined episode and a 6,000-step/120-simulated-second Scenario 2 run. Both episodes preserved exact step/trajectory/video coverage, all 14 actual and commanded joint series, and three side-by-side cameras. The final run had server-inference p95 372.45 ms, denoise p95 235.87 ms, two underruns, and 32.32 active steps/s. It remained a task failure: target coverage stayed at 0%, with no contact or two-arm participation.
+Exact retained-S1 hardware candidate `010bb9d` passed the four-call π₀.₅ smoke, then a 300-step combined episode and a 6,000-step/120-simulated-second Scenario 2 run. Both episodes preserved exact step/trajectory/video coverage, all 14 actual and commanded joint series, and three side-by-side cameras. The final run had server-inference p95 372.45 ms, denoise p95 235.87 ms, two underruns, and 32.32 active steps/s. It remained a task failure: target coverage stayed at 0%, with no contact or two-arm participation.
+
+Final hardware-code candidate `5ea5446` retained S1+S5B and removed only off-table early termination. Its π₀.₅ Scenario 2 seed-0 post-change rerun completed 6,000/6,000 steps and continued beyond the former 2,137-step stop, but no off-table event recurred; a focused source-contract check locks the terminating reasons to success and fall. The run recorded 6,000 exact 14-joint actual/commanded samples, a passed trajectory plot, and a complete 120-second MP4 with all three camera views. Server-inference p50/p95 was 192.36/213.77 ms, denoise p95 was 81.78 ms, active rate was 33.79 steps/s, and no underrun occurred. Infrastructure passed, but task success remained false: coverage stayed at 0%, with no contact, lift, fall, or off-table event. The episode ended only at the configured time limit.
 
 ## Fixed constraints
 
@@ -213,9 +215,9 @@ Only if B0 shows material CPU/input-transfer cost, remove redundant `np.array` c
 3. **PC timing baseline — complete:** Exact `8faea85` synced; doctor/setup, captured three-camera observation, and tunneled fixed-noise 5+50 replay passed for π₀.₅.
 4. **Isolated runtime trials — complete:** Short matched baseline, R1, R2, and combined π₀.₅ runs are recorded above; no default is promoted yet.
 5. **Speed A/B — complete:** S1 passed strict equivalence; S2–S5 were rejected. S5B is retained by the documented benefit-over-equivalence override; the S6 retry was rejected and removed.
-6. **Combined smoke — repeat required:** `010bb9d` passed previously, but the retained S5B/S6 result must pass the same four-call π₀.₅ smoke and 300-step three-camera episode.
-7. **Final hardware run — repeat required:** The retained S5B run first ended at 2,137 steps when the piece left the table. After the explicit off-table-continuation change, repeat Scenario 2 seed 0 to the next valid terminal condition or 6,000-step limit.
-8. **Closeout:** Run exact-candidate local gates, stop the server/tunnel, confirm the policy port is free, and record the final PC SHA.
+6. **Combined smoke — complete:** Exact retained-S5B candidate `7ca073d` passed the four-call π₀.₅ smoke and 300-step three-camera episode with exact step/trajectory/video coverage.
+7. **Final hardware run — complete:** Exact hardware-code candidate `5ea5446` completed Scenario 2 seed 0 through the 6,000-step limit. The 14 actual and 14 commanded trajectory series and complete three-camera MP4 were inspected.
+8. **Closeout — complete:** Mac lint, format, shell, 461-test non-MuJoCo, secret, public, and diff gates passed; the focused off-table termination-contract check and ten WSL model/source tests passed. The MuJoCo test module remains excluded because its import hangs on both hosts; the 6,000-step production run validated the simulator path. The server/tunnel is stopped, the policy port is free, and the PC remains on hardware-code SHA `5ea5446`.
 
 ## Minimal file ownership
 
