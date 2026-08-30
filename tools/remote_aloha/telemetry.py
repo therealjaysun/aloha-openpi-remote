@@ -15,6 +15,7 @@ from typing import TextIO
 
 import numpy as np
 
+from tools.remote_aloha.config import POLICY_PROFILES
 from tools.remote_aloha.scenarios import SCENARIOS
 from tools.remote_aloha.scenarios import TARGET_AREA_COVERAGE_METHOD
 from tools.remote_aloha.scenarios import TASK_TO_SCENARIO
@@ -396,7 +397,7 @@ def aggregate_jsonl(path: str | Path) -> dict[str, object]:
 def _valid_publishable_metadata(metadata: Mapping[str, object]) -> dict[str, object]:
     result = {key: metadata[key] for key in _PUBLISHABLE_METADATA if key in metadata}
     profile = result.get("profile")
-    if profile not in {"pi0_aloha_sim", "pi05_aloha_base"}:
+    if not isinstance(profile, str) or profile not in POLICY_PROFILES:
         raise ValueError("publishable telemetry must name a safe model profile")
     for key in ("source_sha", "upstream_sha"):
         if key in result and (not isinstance(result[key], str) or not _SHA.fullmatch(result[key])):
@@ -405,7 +406,7 @@ def _valid_publishable_metadata(metadata: Mapping[str, object]) -> dict[str, obj
         not isinstance(result["run_id"], str) or not re.fullmatch(r"[0-9a-f]{32}", result["run_id"])
     ):
         raise ValueError("publishable telemetry run_id is invalid")
-    expected_checkpoint = "pi0_aloha_sim" if profile == "pi0_aloha_sim" else "pi05_base"
+    expected_checkpoint = POLICY_PROFILES[profile].checkpoint_label
     if "checkpoint_label" in result and result["checkpoint_label"] != expected_checkpoint:
         raise ValueError("publishable telemetry checkpoint label is invalid")
     task = result.get("task")

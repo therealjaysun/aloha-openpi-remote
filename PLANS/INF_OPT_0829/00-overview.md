@@ -56,6 +56,7 @@ Final hardware-code candidate `5ea5446` retained S1+S5B and removed only off-tab
 - Add no inference framework, dashboard, per-step network work, or new dependency.
 - Keep raw benchmarks, telemetry, plots, and videos ignored. Publishable summaries must remain free of machine IDs and absolute paths.
 - This local-only repository has no GitHub Actions workflows. Use local gates only.
+- Current checkpoint-comparison experiments run all four Push-PI scenarios for 6,000 steps each (120 simulated seconds); keep the 300-step acceptance-test default unchanged.
 
 ## Acceptance
 

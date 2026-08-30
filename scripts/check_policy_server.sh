@@ -9,7 +9,7 @@ expected_sha="${4-}"
 record="$repo_root/.runtime/server.json"
 python="$repo_root/.venv/bin/python"
 
-[[ "$profile" == pi0_aloha_sim || "$profile" == pi05_aloha_base ]] || { echo 'Invalid profile.' >&2; exit 1; }
+[[ "$profile" == pi0_aloha_sim || "$profile" == pi05_aloha_base || "$profile" == pi05_trossen_block_transfer ]] || { echo 'Invalid profile.' >&2; exit 1; }
 [[ "$host" == 127.0.0.1 ]] || { echo 'Policy listener must use loopback.' >&2; exit 1; }
 [[ "$port" =~ ^[0-9]+$ ]] && (( port >= 1 && port <= 65535 )) || { echo 'Invalid policy port.' >&2; exit 1; }
 [[ "$expected_sha" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid expected SHA.' >&2; exit 1; }

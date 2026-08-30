@@ -374,8 +374,9 @@ def validate_matrix(raw: object, *, require_gpu: bool = True, batch_root: Path |
         or matrix.get("cleanup_error") is not None
         or not isinstance(batch_id, str)
         or not _SAFE_ID.fullmatch(batch_id)
-        or profile not in {"pi0_aloha_sim", "pi05_aloha_base"}
-        or checkpoint != ("pi0_aloha_sim" if profile == "pi0_aloha_sim" else "pi05_base")
+        or not isinstance(profile, str)
+        or profile not in POLICY_PROFILES
+        or checkpoint != POLICY_PROFILES[profile].checkpoint_label
         or not isinstance(source_sha, str)
         or not _SHA.fullmatch(source_sha)
         or not isinstance(upstream_sha, str)

@@ -10,7 +10,7 @@ port="${4-}"
 inference_timeout="${5-}"
 expected_sha="${6-}"
 
-[[ "$profile" == pi0_aloha_sim || "$profile" == pi05_aloha_base ]] || { echo 'Invalid profile.' >&2; exit 1; }
+[[ "$profile" == pi0_aloha_sim || "$profile" == pi05_aloha_base || "$profile" == pi05_trossen_block_transfer ]] || { echo 'Invalid profile.' >&2; exit 1; }
 [[ "$backend" == jax || "$backend" == pytorch ]] || { echo 'Invalid backend.' >&2; exit 1; }
 [[ "$host" == 127.0.0.1 ]] || { echo 'Policy smoke requires loopback.' >&2; exit 1; }
 [[ "$port" =~ ^[0-9]+$ ]] && (( port >= 1 && port <= 65535 )) || { echo 'Invalid port.' >&2; exit 1; }

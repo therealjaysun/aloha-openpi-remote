@@ -38,11 +38,12 @@ def test_policy_server_host_and_gpu_metadata_patch_is_localized() -> None:
     assert '"action_dimension": 14' in source
 
 
-def test_wsl_start_wrapper_has_exact_two_profile_routes_and_loopback() -> None:
+def test_wsl_start_wrapper_has_exact_profile_routes_and_loopback() -> None:
     source = Path("scripts/start_policy_server.sh").read_text(encoding="utf-8")
     assert "pi0_aloha_sim)" in source
     assert "environment=ALOHA_SIM" in source
     assert "pi05_aloha_base)" in source
+    assert "pi05_trossen_block_transfer)" in source
     assert "environment=ALOHA" in source
     assert 'prompt=(--default-prompt="Transfer cube")' in source
     assert '[[ "$host" == 127.0.0.1 ]]' in source
@@ -131,6 +132,10 @@ def test_partial_bfloat16_converter_is_auto_selected_bounded_and_sharded() -> No
     assert "__ALOHA_REMOTE_EVIDENCE__" in wrapper
     assert "pi0_aloha_sim)" in wrapper
     assert "pi05_aloha_base)" in wrapper
+    assert "pi05_trossen_block_transfer)" in wrapper
+    assert "TrossenRoboticsCommunity/pi05-block-transfer-trossen-ai-openpi" in wrapper
+    assert "40aee785d8907e868976454a3ca51c76175f6d4c" in wrapper
+    assert 'allow_patterns=["params/**", "assets/**", "_CHECKPOINT_METADATA"]' in wrapper
     assert "eval" not in wrapper
     assert 'assets_source = pathlib.Path(checkpoint_dir) / "assets"' in converter
     assert '"restore_mode": "full-float32"' in converter

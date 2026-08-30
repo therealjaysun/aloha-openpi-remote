@@ -108,7 +108,7 @@ def run_policy_smoke(
         raise ValueError("captured observation and fixed noise seed must be provided together")
     capture_source_sha = None
     if observation_path is not None:
-        if profile_name != "pi05_aloha_base" or backend != "pytorch":
+        if not profile_name.startswith("pi05_") or backend != "pytorch":
             raise ValueError("fixed replay is limited to the π₀.₅ PyTorch profile")
         observation, capture_source_sha = _load_policy_observation(observation_path, profile_name)
     else:

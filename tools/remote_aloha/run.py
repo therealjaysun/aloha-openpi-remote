@@ -719,7 +719,7 @@ def _run_seed(
             emit=emit,
             capture_path=(
                 output_dir / "policy-observation.msgpack"
-                if remote_config.policy_profile.name == "pi05_aloha_base"
+                if remote_config.policy_profile.name.startswith("pi05_")
                 else None
             ),
         )

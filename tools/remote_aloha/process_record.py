@@ -16,6 +16,8 @@ import sys
 import tempfile
 import time
 
+from tools.remote_aloha.config import POLICY_PROFILES
+
 _SHA = re.compile(r"[0-9a-f]{40}\Z")
 _GATE = """import json, os, sys
 fd = int(sys.argv[1])
@@ -52,7 +54,7 @@ def _validate_record(record: ProcessRecord) -> None:
         raise RecordError("invalid process record identity")
     if not re.fullmatch(r"[0-9a-f]{64}", record.command_sha256):
         raise RecordError("invalid process command hash")
-    if record.profile not in {"pi0_aloha_sim", "pi05_aloha_base"} or not 1 <= record.port <= 65535:
+    if not isinstance(record.profile, str) or record.profile not in POLICY_PROFILES or not 1 <= record.port <= 65535:
         raise RecordError("invalid process profile or port")
     if not _SHA.fullmatch(record.source_sha):
         raise RecordError("invalid process source SHA")

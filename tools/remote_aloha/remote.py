@@ -18,6 +18,7 @@ import sys
 import time
 from typing import BinaryIO
 
+from tools.remote_aloha.config import POLICY_PROFILES
 from tools.remote_aloha.config import RemoteConfig
 from tools.remote_aloha.config import load_remote_config
 from tools.remote_aloha.sampler_record import SamplerRecordError
@@ -745,7 +746,8 @@ def _read_launch_receipt() -> dict[str, object] | None:
         or metadata.st_mode & 0o077
         or set(payload) != expected
         or payload.get("backend") not in {"jax", "pytorch"}
-        or payload.get("profile") not in {"pi0_aloha_sim", "pi05_aloha_base"}
+        or not isinstance(payload.get("profile"), str)
+        or payload.get("profile") not in POLICY_PROFILES
         or payload.get("route") not in _ROUTES
         or not isinstance(payload.get("ssh_alias"), str)
         or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", payload["ssh_alias"])

@@ -90,6 +90,11 @@ DEFAULT_CHECKPOINT: dict[EnvMode, Checkpoint] = {
 PROJECT_PROFILES = {
     "pi0_aloha_sim": (EnvMode.ALOHA_SIM, "pi0_aloha_sim", "pi0_aloha_sim"),
     "pi05_aloha_base": (EnvMode.ALOHA, "pi05_aloha", "pi05_base"),
+    "pi05_trossen_block_transfer": (
+        EnvMode.ALOHA,
+        "pi05_trossen_transfer_block",
+        "pi05_trossen_block_transfer",
+    ),
 }
 
 
