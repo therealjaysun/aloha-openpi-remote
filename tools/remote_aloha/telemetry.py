@@ -37,7 +37,11 @@ _PACKAGE_NAMES = {
     "numpy",
     "robosuite",
 }
-_LIBERO_TASK_TO_SCENARIO = {"libero/push_pi": "push_pi", "libero/push_p_i": "push_p_i"}
+_LIBERO_TASK_TO_SCENARIO = {
+    "libero/coke_taylor": "coke_taylor",
+    "libero/push_pi": "push_pi",
+    "libero/push_p_i": "push_p_i",
+}
 _LIBERO_CAMERA_VIEWS = ["agentview", "eye_in_hand"]
 
 _PUBLISHABLE_METADATA = {

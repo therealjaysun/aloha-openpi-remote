@@ -291,7 +291,8 @@ def test_publishable_custom_scenario_keeps_safe_identity_counts_and_omits_privat
     assert "desktop-name" not in encoded
 
 
-def test_publishable_libero_summary_keeps_two_cameras_and_seven_joint_trace() -> None:
+@pytest.mark.parametrize(("task", "scenario"), [("libero/push_pi", "push_pi"), ("libero/coke_taylor", "coke_taylor")])
+def test_publishable_libero_summary_keeps_two_cameras_and_seven_joint_trace(task: str, scenario: str) -> None:
     raw = aggregate_events(
         [
             _event(
@@ -300,8 +301,8 @@ def test_publishable_libero_summary_keeps_two_cameras_and_seven_joint_trace() ->
                 profile="pi05_libero",
                 checkpoint_label="pi05_libero",
                 run_id="c" * 32,
-                task="libero/push_pi",
-                scenario="push_pi",
+                task=task,
+                scenario=scenario,
                 scene_hash="d" * 64,
                 target_area_coverage_method="exact-planar-union-v1",
                 camera_views=["agentview", "eye_in_hand"],
@@ -329,7 +330,7 @@ def test_publishable_libero_summary_keeps_two_cameras_and_seven_joint_trace() ->
         ]
     )
     public = publishable_summary(raw)
-    assert public["metadata"]["task"] == "libero/push_pi"
+    assert public["metadata"]["task"] == task
     assert public["metadata"]["camera_views"] == ["agentview", "eye_in_hand"]
     assert public["metadata"]["prefetch_steps"] == 0
     assert public["result"]["trajectory_joint_count"] == 7
