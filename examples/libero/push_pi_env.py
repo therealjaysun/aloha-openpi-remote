@@ -23,7 +23,6 @@ from tools.remote_aloha.scenarios import I_BODY
 from tools.remote_aloha.scenarios import OBJECT_HALF_HEIGHT
 from tools.remote_aloha.scenarios import P_BODY
 from tools.remote_aloha.scenarios import PI_BODY
-from tools.remote_aloha.scenarios import TARGET_DOT_RADIUS
 from tools.remote_aloha.scenarios import TARGET_HALF_HEIGHT
 from tools.remote_aloha.scenarios import BodyDescriptor
 from tools.remote_aloha.scenarios import BodyState
@@ -33,6 +32,8 @@ from tools.remote_aloha.scenarios import quaternion_euler
 from tools.remote_aloha.scenarios import target_outline_points
 
 CONTROL_HZ = 20
+LIBERO_TARGET_DOT_RADIUS = 0.003
+LIBERO_TARGET_DOT_SPACING = 0.012
 _TABLE_HALF_HEIGHT = 0.05
 SCENARIOS = {
     "push_pi": (
@@ -90,14 +91,14 @@ class _Target(CompositeObject):
 
     def __init__(self, name="target", joints=None):
         body = self.descriptor
-        points = target_outline_points(body)
+        points = target_outline_points(body, spacing=LIBERO_TARGET_DOT_SPACING)
         half_x = max(abs(part.x) + part.half_x for part in body.parts)
         half_y = max(abs(part.y) + part.half_y for part in body.parts)
         super().__init__(
             name=name,
             total_size=(half_x, half_y, TARGET_HALF_HEIGHT),
             geom_types=["cylinder"] * len(points),
-            geom_sizes=[(TARGET_DOT_RADIUS, TARGET_HALF_HEIGHT)] * len(points),
+            geom_sizes=[(LIBERO_TARGET_DOT_RADIUS, TARGET_HALF_HEIGHT)] * len(points),
             geom_locations=[(x, y, _TABLE_HALF_HEIGHT + TARGET_HALF_HEIGHT) for x, y in points],
             geom_names=[f"dot_{index}" for index in range(len(points))],
             geom_rgbas=[body.rgba] * len(points),
@@ -225,7 +226,8 @@ def scenario_hash(scenario: str) -> str:
         bddl = _BDDL[scenario]
     except KeyError as error:
         raise ValueError(f"scenario must be one of: {', '.join(SCENARIOS)}") from error
-    return hashlib.sha256(bddl.encode()).hexdigest()
+    scene = f"{bddl}\0{LIBERO_TARGET_DOT_RADIUS}\0{LIBERO_TARGET_DOT_SPACING}"
+    return hashlib.sha256(scene.encode()).hexdigest()
 
 
 def self_check() -> None:
@@ -233,7 +235,9 @@ def self_check() -> None:
     assert CONTROL_HZ * 6 == 120
     assert CONTROL_HZ * 30 == 600
     assert CONTROL_HZ * 300 == 6000
-    assert all(target_outline_points(body) for body in (PI_BODY, P_BODY, I_BODY))
+    assert [
+        len(target_outline_points(body, spacing=LIBERO_TARGET_DOT_SPACING)) for body in (PI_BODY, P_BODY, I_BODY)
+    ] == [60, 57, 48]
     assert all(len(scenario_hash(name)) == 64 for name in SCENARIOS)
 
 

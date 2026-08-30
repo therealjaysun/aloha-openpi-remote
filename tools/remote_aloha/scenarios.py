@@ -284,7 +284,9 @@ def body_descriptors(object_kind: str) -> tuple[BodyDescriptor, ...]:
         raise ValueError(f"unknown Push-PI object kind: {object_kind}") from error
 
 
-def target_outline_points(body: BodyDescriptor) -> tuple[tuple[float, float], ...]:
+def target_outline_points(
+    body: BodyDescriptor, *, spacing: float = TARGET_DOT_SPACING
+) -> tuple[tuple[float, float], ...]:
     points = set()
     for part in body.parts:
         left, right = part.x - part.half_x, part.x + part.half_x
@@ -297,7 +299,7 @@ def target_outline_points(body: BodyDescriptor) -> tuple[tuple[float, float], ..
         )
         for start, end, normal in edges:
             length = math.hypot(end[0] - start[0], end[1] - start[1])
-            intervals = max(1, math.ceil(length / TARGET_DOT_SPACING))
+            intervals = max(1, math.ceil(length / spacing))
             for index in range(intervals + 1):
                 fraction = index / intervals
                 x = start[0] + fraction * (end[0] - start[0])
