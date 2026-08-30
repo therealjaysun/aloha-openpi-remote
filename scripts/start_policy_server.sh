@@ -42,8 +42,12 @@ case "$profile" in
         environment=ALOHA
         prompt=(--default-prompt="Transfer cube")
         ;;
+    pi05_trossen_block_transfer)
+        environment=ALOHA
+        prompt=(--default-prompt="grab and handover the red cube")
+        ;;
     *)
-        echo 'OPENPI_POLICY_PROFILE must be pi0_aloha_sim or pi05_aloha_base.' >&2
+        echo 'Invalid OPENPI_POLICY_PROFILE.' >&2
         exit 1
         ;;
 esac
@@ -87,7 +91,7 @@ if [[ "$backend" == pytorch ]]; then
     }
     jax_platform=cpu
     backend_args+=("--pytorch-checkpoint-dir=$checkpoint" --require-torch-device=3090)
-    if [[ "$profile" == pi05_aloha_base ]]; then
+    if [[ "$profile" == pi05_* ]]; then
         inductor_cache="$(mktemp -d "$state_dir/torchinductor-${expected_sha:0:12}.XXXXXX")"
         chmod 700 "$inductor_cache"
         compiler_env+=("TORCHINDUCTOR_CACHE_DIR=$inductor_cache" TORCH_LOGS=dynamo,recompiles,graph_breaks)

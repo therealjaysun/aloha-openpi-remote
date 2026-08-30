@@ -20,7 +20,7 @@ policy_port="$7"
     exit 2
 }
 [[ "$run_id" =~ ^[0-9a-f]{32}$ ]] || { echo 'Run ID must be a 32-character lowercase hex token.' >&2; exit 2; }
-[[ "$profile" == pi0_aloha_sim || "$profile" == pi05_aloha_base ]] || { echo 'Invalid profile.' >&2; exit 2; }
+[[ "$profile" == pi0_aloha_sim || "$profile" == pi05_aloha_base || "$profile" == pi05_trossen_block_transfer ]] || { echo 'Invalid profile.' >&2; exit 2; }
 [[ "$server_pid" =~ ^[0-9]+$ ]] && (( 10#$server_pid > 1 && 10#$server_pid <= 4194304 )) || {
     echo 'Invalid server PID.' >&2
     exit 2

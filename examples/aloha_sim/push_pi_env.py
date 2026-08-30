@@ -35,8 +35,9 @@ from tools.remote_aloha.scenarios import RESET_SETTLE_YAW_RADIANS
 from tools.remote_aloha.scenarios import RESET_TILT_RADIANS
 from tools.remote_aloha.scenarios import SETTLE_STEPS
 from tools.remote_aloha.scenarios import TABLETOP_SHA256
-from tools.remote_aloha.scenarios import TARGET_ALPHA
 from tools.remote_aloha.scenarios import TARGET_CONTACT_BITS
+from tools.remote_aloha.scenarios import TARGET_DOT_RADIUS
+from tools.remote_aloha.scenarios import TARGET_DOT_SPACING
 from tools.remote_aloha.scenarios import TARGET_HALF_HEIGHT
 from tools.remote_aloha.scenarios import VISUAL_CONTACT_BITS
 from tools.remote_aloha.scenarios import VISUAL_GEOM_GROUP
@@ -76,6 +77,37 @@ def _numbers(*values: float) -> str:
     return " ".join(f"{value:.9g}" for value in values)
 
 
+def _target_outline_points(body: BodyDescriptor) -> tuple[tuple[float, float], ...]:
+    points = set()
+    for part in body.parts:
+        left, right = part.x - part.half_x, part.x + part.half_x
+        bottom, top = part.y - part.half_y, part.y + part.half_y
+        edges = (
+            ((left, bottom), (left, top), (-1, 0)),
+            ((right, bottom), (right, top), (1, 0)),
+            ((left, bottom), (right, bottom), (0, -1)),
+            ((left, top), (right, top), (0, 1)),
+        )
+        for start, end, normal in edges:
+            length = math.hypot(end[0] - start[0], end[1] - start[1])
+            intervals = max(1, math.ceil(length / TARGET_DOT_SPACING))
+            for index in range(intervals + 1):
+                fraction = index / intervals
+                x = start[0] + fraction * (end[0] - start[0])
+                y = start[1] + fraction * (end[1] - start[1])
+                probe_x = x + normal[0] * 1e-7
+                probe_y = y + normal[1] * 1e-7
+                if any(
+                    other.x - other.half_x <= probe_x <= other.x + other.half_x
+                    and other.y - other.half_y <= probe_y <= other.y + other.half_y
+                    for other in body.parts
+                    if other is not part
+                ):
+                    continue
+                points.add((round(x, 9), round(y, 9)))
+    return tuple(sorted(points))
+
+
 def _add_target(worldbody: ET.Element, body: BodyDescriptor) -> None:
     target = ET.SubElement(
         worldbody,
@@ -84,16 +116,15 @@ def _add_target(worldbody: ET.Element, body: BodyDescriptor) -> None:
         pos=_numbers(body.target_x, body.target_y, 0),
         euler=_numbers(0, 0, body.target_yaw),
     )
-    for index, part in enumerate(body.parts):
-        red, green, blue, _ = body.rgba
+    for index, (x, y) in enumerate(_target_outline_points(body)):
         ET.SubElement(
             target,
             "geom",
             name=f"push_pi/target_{body.name}_{index}",
-            type="box",
-            pos=_numbers(part.x, part.y, TARGET_HALF_HEIGHT),
-            size=_numbers(part.half_x, part.half_y, TARGET_HALF_HEIGHT),
-            rgba=_numbers(red, green, blue, TARGET_ALPHA),
+            type="cylinder",
+            pos=_numbers(x, y, TARGET_HALF_HEIGHT),
+            size=_numbers(TARGET_DOT_RADIUS, TARGET_HALF_HEIGHT),
+            rgba=_numbers(*body.rgba),
             contype=str(TARGET_CONTACT_BITS[0]),
             conaffinity=str(TARGET_CONTACT_BITS[1]),
         )
@@ -396,8 +427,8 @@ class PushPiEnv(AlohaEnv):
         _, reward, _, raw_observation = self._env.step(command)
         self._step_count += 1
         info = self._push_task.info()
-        terminated = info["terminal_reason"] in {"success", "fallen"}
-        truncated = self._step_count >= self._episode_steps and not terminated
+        terminated = False
+        truncated = self._step_count >= self._episode_steps
         if truncated:
             info = {**info, "terminal_reason": "time_limit"}
         return self._format_raw_obs(raw_observation), float(reward), bool(terminated), bool(truncated), info

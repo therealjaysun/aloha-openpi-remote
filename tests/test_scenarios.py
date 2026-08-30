@@ -57,18 +57,21 @@ def test_fixed_scenario_contract_uses_uppercase_dotless_letters() -> None:
     )
     assert {key: SCENARIOS[key].prompt for key in tuple(SCENARIOS)[1:]} == {
         "push_pi_single": (
-            "Using only the left arm, first tilt the wrist down to see the pi-shaped block and its matching outline, "
-            "then lower the gripper close to the table beside the block and make short incremental pushes that move "
-            "the block into the outline; recheck alignment after each push and do not lift the block."
+            "A PI-shaped block and a dotted target outline are on the table. Using only the left arm, push the block "
+            "until it covers and aligns with the target outline."
         ),
         "push_pi_dual": (
-            "Using both arms, first tilt both wrists down to see the pi-shaped block and its matching outline; "
-            "then lower both grippers close to the table on opposite sides of the block without lifting it; "
-            "finally make short coordinated incremental pushes that move the block into the outline, rechecking "
-            "alignment after each push."
+            "A PI-shaped block and a dotted target outline are on the table. Using both arms, push the block until it "
+            "covers and aligns with the target outline."
         ),
-        "push_letters_single": "Using only the left arm, push the P and I blocks onto their matching targets.",
-        "push_letters_dual": "Using both arms, push the P and I blocks onto their matching targets.",
+        "push_letters_single": (
+            "P and I blocks and their dotted target outlines are on the table. Using only the left arm, push each "
+            "block until it covers and aligns with its matching target outline."
+        ),
+        "push_letters_dual": (
+            "P and I blocks and their dotted target outlines are on the table. Using both arms, push each block until "
+            "it covers and aligns with its matching target outline."
+        ),
     }
     bodies = body_descriptors("letters")
     assert tuple(body.name for body in bodies) == ("P", "I")
@@ -76,9 +79,10 @@ def test_fixed_scenario_contract_uses_uppercase_dotless_letters() -> None:
     assert bodies[1].yaw_period == math.pi
 
 
-def test_off_table_is_recorded_without_ending_the_episode() -> None:
+def test_task_outcomes_are_recorded_without_ending_the_episode() -> None:
     source = Path("examples/aloha_sim/push_pi_env.py").read_text(encoding="utf-8")
-    assert 'terminated = info["terminal_reason"] in {"success", "fallen"}' in source
+    assert "terminated = False" in source
+    assert "truncated = self._step_count >= self._episode_steps" in source
 
 
 def test_layout_is_deterministic_and_arm_mode_independent() -> None:
@@ -108,6 +112,8 @@ def test_success_requires_five_held_steps_and_i_yaw_is_pi_symmetric() -> None:
         outcome, metrics = advance_outcome(bodies, states, rest, outcome)
         assert outcome.success is (index == 4)
     assert metrics["body_1_yaw_error"] == pytest.approx(0.0)
+    moved = {body.name: _state(body, x=0.0, y=0.4) for body in bodies}
+    assert advance_outcome(bodies, moved, rest, outcome)[0].success
 
 
 def test_target_area_coverage_is_exact_for_translation_rotation_and_compound_unions() -> None:
@@ -163,9 +169,13 @@ def test_letters_reject_one_correct_swapped_lift_fall_and_off_table() -> None:
     assert not lifted_outcome.success
 
     fallen = {"P": _state(bodies[0], roll=math.radians(31)), "I": _state(bodies[1])}
-    assert advance_outcome(bodies, fallen, rest)[0].terminal_reason == "fallen"
+    fallen_outcome, _ = advance_outcome(bodies, fallen, rest)
+    assert fallen_outcome.terminal_reason == "fallen"
+    assert advance_outcome(bodies, exact, rest, fallen_outcome)[0].fallen
     outside = {"P": _state(bodies[0], x=scenarios.TABLE_BOUNDS[1]), "I": _state(bodies[1])}
-    assert advance_outcome(bodies, outside, rest)[0].terminal_reason == "off_table"
+    outside_outcome, _ = advance_outcome(bodies, outside, rest)
+    assert outside_outcome.terminal_reason == "off_table"
+    assert advance_outcome(bodies, exact, rest, outside_outcome)[0].off_table
 
 
 def test_contacts_are_order_independent_and_interference_is_same_step() -> None:
@@ -190,7 +200,7 @@ def test_scene_hash_covers_only_physical_xml_assets_and_kind(monkeypatch: pytest
 
 
 def test_descriptor_hash_freezes_every_calibrated_value() -> None:
-    assert descriptor_sha256() == "4e5c0cfff58436a244c6695e13cbfe7fe61aa2b0cc17f1410161622c0774919c"
+    assert descriptor_sha256() == "7c6b551eb62448fe3e43bca7439d1026a56f333df5340c7732bd2a1cd0bbae00"
 
 
 @pytest.mark.parametrize(

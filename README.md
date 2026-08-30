@@ -27,6 +27,8 @@ The complete workflow was validated on the exact Phase 5 candidate `2065dd9` wit
 
 GPU coverage passed for both runs (31 and 24 samples respectively), with no request retries or failures. The 1,661 successful simulator steps produced exactly 1,661 trajectory samples and six plots; each plot contains all 14 actual joints plus thinner dashed commands, normalized against pinned simulator limits. The π₀.₅ base checkpoint is not simulator-fine-tuned, so its zero task successes do not negate the separately reported infrastructure result. Neither profile met the complete cadence/underrun gate, so this project does **not** claim uninterrupted 50 Hz. The completed evidence ledger is archived in [Original implementation status](PLANS/ORIGINAL_IMPLEMENTATION_0828/STATUS.md); the latest optimization evidence is in the [runtime and inference plan](PLANS/INF_OPT_0829/00-overview.md).
 
+The latest Push-PI comparison on candidate `196f8e5` used only π₀.₅ and ran all four scenarios with both the base and experimental Trossen block-transfer checkpoints. Every run reached exactly 6,000 steps, 6,000 trajectory samples, and 6,000 three-view frames (120.000 simulated seconds); all eight remained at 0% best coverage. The base checkpoint produced one fall/lift/off-table episode, while the real-robot Trossen checkpoint produced fall/lift evidence in all four and off-table evidence in three, confirming a domain/action mismatch rather than useful Push-PI behavior. See the [scenario evidence table](PLANS/SCENARIOS_0827/00-overview.md#current-120-second-checkpoint-comparison).
+
 The pre-trajectory hardening candidate `90b0fed` also passed exact-SHA WSL setup and a fresh four-call tunneled smoke for each profile, then verified cleanup and a free policy port. Phase 5 candidate `2065dd9` remains the newer hardware proof and the source of the full-episode figures above.
 
 Both profiles return the same finite floating `(50, 14)` wire chunk. The default runner executes at most 30 actions from a chunk and starts one background prefetch with 25 actions remaining. `ALOHA_CHUNK_CROSSFADE_STEPS=5` and horizon/prefetch `45/40` are isolated experiment overrides; the unvalidated defaults remain `0` and `30/25`. The runner never clips the absolute joint commands, appends a late chunk, or repeats the last action on underrun.
@@ -44,7 +46,7 @@ PC:
 
 - Windows with WSL2, an x86-64 Ubuntu distro, and Windows OpenSSH Server using public-key authentication.
 - RTX 3090 with 24 GiB VRAM and a current NVIDIA Windows driver that supports CUDA in WSL. Do not install a Linux NVIDIA display driver inside WSL.
-- At least 40 GiB free on the WSL checkout and checkpoint-cache filesystems. The validated setup uses an explicitly selected `Ubuntu-24.04` distro; do not rely on the default when multiple WSL distros exist.
+- At least 40 GiB free on the WSL checkout and 60 GiB free while acquiring or converting a checkpoint. The validated setup uses an explicitly selected `Ubuntu-24.04` distro; do not rely on the default when multiple WSL distros exist.
 - The PC and Mac on the same trusted network, with the PC signed in, awake, and not exposing port 8000.
 
 Inside the selected Ubuntu WSL Bash shell, install the doctor prerequisites and `uv` once. The project prepends `~/.local/bin` itself, so no manual PATH edit or PowerShell `source` command is needed:
@@ -129,10 +131,12 @@ OPENPI_WSL_DISTRO=Ubuntu-24.04 make setup-pc
 
 `make setup-pc` refreshes the pinned Transformers 4.53.2 wheel and streams only exact allowlisted setup stages; `make server` likewise shows bounded model-loading progress. `make run` keeps final JSON on stdout and writes safe episode, 10% progress, coverage, and terminal status lines to stderr; `make scenario-matrix` keeps its summary-path stdout contract and adds matrix lifecycle status. Private raw evidence remains in ignored outputs.
 
-Converted weights are PC-local and ignored. Current work uses only π₀.₅; convert it once, or again after its artifact is removed or the source/runtime pin changes:
+Converted weights are PC-local and ignored. Current work uses only π₀.₅. The base profile is the default. The optional Trossen block-transfer profile is a pinned third-party real-robot checkpoint, not a Push-PI- or simulator-fine-tune; use it only as an experimental checkpoint comparison. Convert the selected profile once, or again after its artifact is removed or the source/runtime pin changes:
 
 ```bash
 OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE=pi05_aloha_base make convert-pc
+# Experimental alternative:
+OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE=pi05_trossen_block_transfer make convert-pc
 ```
 
 Conversion mode `auto` uses the one-layer-at-a-time partial-BF16 restore when Linux `MemAvailable` is below 16 GiB; otherwise it preserves the full-FP32 restore. The bounded path passed for both profiles before the PC RAM upgrade and remains the low-memory fallback; the 32 GB WSL configuration selects the normal full-memory path. The original JAX server remains an explicit diagnostic option, but its first inference repeatedly exhausted GPU memory on the RTX 3090. The demo therefore defaults to the matching converted PyTorch checkpoint and never falls back silently.
@@ -178,18 +182,20 @@ OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BA
 
 For the exact Push-PI evaluation, replace `make run` with one `make scenario-matrix`, then run `make scenario-metrics` before `make stop`. The matrix fixes seeds to 0–2 and runs all four scenarios once per seed, for 12 episodes under the selected profile. Current optimization and qualification runs use only the default experimental π₀.₅ profile; do not add π₀ or display-on GPU runs.
 
-`ALOHA_EPISODE_STEPS` defaults to the accepted 300-step limit. A single diagnostic run may raise it to at most 6,000 steps (120 simulated seconds at 50 Hz); the acceptance matrix rejects overrides so its results remain comparable.
+`ALOHA_EPISODE_STEPS` defaults to the accepted 300-step test limit. Long checkpoint-comparison experiments explicitly use 6,000 steps (120 simulated seconds at 50 Hz); success, fall, and off-table states remain recorded but do not shorten custom episodes. The acceptance matrix rejects the duration override so its short results remain comparable.
 
-Scenario 1 sends this complete instruction once to π₀.₅: `Using only the left arm, first tilt the wrist down to see the pi-shaped block and its matching outline, then lower the gripper close to the table beside the block and make short incremental pushes that move the block into the outline; recheck alignment after each push and do not lift the block.`
+Scenario 1 sends this complete instruction once to π₀.₅: `A PI-shaped block and a dotted target outline are on the table. Using only the left arm, push the block until it covers and aligns with the target outline.`
 
-Scenario 2 likewise sends all three stages once: `Using both arms, first tilt both wrists down to see the pi-shaped block and its matching outline; then lower both grippers close to the table on opposite sides of the block without lifting it; finally make short coordinated incremental pushes that move the block into the outline, rechecking alignment after each push.`
+Scenario 2 sends the same simple description and goal with both-arm wording: `A PI-shaped block and a dotted target outline are on the table. Using both arms, push the block until it covers and aligns with the target outline.` The P-and-I scenarios use the same one-shot structure and tell the model to align each block with its matching dotted target outline.
 
 All scenarios pass the model's complete finite 14-joint action to MuJoCo unchanged. “Single arm” is prompt intent and an observed behavior label only; the project does not park either arm or override either gripper. Reset positions and MuJoCo's native joint/actuator limits still apply.
 
 ```bash
 profile=pi05_aloha_base
-ALOHA_SCENARIO=push_pi_single ALOHA_EPISODES=1 ALOHA_EPISODE_STEPS=6000 \
-  OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make run
+for scenario in push_pi_single push_pi_dual push_letters_single push_letters_dual; do
+  ALOHA_SCENARIO="$scenario" ALOHA_EPISODES=1 ALOHA_EPISODE_STEPS=6000 \
+    OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BACKEND=pytorch make run
+done
 ```
 
 One automatic, low-frequency RTX sampler covers the whole `make run`. It validates the owned server identity before every bounded `nvidia-smi` query and stops in `finally`; there is no SSH or GPU query per simulation step. Start/end clock probes record the Mac↔WSL UTC offset with a round-trip uncertainty bound. `make metrics` only validates the latest run for the selected `OPENPI_POLICY_PROFILE` and atomically rebuilds derived summaries—it does not contact the PC, change raw evidence, or start a sampler.

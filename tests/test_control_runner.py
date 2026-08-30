@@ -15,6 +15,7 @@ from tools.remote_aloha.config import validate_output_root
 from tools.remote_aloha.run import _connect_with_retry
 from tools.remote_aloha.run import _convert_environment_observation
 from tools.remote_aloha.run import _gpu_events
+from tools.remote_aloha.run import _json_safe
 from tools.remote_aloha.run import _prefetch_evidence
 from tools.remote_aloha.run import _run_seed
 from tools.remote_aloha.run import _scenario_step_info
@@ -31,6 +32,12 @@ def _raw_observation() -> dict:
         "pixels": {name: np.zeros((480, 640, 3), dtype=np.uint8) for name in ("top", "left_wrist", "right_wrist")},
         "agent_pos": np.zeros(14, dtype=np.float64),
     }
+
+
+def test_environment_info_mapping_allows_full_letters_reset_but_remains_bounded() -> None:
+    assert _json_safe({str(index): index for index in range(64)}) == {str(index): index for index in range(64)}
+    with pytest.raises(ValueError, match="bounded string-keyed"):
+        _json_safe({str(index): index for index in range(65)})
 
 
 def test_environment_observation_captures_both_wrist_views() -> None:

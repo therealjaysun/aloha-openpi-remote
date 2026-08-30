@@ -48,7 +48,8 @@ VISUAL_CONTACT_BITS = (0, 0)
 COLLISION_GEOM_GROUP = 4
 COLLISION_CONTACT_BITS = (1, 1)
 TARGET_HALF_HEIGHT = 0.001
-TARGET_ALPHA = 0.32
+TARGET_DOT_RADIUS = 0.005
+TARGET_DOT_SPACING = 0.024
 TARGET_CONTACT_BITS = (0, 0)
 DISPLAY_EVERY_STEPS = 5
 PARKED_JOINT_TOLERANCE = 0.01
@@ -63,7 +64,7 @@ COLOR_MASK_RULES = {
     "P": (("r", "g", 35), ("r", "b", 35)),
     "I": (("b", "r", 35), ("b", "g", 25)),
 }
-DESCRIPTOR_VERSION = "push-pi-v1"
+DESCRIPTOR_VERSION = "push-pi-v2"
 TARGET_AREA_COVERAGE_METHOD = "exact-planar-union-v1"
 
 
@@ -236,33 +237,32 @@ SCENARIOS = {
         "pi_robotics/PushPiSingleArm-v0",
         "pi",
         "left",
-        "Using only the left arm, first tilt the wrist down to see the pi-shaped block and its matching outline, "
-        "then lower the gripper close to the table beside the block and make short incremental pushes that move "
-        "the block into the outline; recheck alignment after each push and do not lift the block.",
+        "A PI-shaped block and a dotted target outline are on the table. Using only the left arm, push the block "
+        "until it covers and aligns with the target outline.",
     ),
     "push_pi_dual": ScenarioSpec(
         "push_pi_dual",
         "pi_robotics/PushPiBimanual-v0",
         "pi",
         "both",
-        "Using both arms, first tilt both wrists down to see the pi-shaped block and its matching outline; "
-        "then lower both grippers close to the table on opposite sides of the block without lifting it; "
-        "finally make short coordinated incremental pushes that move the block into the outline, rechecking "
-        "alignment after each push.",
+        "A PI-shaped block and a dotted target outline are on the table. Using both arms, push the block until it "
+        "covers and aligns with the target outline.",
     ),
     "push_letters_single": ScenarioSpec(
         "push_letters_single",
         "pi_robotics/PushLettersSingleArm-v0",
         "letters",
         "left",
-        "Using only the left arm, push the P and I blocks onto their matching targets.",
+        "P and I blocks and their dotted target outlines are on the table. Using only the left arm, push each "
+        "block until it covers and aligns with its matching target outline.",
     ),
     "push_letters_dual": ScenarioSpec(
         "push_letters_dual",
         "pi_robotics/PushLettersBimanual-v0",
         "letters",
         "both",
-        "Using both arms, push the P and I blocks onto their matching targets.",
+        "P and I blocks and their dotted target outlines are on the table. Using both arms, push each block until "
+        "it covers and aligns with its matching target outline.",
     ),
 }
 CUSTOM_SCENARIOS = tuple(key for key, value in SCENARIOS.items() if value.is_custom)
@@ -491,8 +491,8 @@ def advance_outcome(
         raise ValueError("outcome body state does not match its descriptor")
     all_at_goal = True
     lifted = previous.lifted_ever
-    fallen = False
-    off_table = False
+    fallen = previous.fallen
+    off_table = previous.off_table
     metrics: dict[str, float] = {}
     coverage_area = total_area = 0.0
     min_x, max_x, min_y, max_y = TABLE_BOUNDS
@@ -537,7 +537,7 @@ def advance_outcome(
         )
     metrics["target_area_coverage"] = coverage_area / total_area
     held = previous.held_steps + 1 if all_at_goal and not lifted and not fallen and not off_table else 0
-    success = held >= SUCCESS_HOLD_STEPS
+    success = previous.success or held >= SUCCESS_HOLD_STEPS
     reason = "off_table" if off_table else "fallen" if fallen else "success" if success else "running"
     return OutcomeState(held, lifted, success, off_table, fallen, reason), metrics
 
@@ -616,7 +616,8 @@ def descriptor_payload() -> dict[str, object]:
         "collision_geom_group": COLLISION_GEOM_GROUP,
         "collision_contact_bits": COLLISION_CONTACT_BITS,
         "target_half_height": TARGET_HALF_HEIGHT,
-        "target_alpha": TARGET_ALPHA,
+        "target_dot_radius": TARGET_DOT_RADIUS,
+        "target_dot_spacing": TARGET_DOT_SPACING,
         "target_contact_bits": TARGET_CONTACT_BITS,
         "display_every_steps": DISPLAY_EVERY_STEPS,
         "parked_joint_tolerance": PARKED_JOINT_TOLERANCE,

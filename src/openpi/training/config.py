@@ -213,6 +213,17 @@ _CONFIGS = [
         policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
     ),
     TrainConfig(
+        name="pi05_trossen_transfer_block",
+        model=pi0_config.Pi0Config(pi05=True),
+        data=LeRobotAlohaDataConfig(
+            assets=AssetsConfig(asset_id="trossen"),
+            default_prompt="grab and handover the red cube",
+            use_delta_joint_actions=False,
+            adapt_to_pi=False,
+        ),
+        policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+    ),
+    TrainConfig(
         name="pi0_aloha_towel",
         model=pi0_config.Pi0Config(),
         data=LeRobotAlohaDataConfig(

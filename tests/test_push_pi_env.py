@@ -1,3 +1,5 @@
+import xml.etree.ElementTree as ET
+
 import numpy as np
 import pytest
 
@@ -6,6 +8,7 @@ pytest.importorskip("gym_aloha")
 pytest.importorskip("dm_control")
 
 import examples.aloha_sim.push_pi_env  # noqa: E402,F401
+from examples.aloha_sim.push_pi_env import build_scene  # noqa: E402
 from tools.remote_aloha.run import _convert_environment_observation  # noqa: E402
 from tools.remote_aloha.run import _scenario_info_fields  # noqa: E402
 from tools.remote_aloha.scenarios import CUSTOM_SCENARIOS  # noqa: E402
@@ -23,6 +26,21 @@ def _assert_policy_views(environment, raw: dict, prompt: str) -> None:
     assert all(np.ptp(image) > 0 for image in images.values())
     assert not np.array_equal(images["cam_high"], images["cam_left_wrist"])
     assert not np.array_equal(images["cam_left_wrist"], images["cam_right_wrist"])
+
+
+@pytest.mark.parametrize(("object_kind", "body_names"), [("pi", ("pi",)), ("letters", ("P", "I"))])
+def test_targets_are_noncontact_dotted_outlines_without_fill(object_kind: str, body_names: tuple[str, ...]) -> None:
+    xml, _, _ = build_scene(object_kind)
+    root = ET.fromstring(xml)
+    for body_name in body_names:
+        target = root.find(f".//body[@name='push_pi/target_{body_name}']")
+        assert target is not None
+        dots = target.findall("geom")
+        assert len(dots) > 8
+        assert all(dot.get("type") == "cylinder" for dot in dots)
+        assert all(dot.get("contype") == dot.get("conaffinity") == "0" for dot in dots)
+        assert all(float(dot.get("rgba", "").split()[3]) == 1.0 for dot in dots)
+        assert len({dot.get("pos") for dot in dots}) == len(dots)
 
 
 @pytest.mark.parametrize("scenario", CUSTOM_SCENARIOS)

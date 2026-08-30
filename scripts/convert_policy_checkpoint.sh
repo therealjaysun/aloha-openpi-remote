@@ -60,6 +60,12 @@ case "$profile" in
         checkpoint_label=pi05_base
         config_name=pi05_aloha
         ;;
+    pi05_trossen_block_transfer)
+        checkpoint_label=pi05_trossen_block_transfer
+        config_name=pi05_trossen_transfer_block
+        hf_repo=TrossenRoboticsCommunity/pi05-block-transfer-trossen-ai-openpi
+        hf_revision=40aee785d8907e868976454a3ca51c76175f6d4c
+        ;;
     *) echo 'Unsupported conversion profile.' >&2; exit 2 ;;
 esac
 
@@ -67,7 +73,47 @@ parent_input="$data_home/openpi-assets/checkpoints"
 [[ -d "$parent_input" && ! -L "$parent_input" ]] || { echo 'Checkpoint directory is invalid.' >&2; exit 1; }
 parent="$(realpath -e -- "$parent_input")"
 case "$parent/" in "$data_home"/*) ;; *) echo 'Checkpoint directory escapes data home.' >&2; exit 1 ;; esac
+available_kib="$(df -Pk "$parent" | awk 'NR==2 {print $4}')"
+[[ "$available_kib" =~ ^[0-9]+$ ]] && (( available_kib >= 60 * 1024 * 1024 )) || {
+    echo 'At least 60 GiB of free checkpoint-disk space is required.' >&2
+    exit 1
+}
+state_dir="$HOME/.local/state/aloha-openpi-remote"
+mkdir -p "$state_dir" "$repo/.runtime/conversion"
+chmod 700 "$state_dir" "$repo/.runtime" "$repo/.runtime/conversion"
+exec 9>"$state_dir/conversion.lock"
+flock -n 9 || { echo 'Another checkpoint conversion is active.' >&2; exit 1; }
 source_input="$parent/$checkpoint_label"
+if [[ -n "${hf_repo-}" && ! -e "$source_input" && ! -L "$source_input" ]]; then
+    download_root="$parent/.${checkpoint_label}.download.$hf_revision"
+    [[ ! -L "$download_root" ]] || { echo 'Checkpoint download staging path is unsafe.' >&2; exit 1; }
+    mkdir -p "$download_root"
+    chmod 700 "$download_root"
+    "$repo/.venv/bin/python" - "$hf_repo" "$hf_revision" "$download_root" <<'PY'
+import pathlib
+import sys
+
+from huggingface_hub import snapshot_download
+
+repo_id, revision, destination = sys.argv[1:]
+snapshot_download(
+    repo_id=repo_id,
+    revision=revision,
+    allow_patterns=["params/**", "assets/**", "_CHECKPOINT_METADATA"],
+    local_dir=destination,
+)
+root = pathlib.Path(destination)
+if not (root / "params" / "_METADATA").is_file() or not (
+    root / "assets" / "trossen" / "norm_stats.json"
+).is_file():
+    raise SystemExit("Downloaded checkpoint is incomplete")
+PY
+    find "$download_root" -type l -print -quit | grep -q . && {
+        echo 'Downloaded checkpoint must not contain symbolic links.' >&2
+        exit 1
+    }
+    mv -- "$download_root" "$source_input"
+fi
 [[ -d "$source_input" && ! -L "$source_input" ]] || { echo 'Source checkpoint is invalid.' >&2; exit 1; }
 source_checkpoint="$(realpath -e -- "$source_input")"
 [[ "$source_checkpoint" == "$source_input" ]] || { echo 'Source checkpoint path is not canonical.' >&2; exit 1; }
@@ -86,18 +132,6 @@ final_checkpoint="$parent/${checkpoint_label}_pytorch"
     exit 1
 }
 ss -H -ltn "sport = :$policy_port" | grep -q . && { echo 'The policy port is occupied.' >&2; exit 1; }
-available_kib="$(df -Pk "$parent" | awk 'NR==2 {print $4}')"
-[[ "$available_kib" =~ ^[0-9]+$ ]] && (( available_kib >= 60 * 1024 * 1024 )) || {
-    echo 'At least 60 GiB of free checkpoint-disk space is required.' >&2
-    exit 1
-}
-
-state_dir="$HOME/.local/state/aloha-openpi-remote"
-mkdir -p "$state_dir" "$repo/.runtime/conversion"
-chmod 700 "$state_dir" "$repo/.runtime" "$repo/.runtime/conversion"
-exec 9>"$state_dir/conversion.lock"
-flock -n 9 || { echo 'Another checkpoint conversion is active.' >&2; exit 1; }
-
 run_prefix=".${checkpoint_label}_pytorch.${expected_sha:0:12}.run."
 run_root="$(mktemp -d "$parent/${run_prefix}XXXXXX")"
 run_root="$(realpath -e -- "$run_root")"

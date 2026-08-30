@@ -39,7 +39,10 @@ def test_fixed_scenario_resolves_task_prompt_and_display(tmp_path: Path) -> None
     )
     assert config.scenario is SCENARIOS["push_letters_single"]
     assert config.task == "pi_robotics/PushLettersSingleArm-v0"
-    assert config.scenario.prompt == "Using only the left arm, push the P and I blocks onto their matching targets."
+    assert config.scenario.prompt == (
+        "P and I blocks and their dotted target outlines are on the table. Using only the left arm, push each block "
+        "until it covers and aligns with its matching target outline."
+    )
     assert config.display is True
 
 
@@ -143,7 +146,11 @@ def test_remote_defaults_and_profile_contract(tmp_path: Path) -> None:
         1.0,
         40,
     )
-    assert set(POLICY_PROFILES) == {"pi0_aloha_sim", "pi05_aloha_base"}
+    assert set(POLICY_PROFILES) == {
+        "pi0_aloha_sim",
+        "pi05_aloha_base",
+        "pi05_trossen_block_transfer",
+    }
     assert (
         POLICY_PROFILES["pi0_aloha_sim"].env,
         POLICY_PROFILES["pi0_aloha_sim"].config_name,
@@ -157,6 +164,20 @@ def test_remote_defaults_and_profile_contract(tmp_path: Path) -> None:
         POLICY_PROFILES["pi05_aloha_base"].default_prompt,
         POLICY_PROFILES["pi05_aloha_base"].experimental,
     ) == ("ALOHA", "pi05_aloha", "gs://openpi-assets/checkpoints/pi05_base", "Transfer cube", True)
+    assert (
+        POLICY_PROFILES["pi05_trossen_block_transfer"].env,
+        POLICY_PROFILES["pi05_trossen_block_transfer"].config_name,
+        POLICY_PROFILES["pi05_trossen_block_transfer"].checkpoint_uri,
+        POLICY_PROFILES["pi05_trossen_block_transfer"].checkpoint_label,
+        POLICY_PROFILES["pi05_trossen_block_transfer"].default_prompt,
+    ) == (
+        "ALOHA",
+        "pi05_trossen_transfer_block",
+        "hf://TrossenRoboticsCommunity/pi05-block-transfer-trossen-ai-openpi"
+        "@40aee785d8907e868976454a3ca51c76175f6d4c",
+        "pi05_trossen_block_transfer",
+        "grab and handover the red cube",
+    )
     assert {profile.action_horizon for profile in POLICY_PROFILES.values()} == {50}
     assert {profile.action_dimension for profile in POLICY_PROFILES.values()} == {14}
 

@@ -70,6 +70,18 @@ POLICY_PROFILES = {
         default_prompt="Transfer cube",
         experimental=True,
     ),
+    "pi05_trossen_block_transfer": PolicyProfile(
+        name="pi05_trossen_block_transfer",
+        env="ALOHA",
+        config_name="pi05_trossen_transfer_block",
+        checkpoint_uri=(
+            "hf://TrossenRoboticsCommunity/pi05-block-transfer-trossen-ai-openpi"
+            "@40aee785d8907e868976454a3ca51c76175f6d4c"
+        ),
+        checkpoint_label="pi05_trossen_block_transfer",
+        default_prompt="grab and handover the red cube",
+        experimental=True,
+    ),
 }
 
 
