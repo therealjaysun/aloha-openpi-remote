@@ -55,7 +55,7 @@ Final hardware-code candidate `5ea5446` retained S1+S5B and removed only off-tab
 - Every applied command must contain exactly 14 finite values and remain attributable to model output.
 - Add no inference framework, dashboard, per-step network work, or new dependency.
 - Keep raw benchmarks, telemetry, plots, and videos ignored. Publishable summaries must remain free of machine IDs and absolute paths.
-- GitHub Actions remains disabled. Use local gates only.
+- This local-only repository has no GitHub Actions workflows. Use local gates only.
 
 ## Acceptance
 

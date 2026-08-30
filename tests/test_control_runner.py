@@ -16,7 +16,6 @@ from tools.remote_aloha.run import _connect_with_retry
 from tools.remote_aloha.run import _convert_environment_observation
 from tools.remote_aloha.run import _gpu_events
 from tools.remote_aloha.run import _prefetch_evidence
-from tools.remote_aloha.run import _prompt_stage
 from tools.remote_aloha.run import _run_seed
 from tools.remote_aloha.run import _scenario_step_info
 from tools.remote_aloha.run import _status
@@ -53,22 +52,6 @@ def test_environment_observation_captures_both_wrist_views() -> None:
     assert set(converted["images"]) == {"cam_high", "cam_left_wrist", "cam_right_wrist"}
     assert converted["images"]["cam_left_wrist"].max() == 1
     assert converted["images"]["cam_right_wrist"].max() == 2
-
-
-def test_staged_prompt_schedule_has_exact_contiguous_boundaries_without_changing_fixed_prompt() -> None:
-    assert _prompt_stage("fixed", "unchanged", 0) == (None, None, "unchanged")
-    assert [
-        _prompt_stage("push_pi_single_left_staged_v1", None, step)[:2] for step in (0, 499, 500, 1499, 1500, 5999)
-    ] == [
-        (0, "orient"),
-        (0, "orient"),
-        (1, "approach"),
-        (1, "approach"),
-        (2, "push"),
-        (2, "push"),
-    ]
-    with pytest.raises(ValueError, match="schedule or step"):
-        _prompt_stage("push_pi_single_left_staged_v1", None, 6000)
 
 
 def _custom_info(scenario: str = "push_letters_single") -> dict[str, object]:
@@ -1276,28 +1259,3 @@ def test_run_writes_failed_root_summary(tmp_path: Path, monkeypatch, capsys) -> 
     assert "run validating evidence" in progress.err
     assert "run end status=failed episodes=0/1" in progress.err
     assert str(tmp_path) not in progress.err
-
-
-def test_run_rejects_staged_prompt_schedule_for_pi0_before_connecting(monkeypatch, capsys) -> None:
-    scenario = SCENARIOS["push_pi_single"]
-    monkeypatch.setattr(
-        "tools.remote_aloha.run.load_mac_sim_config",
-        lambda: MacSimConfig(
-            task=scenario.gym_id,
-            scenario=scenario,
-            episodes=1,
-            episode_steps=6000,
-            prompt_schedule="push_pi_single_left_staged_v1",
-        ),
-    )
-    monkeypatch.setattr(
-        "tools.remote_aloha.run.load_remote_config",
-        lambda: RemoteConfig(policy_profile=POLICY_PROFILES["pi0_aloha_sim"]),
-    )
-    monkeypatch.setattr(
-        "tools.remote_aloha.run.verify_ready_tunnel",
-        lambda config: pytest.fail("staged profile validation must happen before tunnel access"),
-    )
-    with pytest.raises(ValueError, match="pi05_aloha_base"):
-        run()
-    assert capsys.readouterr().err == ""

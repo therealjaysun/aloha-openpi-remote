@@ -843,7 +843,7 @@ git -C "$remote_dir" submodule update --init --recursive
 command -v uv >/dev/null || {{ echo 'uv is missing in WSL; install uv, then rerun make setup-pc.' >&2; exit 1; }}
 cd "$remote_dir"
 progress 'synchronizing the locked Python environment'
-GIT_LFS_SKIP_SMUDGE=1 OPENPI_DATA_HOME="$data_home" uv sync --locked
+GIT_LFS_SKIP_SMUDGE=1 OPENPI_DATA_HOME="$data_home" uv sync --locked --reinstall-package transformers
 checkpoint_cache="$data_home/openpi-assets/checkpoints"
 if [[ -d "$checkpoint_cache" ]] && find "$checkpoint_cache" -name '*.partial' -print -quit | grep -q .; then
     echo 'A partial OpenPI cache entry exists; it was preserved for diagnosis.' >&2

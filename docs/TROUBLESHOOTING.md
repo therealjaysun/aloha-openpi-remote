@@ -217,7 +217,7 @@ If plotting fails, retain the JSONL and manifest, then run the focused trajector
 
 The manifest records video failure separately and still preserves the episode result. A passing artifact must reopen with the exact applied-step frame count, 50 fps metadata, and 224×224 RGB frames. Rerun `make doctor-mac` to verify FFmpeg and native rendering. Do not mark infrastructure passed from file existence alone.
 
-## GitHub authentication, CI, or stacked PR review fails
+## GitHub authentication or PR access fails
 
 Reauthenticate without printing tokens:
 
@@ -227,6 +227,6 @@ gh auth status
 gh repo view therealjaysun/pi-robotics
 ```
 
-Run `make ci`, `make secret-scan`, `make public-audit`, and `make pr-status` locally. The publication audit checks both current files and project-added history; if it reports a real secret, stop publication and rotate it before rewriting unpublished history. Do not silence a finding or edit generated evidence into a pass.
+Run `make ci`, `make secret-scan`, and `make public-audit` locally. The publication audit checks both current files and project-added history; if it reports a real secret, stop publication and rotate it before rewriting unpublished history. Do not silence a finding or edit generated evidence into a pass.
 
-The original stacked-PR procedure is archived in [Original implementation plans](../PLANS/ORIGINAL_IMPLEMENTATION_0828/README.md). New work starts from updated `main` on one scoped `codex/` branch and PR; GitHub Actions remain disabled, so local gates are authoritative.
+New work starts from updated `main` on one scoped `codex/` branch and PR. This repository has no GitHub Actions workflows, so local gates are authoritative.

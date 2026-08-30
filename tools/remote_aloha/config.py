@@ -17,9 +17,7 @@ DEFAULT_TASK = "gym_aloha/AlohaTransferCube-v0"
 DEFAULT_POLICY_PROFILE = "pi05_aloha_base"
 DEFAULT_POLICY_BACKEND = "pytorch"
 DEFAULT_CONVERSION_RESTORE_MODE = "auto"
-FIXED_PROMPT_SCHEDULE = "fixed"
-STAGED_PROMPT_SCHEDULE = "push_pi_single_left_staged_v1"
-STAGED_PROMPT_BOUNDARIES = (0, 500, 1500, 6000)
+LOOPBACK_HOST = "127.0.0.1"
 _KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 _UINT = re.compile(r"[0-9]+\Z")
 _SSH_ALIAS = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
@@ -37,7 +35,6 @@ class MacSimConfig:
     action_horizon: int = 30
     prefetch_steps: int = 25
     chunk_crossfade_steps: int = 0
-    prompt_schedule: str = FIXED_PROMPT_SCHEDULE
     output_dir: Path = Path("outputs")
 
 
@@ -83,9 +80,9 @@ class RemoteConfig:
     wsl_distro: str = ""
     data_home: str = ""
     jax_mem_fraction: str = "0.90"
-    local_policy_host: str = "127.0.0.1"
+    local_policy_host: str = LOOPBACK_HOST
     local_policy_port: int = 8000
-    policy_host: str = "127.0.0.1"
+    policy_host: str = LOOPBACK_HOST
     policy_port: int = 8000
     policy_profile: PolicyProfile = POLICY_PROFILES[DEFAULT_POLICY_PROFILE]
     policy_backend: str = DEFAULT_POLICY_BACKEND
@@ -193,7 +190,6 @@ def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str
     values = _read_env_file(Path(env_file))
     source = os.environ if environ is None else environ
     for key in (
-        "ALOHA_TASK",
         "ALOHA_SCENARIO",
         "ALOHA_DISPLAY",
         "ALOHA_SEED",
@@ -202,15 +198,11 @@ def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str
         "ALOHA_ACTION_HORIZON",
         "ALOHA_PREFETCH_STEPS",
         "ALOHA_CHUNK_CROSSFADE_STEPS",
-        "ALOHA_PROMPT_SCHEDULE",
         "RUN_OUTPUT_DIR",
     ):
         if key in source:
             values[key] = source[key]
 
-    task = values.get("ALOHA_TASK", DEFAULT_TASK)
-    if task != DEFAULT_TASK:
-        raise ValueError(f"ALOHA_TASK must be the pinned task {DEFAULT_TASK!r}")
     scenario = get_scenario(values.get("ALOHA_SCENARIO", "transfer_cube"))
     display_value = values.get("ALOHA_DISPLAY", "0")
     if display_value not in {"0", "1"}:
@@ -231,15 +223,6 @@ def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str
     chunk_crossfade_steps = _uint("ALOHA_CHUNK_CROSSFADE_STEPS", values.get("ALOHA_CHUNK_CROSSFADE_STEPS", "0"))
     if chunk_crossfade_steps not in {0, 5}:
         raise ValueError("ALOHA_CHUNK_CROSSFADE_STEPS must be exactly 0 or 5")
-    prompt_schedule = values.get("ALOHA_PROMPT_SCHEDULE", FIXED_PROMPT_SCHEDULE)
-    if prompt_schedule not in {FIXED_PROMPT_SCHEDULE, STAGED_PROMPT_SCHEDULE}:
-        raise ValueError("ALOHA_PROMPT_SCHEDULE must be exactly fixed or push_pi_single_left_staged_v1")
-    if prompt_schedule == STAGED_PROMPT_SCHEDULE and (
-        scenario.key != "push_pi_single" or episodes != 1 or episode_steps != STAGED_PROMPT_BOUNDARIES[-1]
-    ):
-        raise ValueError(
-            "the staged prompt schedule must use push_pi_single, ALOHA_EPISODES=1, and ALOHA_EPISODE_STEPS=6000"
-        )
     output = values.get("RUN_OUTPUT_DIR", "outputs")
     if not output or "\x00" in output:
         raise ValueError("RUN_OUTPUT_DIR must be a nonempty path")
@@ -253,7 +236,6 @@ def load_mac_sim_config(env_file: str | Path = ".env", environ: Mapping[str, str
         action_horizon=action_horizon,
         prefetch_steps=prefetch_steps,
         chunk_crossfade_steps=chunk_crossfade_steps,
-        prompt_schedule=prompt_schedule,
         output_dir=Path(output),
     )
 
@@ -267,9 +249,7 @@ def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str]
         "OPENPI_WSL_DISTRO",
         "OPENPI_DATA_HOME",
         "OPENPI_JAX_MEM_FRACTION",
-        "LOCAL_POLICY_HOST",
         "LOCAL_POLICY_PORT",
-        "REMOTE_POLICY_HOST",
         "REMOTE_POLICY_PORT",
         "OPENPI_POLICY_PROFILE",
         "OPENPI_POLICY_BACKEND",
@@ -299,12 +279,6 @@ def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str]
     if jax_mem_fraction not in _JAX_MEM_FRACTIONS:
         choices = ", ".join(_JAX_MEM_FRACTIONS)
         raise ValueError(f"OPENPI_JAX_MEM_FRACTION must be one of: {choices}")
-    local_host = values.get("LOCAL_POLICY_HOST", "127.0.0.1")
-    host = values.get("REMOTE_POLICY_HOST", "127.0.0.1")
-    if local_host != "127.0.0.1" or host != "127.0.0.1":
-        if local_host != "127.0.0.1":
-            raise ValueError("LOCAL_POLICY_HOST must be literal loopback 127.0.0.1")
-        raise ValueError("REMOTE_POLICY_HOST must be literal loopback 127.0.0.1")
     local_port = _uint("LOCAL_POLICY_PORT", values.get("LOCAL_POLICY_PORT", "8000"), maximum=65535)
     port = _uint("REMOTE_POLICY_PORT", values.get("REMOTE_POLICY_PORT", "8000"), maximum=65535)
     if min(local_port, port) < 1:
@@ -377,9 +351,7 @@ def load_remote_config(env_file: str | Path = ".env", environ: Mapping[str, str]
         wsl_distro=distro,
         data_home=_remote_path("OPENPI_DATA_HOME", values.get("OPENPI_DATA_HOME", ""), allow_empty=True),
         jax_mem_fraction=jax_mem_fraction,
-        local_policy_host=local_host,
         local_policy_port=local_port,
-        policy_host=host,
         policy_port=port,
         policy_profile=get_policy_profile(values.get("OPENPI_POLICY_PROFILE", DEFAULT_POLICY_PROFILE)),
         policy_backend=policy_backend,

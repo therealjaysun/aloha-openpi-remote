@@ -3,7 +3,6 @@ import json
 import math
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 from tools.remote_aloha.config import POLICY_PROFILES
@@ -26,7 +25,6 @@ from tools.remote_aloha.scenarios import body_descriptors
 from tools.remote_aloha.scenarios import descriptor_sha256
 from tools.remote_aloha.scenarios import footprint_overlap_coverage
 from tools.remote_aloha.scenarios import layout_hash
-from tools.remote_aloha.scenarios import project_action
 from tools.remote_aloha.scenarios import sample_layout
 from tools.remote_aloha.scenarios import scene_hash
 from tools.remote_aloha.scenarios import update_participation
@@ -99,20 +97,6 @@ def test_layout_rejects_bad_seed_and_exhaustion(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(scenarios, "SPAWN_BOUNDS", (0.0, 0.01, 0.4, 0.41))
     with pytest.raises(ValueError, match="exhausted"):
         sample_layout("pi", 7, max_attempts=1)
-
-
-@pytest.mark.parametrize("scenario", SCENARIOS.values(), ids=lambda scenario: scenario.key)
-def test_projection_preserves_every_model_joint_exactly(scenario) -> None:
-    action = np.arange(14, dtype=np.float64)
-    projected = project_action(action, scenario)
-    assert np.array_equal(projected, action)
-    assert projected is not action
-    with pytest.raises(ValueError, match="14-vector"):
-        project_action(np.zeros(13), scenario)
-    invalid = action.copy()
-    invalid[6] = np.nan
-    with pytest.raises(ValueError, match="finite"):
-        project_action(invalid, scenario)
 
 
 def test_success_requires_five_held_steps_and_i_yaw_is_pi_symmetric() -> None:

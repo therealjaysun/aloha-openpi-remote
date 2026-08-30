@@ -26,6 +26,6 @@ make secret-scan
 make public-audit
 ```
 
-External contributors should run tests, lint, and the secret scan. The canonical `make public-audit` also verifies this repository's exact remotes/history, so maintainers run it before accepting a change; forks may fail that identity gate by design. Run `make pr-status` only when changing the seven-PR development stack. The publication audit checks project-added history as well as current files. If it finds a real secret, rotate it and repair unpublished history; deleting it only from the latest revision is insufficient.
+External contributors should run tests, lint, and the secret scan. The canonical `make public-audit` also verifies this repository's exact remotes/history, so maintainers run it before accepting a change; forks may fail that identity gate by design. The publication audit checks project-added history as well as current files. If it finds a real secret, rotate it and repair unpublished history; deleting it only from the latest revision is insufficient.
 
 Describe the scope, tests, security impact, hardware evidence if relevant, limitations, and rollback. Never commit generated outputs, runtime records, machine-specific configuration, or model artifacts. Changes to upstream-derived files must retain the original license and attribution.

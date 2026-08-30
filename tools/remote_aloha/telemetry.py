@@ -15,9 +15,6 @@ from typing import TextIO
 
 import numpy as np
 
-from tools.remote_aloha.config import FIXED_PROMPT_SCHEDULE
-from tools.remote_aloha.config import STAGED_PROMPT_BOUNDARIES
-from tools.remote_aloha.config import STAGED_PROMPT_SCHEDULE
 from tools.remote_aloha.scenarios import SCENARIOS
 from tools.remote_aloha.scenarios import TARGET_AREA_COVERAGE_METHOD
 from tools.remote_aloha.scenarios import TASK_TO_SCENARIO
@@ -47,9 +44,6 @@ _PUBLISHABLE_METADATA = {
     "package_versions",
     "prefetch_steps",
     "profile",
-    "prompt_schedule",
-    "prompt_stage_boundaries",
-    "prompt_stage_count",
     "run_id",
     "scenario",
     "scene_hash",
@@ -115,7 +109,6 @@ _PUBLISHABLE_EVENTS = {
     "metadata",
     "policy_request",
     "policy_result",
-    "prompt_stage",
     "retry",
     "step",
     "terminal",
@@ -136,7 +129,6 @@ _PUBLISHABLE_METRICS = {
     "server_rss_kib",
     "server_total_ms",
     "sim_step_ms",
-    "prompt_transition_wait_ms",
     "policy_denoise_ms",
     "policy_infer_ms",
     "policy_input_transfer_ms",
@@ -448,21 +440,6 @@ def _valid_publishable_metadata(metadata: Mapping[str, object]) -> dict[str, obj
         raise ValueError("publishable telemetry chunk_crossfade_steps is invalid")
     if "camera_views" in result and result["camera_views"] != ["cam_high", "cam_left_wrist", "cam_right_wrist"]:
         raise ValueError("publishable telemetry camera views are invalid")
-    prompt_schedule = result.get("prompt_schedule")
-    if prompt_schedule not in {None, FIXED_PROMPT_SCHEDULE, STAGED_PROMPT_SCHEDULE}:
-        raise ValueError("publishable telemetry prompt schedule is invalid")
-    prompt_stage_count = result.get("prompt_stage_count")
-    prompt_stage_boundaries = result.get("prompt_stage_boundaries")
-    if prompt_schedule == STAGED_PROMPT_SCHEDULE:
-        if (
-            profile != "pi05_aloha_base"
-            or scenario != "push_pi_single"
-            or prompt_stage_count != 3
-            or prompt_stage_boundaries != list(STAGED_PROMPT_BOUNDARIES)
-        ):
-            raise ValueError("publishable staged prompt metadata is invalid")
-    elif prompt_stage_count not in {None, 1} or prompt_stage_boundaries is not None:
-        raise ValueError("publishable fixed prompt metadata is invalid")
     seeds = result.get("seeds")
     if seeds is not None and (
         not isinstance(seeds, list)
