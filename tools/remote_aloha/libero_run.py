@@ -218,27 +218,36 @@ def run_scenario(
     )
 
     versions = _package_versions()
-    emit(
-        "metadata",
-        run_id=run_id,
-        profile=remote.policy_profile.name,
-        checkpoint_label=remote.policy_profile.checkpoint_label,
-        source_sha=source_sha,
-        upstream_sha=UPSTREAM_SHA,
-        seeds=[seed],
-        task=f"libero/{scenario}",
-        scenario=scenario,
-        scene_hash=scene_hash,
-        target_area_coverage_method="exact-planar-union-v1",
-        camera_views=list(CAMERA_VIEWS),
-        action_horizon=replan_steps,
-        model_action_horizon=remote.policy_profile.action_horizon,
-        prefetch_steps=0,
-        chunk_crossfade_steps=0,
-        package_versions=versions,
-    )
+    metadata_emitted = False
+
+    def emit_metadata() -> None:
+        nonlocal metadata_emitted
+        if metadata_emitted:
+            return
+        emit(
+            "metadata",
+            run_id=run_id,
+            profile=remote.policy_profile.name,
+            checkpoint_label=remote.policy_profile.checkpoint_label,
+            source_sha=source_sha,
+            upstream_sha=UPSTREAM_SHA,
+            seeds=[seed],
+            task=f"libero/{scenario}",
+            scenario=scenario,
+            scene_hash=scene_hash,
+            target_area_coverage_method="exact-planar-union-v1",
+            camera_views=list(CAMERA_VIEWS),
+            action_horizon=replan_steps,
+            model_action_horizon=remote.policy_profile.action_horizon,
+            prefetch_steps=0,
+            chunk_crossfade_steps=0,
+            package_versions=versions,
+        )
+        metadata_emitted = True
+
     try:
         sampler = start_gpu_sampler(remote, run_id, source_sha, root)
+        emit_metadata()
         environment, prompt = create_env(
             scenario,
             resolution=256,
@@ -328,6 +337,7 @@ def run_scenario(
         status = "interrupted" if isinstance(error, KeyboardInterrupt) else "failed"
         errors.append({"stage": "control", "type": type(error).__name__, "message": str(error)[:500]})
         with suppress(BaseException):
+            emit_metadata()
             emit("error", stage="control", error_type=type(error).__name__)
     finally:
         for stage, resource in (("policy_close", client), ("environment_close", environment)):
