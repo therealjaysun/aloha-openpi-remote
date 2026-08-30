@@ -111,7 +111,7 @@ def _json_safe(value: object, depth: int = 0) -> object:
             raise ValueError("environment info contains a non-finite number")
         return value
     if isinstance(value, Mapping):
-        if len(value) > 32 or not all(isinstance(key, str) for key in value):
+        if len(value) > 64 or not all(isinstance(key, str) for key in value):
             raise ValueError("environment info mapping is not bounded string-keyed data")
         return {key: _json_safe(item, depth + 1) for key, item in value.items()}
     if isinstance(value, list | tuple) and len(value) <= 100:
