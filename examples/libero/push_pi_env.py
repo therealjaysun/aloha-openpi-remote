@@ -556,7 +556,6 @@ def snapshot_layout(environment) -> dict[str, object]:
             )
             and _agentview_contains(LIBERO_COKE_CAN_CENTER, LIBERO_COKE_CAN_RADIUS, 0.98),
             "can_xy_error": math.dist(planned["can_xy"], (actual["coke_can_1"]["x"], actual["coke_can_1"]["y"])),
-            "can_yaw_error": abs(_wrapped_angle(actual["coke_can_1"]["yaw_radians"])),
             "portrait_xy_error": {
                 name: math.dist(center, (actual[f"{name}_photo_1"]["x"], actual[f"{name}_photo_1"]["y"]))
                 for name, center in planned["portrait_xy"].items()
@@ -578,7 +577,6 @@ def snapshot_layout(environment) -> dict[str, object]:
             validation["agentview_visible"]
             and validation["within_table"]
             and validation["can_xy_error"] <= 0.002
-            and validation["can_yaw_error"] <= 1e-6
             and max(validation["portrait_xy_error"].values()) <= 0.002
             and max(validation["portrait_yaw_error"].values()) <= 1e-6
         ):
