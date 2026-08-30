@@ -491,8 +491,8 @@ def advance_outcome(
         raise ValueError("outcome body state does not match its descriptor")
     all_at_goal = True
     lifted = previous.lifted_ever
-    fallen = False
-    off_table = False
+    fallen = previous.fallen
+    off_table = previous.off_table
     metrics: dict[str, float] = {}
     coverage_area = total_area = 0.0
     min_x, max_x, min_y, max_y = TABLE_BOUNDS
@@ -537,7 +537,7 @@ def advance_outcome(
         )
     metrics["target_area_coverage"] = coverage_area / total_area
     held = previous.held_steps + 1 if all_at_goal and not lifted and not fallen and not off_table else 0
-    success = held >= SUCCESS_HOLD_STEPS
+    success = previous.success or held >= SUCCESS_HOLD_STEPS
     reason = "off_table" if off_table else "fallen" if fallen else "success" if success else "running"
     return OutcomeState(held, lifted, success, off_table, fallen, reason), metrics
 

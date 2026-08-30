@@ -180,7 +180,7 @@ OPENPI_WSL_DISTRO=Ubuntu-24.04 OPENPI_POLICY_PROFILE="$profile" OPENPI_POLICY_BA
 
 For the exact Push-PI evaluation, replace `make run` with one `make scenario-matrix`, then run `make scenario-metrics` before `make stop`. The matrix fixes seeds to 0–2 and runs all four scenarios once per seed, for 12 episodes under the selected profile. Current optimization and qualification runs use only the default experimental π₀.₅ profile; do not add π₀ or display-on GPU runs.
 
-`ALOHA_EPISODE_STEPS` defaults to the accepted 300-step test limit. Long checkpoint-comparison experiments explicitly use 6,000 steps (120 simulated seconds at 50 Hz); the acceptance matrix rejects overrides so its short results remain comparable.
+`ALOHA_EPISODE_STEPS` defaults to the accepted 300-step test limit. Long checkpoint-comparison experiments explicitly use 6,000 steps (120 simulated seconds at 50 Hz); success, fall, and off-table states remain recorded but do not shorten custom episodes. The acceptance matrix rejects the duration override so its short results remain comparable.
 
 Scenario 1 sends this complete instruction once to π₀.₅: `A PI-shaped block and a dotted target outline are on the table. Using only the left arm, push the block until it covers and aligns with the target outline.`
 

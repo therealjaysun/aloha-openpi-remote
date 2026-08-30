@@ -427,8 +427,8 @@ class PushPiEnv(AlohaEnv):
         _, reward, _, raw_observation = self._env.step(command)
         self._step_count += 1
         info = self._push_task.info()
-        terminated = info["terminal_reason"] in {"success", "fallen"}
-        truncated = self._step_count >= self._episode_steps and not terminated
+        terminated = False
+        truncated = self._step_count >= self._episode_steps
         if truncated:
             info = {**info, "terminal_reason": "time_limit"}
         return self._format_raw_obs(raw_observation), float(reward), bool(terminated), bool(truncated), info
