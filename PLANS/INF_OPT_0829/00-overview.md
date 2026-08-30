@@ -49,7 +49,7 @@ Final hardware-code candidate `5ea5446` retained S1+S5B and removed only off-tab
 ## Fixed constraints
 
 - Keep BF16 weights, the π₀.₅ checkpoint, all three `224×224` camera inputs, 14 unlocked controls, the 50-action model output, one in-flight request, WebSocket over SSH, and existing telemetry/output systems.
-- Record off-table state as task-failure evidence but do not terminate the episode for it; diagnostic runs continue to success, fall, or the configured step limit.
+- Record success, fall, and off-table state as sticky task evidence; none terminates a custom diagnostic before its configured step limit.
 - A fixed scenario sends one prompt once. Crossfade only time-aligned chunks produced by the same checkpoint and prompt stage.
 - Never crossfade across a prompt-stage transition; clear the old buffer first.
 - Every applied command must contain exactly 14 finite values and remain attributable to model output.

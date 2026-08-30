@@ -9,7 +9,8 @@
 - **Planned commit:** Included in `feat(sim): add shared Push-PI environment` and `feat(runtime): integrate Push-PI scenarios and display`.
 - **Actual findings:** The policy ABI is 14-D, so “left arm only” is expressed in the prompt, not by discarding valid right-arm or gripper commands. The unlocked model moved the right arm more than the prompted left arm but still made no object contact.
 - **Actual validation:** Exact candidate `1c0604e` completed 6,000/6,000 coverage/joint/video samples over 120 simulated/180.05 wall seconds. Every row was finite 14-D at exact steps 0–5,999 with monotonic time; every row commanded the formerly parked right arm and both formerly fixed grippers away from their old values. Coverage stayed `0.0%`; there was no contact, lift, fall, off-table event, or visible π displacement. Right/left travel was `31.2387/9.3381 rad`; all three views and 14 actual plus 14 commanded series passed inspection. GPU coverage, local gates, two stops, and final free-port doctor passed.
+- **Current comparison:** Candidate `196f8e5` completed exact 6,000-step/120-second π₀.₅ base and Trossen runs. Base recorded no outcome event in 219.299 wall seconds; Trossen immediately produced right contact, lift, fall, and off-table state and finished in 196.181 wall seconds. Both stayed at 0% coverage and passed exact video/trajectory checks.
 - **Remaining blockers:** None for the scoped unlocked Scenario 1 diagnostic. Historical matrices do not certify unlocked hardware behavior across all scenarios.
-- **Completion status:** Complete; earlier locked-action evidence remains historical.
+- **Completion status:** Complete for both current π₀.₅ checkpoints; earlier evidence remains historical.
 
 `ponytail:` the visible right robot remains in the scene; remove it only if measured occlusion or contact changes the experiment.

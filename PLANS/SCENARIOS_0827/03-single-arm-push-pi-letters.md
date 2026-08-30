@@ -9,7 +9,8 @@
 - **Planned commit:** Included in `feat(sim): add shared Push-PI environment` and `feat(runtime): integrate Push-PI scenarios and display`.
 - **Actual findings:** Gym-Aloha has no multi-letter task or general object-pose sampler; its global one/two-object `BOX_POSE` path should not be extended for this suite.
 - **Actual validation:** Six exact-SHA hardware episodes completed 1,800 applied steps and matching trajectory rows with six valid videos and six inspected 14-joint plots. All reached the time limit with no contact, lift, fall, off-table event, or task success.
+- **Current comparison:** Candidate `196f8e5` completed exact 6,000-step/120-second π₀.₅ base and Trossen runs. Base recorded right contact, lift, fall, and off-table state in 232.880 wall seconds; Trossen recorded the same failure classes with left contact in 230.460 wall seconds. Both stayed at 0% coverage and passed exact video/trajectory checks.
 - **Remaining blockers:** None. Zero-shot sequencing remains an experiment result.
-- **Completion status:** Historical run complete with uppercase dotless `P`/`I`; the shared coverage evaluator applies, with no new hardware claim/run in this amendment.
+- **Completion status:** Current π₀.₅ checkpoint comparison complete with uppercase dotless `P`/`I`; historical evidence remains separate.
 
 `ponytail:` primitive glyphs are sufficient for the first experiment; add authored meshes only if top-camera recognition is demonstrably inadequate.
