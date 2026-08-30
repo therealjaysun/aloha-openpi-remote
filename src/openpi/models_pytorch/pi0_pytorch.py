@@ -111,6 +111,11 @@ class PI0Pytorch(nn.Module):
         torch.set_float32_matmul_precision("high")
         if config.pytorch_compile_mode is not None:
             self.sample_actions = torch.compile(self.sample_actions, mode=config.pytorch_compile_mode)
+        self._compiled_denoise_step = None
+        if self.pi05 and config.pytorch_denoise_compile_mode == "default":
+            self._compiled_denoise_step = torch.compile(
+                self.denoise_step, backend="inductor", mode="default", fullgraph=True, dynamic=False
+            )
 
         # Initialize gradient checkpointing flag
         self.gradient_checkpointing_enabled = False
@@ -432,8 +437,8 @@ class PI0Pytorch(nn.Module):
         if timing_events is not None:
             timing_events["prefix_end"].record()
 
-        x_t = noise
         if self.pi05:
+            x_t = noise.clone()
             suffix_pad_masks = torch.ones(
                 bsize, self.config.action_horizon, dtype=torch.bool, device=prefix_pad_masks.device
             )
@@ -457,9 +462,10 @@ class PI0Pytorch(nn.Module):
             dt = -1.0 / num_steps
             dt = torch.tensor(dt, dtype=torch.float32, device=device)
             time = torch.tensor(1.0, dtype=torch.float32, device=device)
+            denoise_step = self._compiled_denoise_step if self._compiled_denoise_step is not None else self.denoise_step
             for _ in range(num_steps):
                 expanded_time = time.expand(bsize)
-                v_t = self.denoise_step(
+                v_t = denoise_step(
                     state,
                     prefix_pad_masks,
                     past_key_values,
@@ -473,6 +479,7 @@ class PI0Pytorch(nn.Module):
                 x_t = x_t + dt * v_t
                 time += dt
         else:
+            x_t = noise
             dt = -1.0 / num_steps
             dt = torch.tensor(dt, dtype=torch.float32, device=device)
             time = torch.tensor(1.0, dtype=torch.float32, device=device)

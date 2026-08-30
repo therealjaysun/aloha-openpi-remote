@@ -33,6 +33,7 @@ def test_policy_server_host_and_gpu_metadata_patch_is_localized() -> None:
     assert "require_torch_device" in source
     assert 'policy_backend: Literal["jax", "pytorch"]' in source
     assert "pytorch_compile_mode=None" in source
+    assert 'pytorch_denoise_compile_mode="default" if train_config.model.pi05 else None' in source
     assert "compact_masked_images" in source
     assert '"action_dimension": 14' in source
 
@@ -62,6 +63,8 @@ def test_wsl_start_wrapper_has_exact_two_profile_routes_and_loopback() -> None:
     assert 'kill -TERM "$pid"' not in source
     assert "[server] loading profile=$profile backend=$backend" in source
     assert "[server] still loading; elapsed=${SECONDS}s" in source
+    assert "TORCHINDUCTOR_CACHE_DIR" in source
+    assert "TORCH_LOGS=dynamo,recompiles,graph_breaks" in source
 
     smoke = Path("scripts/smoke_policy.sh").read_text(encoding="utf-8")
     assert "timeout --signal=TERM --kill-after=10s" in smoke
