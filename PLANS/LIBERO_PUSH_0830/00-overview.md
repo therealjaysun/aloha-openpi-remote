@@ -3,7 +3,7 @@
 ## Status
 
 - **Branch:** `codex/libero-push-pi-0830` from `main` at `856636e`.
-- **Plan:** Approved for execution after repository audit.
+- **Plan:** Executed and verified on 2026-08-29 PDT.
 - **Scenarios:** One LIBERO Panda arm runs `push_pi` and `push_p_i`.
 - **Duration:** 30 policy seconds by default (600 actions at LIBERO's 20 Hz); smoke mode is 6 policy seconds (120 actions). The existing 10 stabilization actions do not count toward either duration.
 - **Model:** Official `pi05_libero` weights. These custom shapes and prompts are out of distribution, so completion requires valid full-duration runs and artifacts, not task success.
@@ -31,6 +31,17 @@
 3. Remote gate: commit and push the exact candidate, sync the WSL checkout, prefetch/convert `pi05_libero`, start the PyTorch server, and pass the optimized policy smoke. Confirm one compiled denoise graph, no steady-state recompiles, RTX 3090 placement, finite `(10, 7)` output, and timing evidence.
 4. Connected smoke: run `push_pi` and `push_p_i` for exactly 120 policy actions each.
 5. Full runs: only after both connected smokes pass, run each scenario for exactly 600 policy actions, inspect JSON/video/server timing, then stop the owned tunnel and server.
+
+## Execution record
+
+- Local gates passed: 440 tests, Ruff and shell lint, secret scan, scenario self-check, two simulator-only smokes, and exact target-placement success checks.
+- Remote setup and full-float32 `pi05_libero` conversion passed on the RTX 3090 at source `3db19aa1e1eb6cc32077131e22b26b3cd197002b`; model SHA-256 is `bc6831059bc6062bca25226f07d51a0af06d4a1ef003982c1eb2e4f67f04f206`.
+- Optimized policy smoke passed with finite `(10, 7)` actions. After the one-time 23.7 s S5B compile, server inference was 175 ms, including 56 ms prefix-KV and 64 ms denoise timing; subsequent simulator requests had no compile-sized latency spikes.
+- Both connected smokes completed 120 actions / 6.0 seconds. Both full runs completed 600 actions / 30.0 seconds and 120 policy requests; their videos decode to exactly 600 frames.
+- `push_pi`: 219 ms mean policy latency, 245 ms p95, final/best coverage `0.0`, unsuccessful.
+- `push_p_i`: 227 ms mean policy latency, 268 ms p95, final/best coverage `0.0`, unsuccessful.
+- The custom glyph tasks are out of distribution for the official checkpoint. The runs are valid integration and speed evaluations, but the zero-coverage result is not a standard LIBERO benchmark score.
+- Videos and JSON summaries are preserved under ignored `data/libero/videos/`; the owned policy server and tunnel were stopped, and the final doctor check reports the port free.
 
 ## Acceptance
 
