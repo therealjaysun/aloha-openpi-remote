@@ -52,6 +52,9 @@ LIBERO_PORTRAIT_HALF_THICKNESS = 0.001
 LIBERO_COKE_CAN_RADIUS = 0.033
 LIBERO_COKE_CAN_HALF_HEIGHT = 0.061
 LIBERO_COKE_CAN_CENTER = (0.18, 0.0)
+LIBERO_COKE_LIGHT_AMBIENT = 0.25
+LIBERO_COKE_LIGHT_DIFFUSE = 1.0
+LIBERO_COKE_RED = (0.95, 0.0, 0.01, 1.0)
 LIBERO_PORTRAIT_CENTERS = {
     "taylor_swift": (-0.20, 0.12),
     "ian_mckellen": (-0.20, -0.12),
@@ -209,27 +212,37 @@ class CokeCan(CompositeObject):
         super().__init__(
             name=name,
             total_size=(LIBERO_COKE_CAN_RADIUS, LIBERO_COKE_CAN_RADIUS, LIBERO_COKE_CAN_HALF_HEIGHT),
-            geom_types=["cylinder", "cylinder", "cylinder"],
+            geom_types=["cylinder", "cylinder", "cylinder", "ellipsoid", "ellipsoid"],
             geom_sizes=[
                 (LIBERO_COKE_CAN_RADIUS, LIBERO_COKE_CAN_HALF_HEIGHT),
                 (LIBERO_COKE_CAN_RADIUS * 1.02, 0.001),
                 (LIBERO_COKE_CAN_RADIUS * 1.02, 0.001),
+                (0.012, 0.006, 0.0015),
+                (0.0065, 0.0025, 0.001),
             ],
             geom_locations=[
                 (0.0, 0.0, 0.0),
                 (0.0, 0.0, LIBERO_COKE_CAN_HALF_HEIGHT),
                 (0.0, 0.0, -LIBERO_COKE_CAN_HALF_HEIGHT),
+                (0.0, 0.006, LIBERO_COKE_CAN_HALF_HEIGHT + 0.0025),
+                (0.0, 0.006, LIBERO_COKE_CAN_HALF_HEIGHT + 0.004),
             ],
-            geom_names=["body", "top", "bottom"],
-            geom_rgbas=[(0.78, 0.01, 0.02, 1.0), (0.75, 0.75, 0.75, 1.0), (0.75, 0.75, 0.75, 1.0)],
-            geom_frictions=[GEOM_FRICTION] * 3,
-            geom_condims=[GEOM_CONDIM] * 3,
-            density=[900.0, None, None],
+            geom_names=["body", "top", "bottom", "pull_tab", "pull_tab_opening"],
+            geom_rgbas=[
+                LIBERO_COKE_RED,
+                (0.75, 0.75, 0.75, 1.0),
+                (0.75, 0.75, 0.75, 1.0),
+                (0.55, 0.55, 0.55, 1.0),
+                (0.08, 0.08, 0.08, 1.0),
+            ],
+            geom_frictions=[GEOM_FRICTION] * 5,
+            geom_condims=[GEOM_CONDIM] * 5,
+            density=[900.0, None, None, None, None],
             solref=GEOM_SOLREF,
             solimp=GEOM_SOLIMP,
             locations_relative_to_center=True,
             joints=joints,
-            obj_types=["all", "visual", "visual"],
+            obj_types=["all", "visual", "visual", "visual", "visual"],
             duplicate_collision_geoms=False,
         )
         self.category_name = "coke_can"
@@ -311,6 +324,11 @@ class PushLettersLibero(_PushPiTask):
 @register_problem
 class CokeOnTaylorLibero(TASK_MAPPING["libero_tabletop_manipulation"]):
     tracked = (("coke_can_1", "coke_can"), *((f"{name}_photo_1", name) for name in LIBERO_PORTRAIT_CENTERS))
+
+    def _reset_internal(self):
+        super()._reset_internal()
+        self.sim.model.light_ambient[:] = LIBERO_COKE_LIGHT_AMBIENT
+        self.sim.model.light_diffuse[:] = LIBERO_COKE_LIGHT_DIFFUSE
 
     def _state(self, body_name: str, descriptor_name: str) -> BodyState:
         body_id = self.obj_body_id[body_name]
@@ -444,6 +462,7 @@ def coke_taylor_layout() -> dict[str, object]:
             "bottom_row": ["ed_sheeran", "emma_stone", "snoop_dogg"],
         },
         "can_xy": list(LIBERO_COKE_CAN_CENTER),
+        "lighting": {"ambient": LIBERO_COKE_LIGHT_AMBIENT, "diffuse": LIBERO_COKE_LIGHT_DIFFUSE},
         "portrait_asset_sha256": {
             name: hashlib.sha256((_PORTRAIT_ASSET_DIR / f"{name}.png").read_bytes()).hexdigest()
             for name in LIBERO_PORTRAIT_CENTERS
@@ -654,6 +673,7 @@ def self_check() -> None:
         "top_row": ["taylor_swift", "ian_mckellen"],
         "bottom_row": ["ed_sheeran", "emma_stone", "snoop_dogg"],
     }
+    assert coke_layout["lighting"] == {"ambient": 0.25, "diffuse": 1.0}
     assert len(set(coke_layout["portrait_asset_sha256"].values())) == 5
     assert all(len(value) == 64 for value in coke_layout["portrait_asset_sha256"].values())
     assert all(
