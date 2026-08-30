@@ -49,7 +49,7 @@ LIBERO_AGENTVIEW_RESOLUTION = 256
 LIBERO_AGENTVIEW_PIXEL_MARGIN = 4
 LIBERO_PORTRAIT_HALF_SIZE = (0.10, 0.075)
 LIBERO_PORTRAIT_HALF_THICKNESS = 0.001
-LIBERO_COKE_CAN_RADIUS = 0.033
+LIBERO_COKE_CAN_RADIUS = 0.027
 LIBERO_COKE_CAN_HALF_HEIGHT = 0.061
 LIBERO_COKE_CAN_CENTER = (0.18, 0.0)
 LIBERO_COKE_LIGHT_AMBIENT = 0.25
@@ -461,6 +461,7 @@ def coke_taylor_layout() -> dict[str, object]:
             "top_row": ["taylor_swift", "ian_mckellen"],
             "bottom_row": ["ed_sheeran", "emma_stone", "snoop_dogg"],
         },
+        "can_dimensions_m": {"diameter": 2 * LIBERO_COKE_CAN_RADIUS, "height": 2 * LIBERO_COKE_CAN_HALF_HEIGHT},
         "can_xy": list(LIBERO_COKE_CAN_CENTER),
         "lighting": {"ambient": LIBERO_COKE_LIGHT_AMBIENT, "diffuse": LIBERO_COKE_LIGHT_DIFFUSE},
         "portrait_asset_sha256": {
@@ -674,6 +675,7 @@ def self_check() -> None:
         "bottom_row": ["ed_sheeran", "emma_stone", "snoop_dogg"],
     }
     assert coke_layout["lighting"] == {"ambient": 0.25, "diffuse": 1.0}
+    assert coke_layout["can_dimensions_m"] == {"diameter": 0.054, "height": 0.122}
     assert len(set(coke_layout["portrait_asset_sha256"].values())) == 5
     assert all(len(value) == 64 for value in coke_layout["portrait_asset_sha256"].values())
     assert all(
