@@ -57,18 +57,21 @@ def test_fixed_scenario_contract_uses_uppercase_dotless_letters() -> None:
     )
     assert {key: SCENARIOS[key].prompt for key in tuple(SCENARIOS)[1:]} == {
         "push_pi_single": (
-            "Using only the left arm, first tilt the wrist down to see the pi-shaped block and its matching outline, "
-            "then lower the gripper close to the table beside the block and make short incremental pushes that move "
-            "the block into the outline; recheck alignment after each push and do not lift the block."
+            "A PI-shaped block and a dotted target outline are on the table. Using only the left arm, push the block "
+            "until it covers and aligns with the target outline."
         ),
         "push_pi_dual": (
-            "Using both arms, first tilt both wrists down to see the pi-shaped block and its matching outline; "
-            "then lower both grippers close to the table on opposite sides of the block without lifting it; "
-            "finally make short coordinated incremental pushes that move the block into the outline, rechecking "
-            "alignment after each push."
+            "A PI-shaped block and a dotted target outline are on the table. Using both arms, push the block until it "
+            "covers and aligns with the target outline."
         ),
-        "push_letters_single": "Using only the left arm, push the P and I blocks onto their matching targets.",
-        "push_letters_dual": "Using both arms, push the P and I blocks onto their matching targets.",
+        "push_letters_single": (
+            "P and I blocks and their dotted target outlines are on the table. Using only the left arm, push each "
+            "block until it covers and aligns with its matching target outline."
+        ),
+        "push_letters_dual": (
+            "P and I blocks and their dotted target outlines are on the table. Using both arms, push each block until "
+            "it covers and aligns with its matching target outline."
+        ),
     }
     bodies = body_descriptors("letters")
     assert tuple(body.name for body in bodies) == ("P", "I")
@@ -190,7 +193,7 @@ def test_scene_hash_covers_only_physical_xml_assets_and_kind(monkeypatch: pytest
 
 
 def test_descriptor_hash_freezes_every_calibrated_value() -> None:
-    assert descriptor_sha256() == "4e5c0cfff58436a244c6695e13cbfe7fe61aa2b0cc17f1410161622c0774919c"
+    assert descriptor_sha256() == "7c6b551eb62448fe3e43bca7439d1026a56f333df5340c7732bd2a1cd0bbae00"
 
 
 @pytest.mark.parametrize(

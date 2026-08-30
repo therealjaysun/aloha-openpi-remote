@@ -180,9 +180,9 @@ For the exact Push-PI evaluation, replace `make run` with one `make scenario-mat
 
 `ALOHA_EPISODE_STEPS` defaults to the accepted 300-step limit. A single diagnostic run may raise it to at most 6,000 steps (120 simulated seconds at 50 Hz); the acceptance matrix rejects overrides so its results remain comparable.
 
-Scenario 1 sends this complete instruction once to π₀.₅: `Using only the left arm, first tilt the wrist down to see the pi-shaped block and its matching outline, then lower the gripper close to the table beside the block and make short incremental pushes that move the block into the outline; recheck alignment after each push and do not lift the block.`
+Scenario 1 sends this complete instruction once to π₀.₅: `A PI-shaped block and a dotted target outline are on the table. Using only the left arm, push the block until it covers and aligns with the target outline.`
 
-Scenario 2 likewise sends all three stages once: `Using both arms, first tilt both wrists down to see the pi-shaped block and its matching outline; then lower both grippers close to the table on opposite sides of the block without lifting it; finally make short coordinated incremental pushes that move the block into the outline, rechecking alignment after each push.`
+Scenario 2 sends the same simple description and goal with both-arm wording: `A PI-shaped block and a dotted target outline are on the table. Using both arms, push the block until it covers and aligns with the target outline.` The P-and-I scenarios use the same one-shot structure and tell the model to align each block with its matching dotted target outline.
 
 All scenarios pass the model's complete finite 14-joint action to MuJoCo unchanged. “Single arm” is prompt intent and an observed behavior label only; the project does not park either arm or override either gripper. Reset positions and MuJoCo's native joint/actuator limits still apply.
 
