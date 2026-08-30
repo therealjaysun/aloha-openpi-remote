@@ -82,6 +82,17 @@ POLICY_PROFILES = {
         default_prompt="grab and handover the red cube",
         experimental=True,
     ),
+    "pi05_libero": PolicyProfile(
+        name="pi05_libero",
+        env="LIBERO",
+        config_name="pi05_libero",
+        checkpoint_uri="gs://openpi-assets/checkpoints/pi05_libero",
+        checkpoint_label="pi05_libero",
+        default_prompt=None,
+        experimental=True,
+        action_horizon=10,
+        action_dimension=7,
+    ),
 }
 
 

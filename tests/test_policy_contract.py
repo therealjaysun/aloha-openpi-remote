@@ -24,16 +24,18 @@ def test_policy_metadata_and_response_contract(profile_name: str) -> None:
         "checkpoint_label": profile.checkpoint_label,
         "checkpoint_variant": profile.checkpoint_label,
         "policy_backend": "jax",
-        "action_horizon": 50,
-        "action_dimension": 14,
+        "action_horizon": profile.action_horizon,
+        "action_dimension": profile.action_dimension,
         "source_sha": SHA,
         "compact_masked_images": True,
         "jax_platform": "gpu",
         "jax_device": "NVIDIA GeForce RTX 3090",
     }
     validate_server_metadata(metadata, profile, SHA)
-    actions = validate_policy_response({"actions": np.zeros((50, 14), dtype=np.float32)}, profile)
-    assert actions.shape == (50, 14)
+    actions = validate_policy_response(
+        {"actions": np.zeros((profile.action_horizon, profile.action_dimension), dtype=np.float32)}, profile
+    )
+    assert actions.shape == (profile.action_horizon, profile.action_dimension)
 
 
 @pytest.mark.parametrize(
@@ -230,6 +232,66 @@ def test_policy_smoke_supports_five_warmups_and_compact_measured_summary(
     assert result["server_infer_ms"]["count"] == 3
     assert result["server_infer_ms"]["p95"] == pytest.approx(17.9)
     assert result["policy_timing"]["vision_ms"]["count"] == 3
+
+
+def test_policy_smoke_uses_native_libero_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+    from openpi_client import websocket_client_policy
+
+    class Policy:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def get_server_metadata(self) -> dict[str, object]:
+            return {
+                "policy_profile": "pi05_libero",
+                "config_name": "pi05_libero",
+                "checkpoint_label": "pi05_libero",
+                "checkpoint_variant": "pi05_libero_pytorch",
+                "policy_backend": "pytorch",
+                "action_horizon": 10,
+                "action_dimension": 7,
+                "source_sha": SHA,
+                "compact_masked_images": True,
+                "torch_platform": "cuda",
+                "torch_device": "NVIDIA GeForce RTX 3090",
+                "torch_model_device": "cuda:0",
+            }
+
+        def infer(self, observation: dict) -> dict[str, object]:
+            assert observation["observation/state"].shape == (8,)
+            assert observation["observation/image"].shape == (224, 224, 3)
+            assert observation["observation/wrist_image"].shape == (224, 224, 3)
+            return {
+                "actions": np.zeros((10, 7), dtype=np.float32),
+                "server_timing": {"infer_ms": 10.0},
+                "policy_timing": {
+                    "infer_ms": 9.0,
+                    "input_transfer_ms": 1.0,
+                    "model_ms": 7.0,
+                    "output_transfer_ms": 1.0,
+                    "vision_ms": 1.0,
+                    "language_embed_ms": 1.0,
+                    "prefix_kv_ms": 2.0,
+                    "denoise_ms": 3.0,
+                    "model_stages_ms": 7.0,
+                },
+            }
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(websocket_client_policy, "WebsocketClientPolicy", Policy)
+    result = run_policy_smoke(
+        profile_name="pi05_libero",
+        backend="pytorch",
+        host="127.0.0.1",
+        port=8000,
+        source_sha=SHA,
+        warmup_requests=1,
+        measured_requests=1,
+    )
+    assert result["action_shape"] == [10, 7]
+    assert result["camera_views"] == ["observation/image", "observation/wrist_image"]
 
 
 def test_policy_smoke_replays_fixed_input_and_noise_exactly(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:

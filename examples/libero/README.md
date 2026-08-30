@@ -2,6 +2,36 @@
 
 This example runs the LIBERO benchmark: https://github.com/Lifelong-Robot-Learning/LIBERO
 
+## Push-PI scenarios
+
+The project adds two single-Panda scenarios without modifying the LIBERO submodule. Both reuse the existing Push-PI
+geometry and dotted targets:
+
+```bash
+# 6-second (120-action) connected smokes
+python examples/libero/main.py --args.scenario push_pi --args.smoke
+python examples/libero/main.py --args.scenario push_p_i --args.smoke
+
+# 30-second (600-action) runs; 30 seconds is the default
+python examples/libero/main.py --args.scenario push_pi
+python examples/libero/main.py --args.scenario push_p_i
+```
+
+The 10 initial stabilization actions are outside those durations. Videos and JSON summaries are written under
+`data/libero/videos`. The official `pi05_libero` checkpoint is trained on standard LIBERO tasks, so these custom
+runs are out-of-distribution behavior tests and may correctly report no task success.
+
+The existing optimized remote server accepts the LIBERO profile:
+
+```bash
+OPENPI_POLICY_PROFILE=pi05_libero OPENPI_POLICY_BACKEND=pytorch make setup-pc
+OPENPI_POLICY_PROFILE=pi05_libero OPENPI_POLICY_BACKEND=pytorch make convert-pc
+OPENPI_POLICY_PROFILE=pi05_libero OPENPI_POLICY_BACKEND=pytorch make server
+OPENPI_POLICY_PROFILE=pi05_libero OPENPI_POLICY_BACKEND=pytorch make smoke-policy
+```
+
+This reuses the retained S1/S5B π₀.5 inference path; stop the owned server and tunnel with `make stop`.
+
 Note: When updating requirements.txt in this directory, there is an additional flag `--extra-index-url https://download.pytorch.org/whl/cu113` that must be added to the `uv pip compile` command.
 
 This example requires git submodules to be initialized. Don't forget to run:

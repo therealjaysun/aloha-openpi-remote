@@ -283,6 +283,37 @@ def body_descriptors(object_kind: str) -> tuple[BodyDescriptor, ...]:
         raise ValueError(f"unknown Push-PI object kind: {object_kind}") from error
 
 
+def target_outline_points(body: BodyDescriptor) -> tuple[tuple[float, float], ...]:
+    points = set()
+    for part in body.parts:
+        left, right = part.x - part.half_x, part.x + part.half_x
+        bottom, top = part.y - part.half_y, part.y + part.half_y
+        edges = (
+            ((left, bottom), (left, top), (-1, 0)),
+            ((right, bottom), (right, top), (1, 0)),
+            ((left, bottom), (right, bottom), (0, -1)),
+            ((left, top), (right, top), (0, 1)),
+        )
+        for start, end, normal in edges:
+            length = math.hypot(end[0] - start[0], end[1] - start[1])
+            intervals = max(1, math.ceil(length / TARGET_DOT_SPACING))
+            for index in range(intervals + 1):
+                fraction = index / intervals
+                x = start[0] + fraction * (end[0] - start[0])
+                y = start[1] + fraction * (end[1] - start[1])
+                probe_x = x + normal[0] * 1e-7
+                probe_y = y + normal[1] * 1e-7
+                if any(
+                    other.x - other.half_x <= probe_x <= other.x + other.half_x
+                    and other.y - other.half_y <= probe_y <= other.y + other.half_y
+                    for other in body.parts
+                    if other is not part
+                ):
+                    continue
+                points.add((round(x, 9), round(y, 9)))
+    return tuple(sorted(points))
+
+
 def _separated(pose: Pose, body: BodyDescriptor, accepted: list[tuple[Pose, BodyDescriptor]]) -> bool:
     for other_pose, other_body in accepted:
         if math.hypot(pose.x - other_pose.x, pose.y - other_pose.y) < (

@@ -150,6 +150,7 @@ def test_remote_defaults_and_profile_contract(tmp_path: Path) -> None:
         "pi0_aloha_sim",
         "pi05_aloha_base",
         "pi05_trossen_block_transfer",
+        "pi05_libero",
     }
     assert (
         POLICY_PROFILES["pi0_aloha_sim"].env,
@@ -178,8 +179,12 @@ def test_remote_defaults_and_profile_contract(tmp_path: Path) -> None:
         "pi05_trossen_block_transfer",
         "grab and handover the red cube",
     )
-    assert {profile.action_horizon for profile in POLICY_PROFILES.values()} == {50}
-    assert {profile.action_dimension for profile in POLICY_PROFILES.values()} == {14}
+    assert (
+        POLICY_PROFILES["pi05_libero"].env,
+        POLICY_PROFILES["pi05_libero"].checkpoint_uri,
+        POLICY_PROFILES["pi05_libero"].action_horizon,
+        POLICY_PROFILES["pi05_libero"].action_dimension,
+    ) == ("LIBERO", "gs://openpi-assets/checkpoints/pi05_libero", 10, 7)
 
 
 def test_remote_file_values_and_environment_override(tmp_path: Path) -> None:

@@ -88,13 +88,16 @@ DEFAULT_CHECKPOINT: dict[EnvMode, Checkpoint] = {
 }
 
 PROJECT_PROFILES = {
-    "pi0_aloha_sim": (EnvMode.ALOHA_SIM, "pi0_aloha_sim", "pi0_aloha_sim"),
-    "pi05_aloha_base": (EnvMode.ALOHA, "pi05_aloha", "pi05_base"),
+    "pi0_aloha_sim": (EnvMode.ALOHA_SIM, "pi0_aloha_sim", "pi0_aloha_sim", 50, 14),
+    "pi05_aloha_base": (EnvMode.ALOHA, "pi05_aloha", "pi05_base", 50, 14),
     "pi05_trossen_block_transfer": (
         EnvMode.ALOHA,
         "pi05_trossen_transfer_block",
         "pi05_trossen_block_transfer",
+        50,
+        14,
     ),
+    "pi05_libero": (EnvMode.LIBERO, "pi05_libero", "pi05_libero", 10, 7),
 }
 
 
@@ -118,7 +121,7 @@ def create_policy(args: Args) -> _policy.Policy:
         if args.policy_profile is None or args.pytorch_checkpoint_dir is None:
             raise ValueError("PyTorch project policies require a profile and checkpoint directory")
         try:
-            _, config_name, _ = PROJECT_PROFILES[args.policy_profile]
+            _, config_name, _, _, _ = PROJECT_PROFILES[args.policy_profile]
         except KeyError as error:
             raise ValueError("Unsupported project policy profile") from error
         train_config = _config.get_config(config_name)
@@ -157,7 +160,9 @@ def _profile_metadata(args: Args) -> dict:
     if args.policy_profile is None:
         return {}
     try:
-        expected_env, config_name, checkpoint_label = PROJECT_PROFILES[args.policy_profile]
+        expected_env, config_name, checkpoint_label, action_horizon, action_dimension = PROJECT_PROFILES[
+            args.policy_profile
+        ]
     except KeyError as error:
         raise ValueError("Unsupported project policy profile") from error
     if not isinstance(args.policy, Default) or args.env is not expected_env:
@@ -171,8 +176,8 @@ def _profile_metadata(args: Args) -> dict:
         "checkpoint_label": checkpoint_label,
         "checkpoint_variant": checkpoint_label + ("_pytorch" if args.policy_backend == "pytorch" else ""),
         "policy_backend": args.policy_backend,
-        "action_horizon": 50,
-        "action_dimension": 14,
+        "action_horizon": action_horizon,
+        "action_dimension": action_dimension,
         "source_sha": source_sha,
         "compact_masked_images": args.compact_masked_images,
     }

@@ -26,6 +26,14 @@ _BENCHMARK_NOISE_SEED = "__openpi_benchmark_noise_seed"
 
 def _observation_sha256(observation: dict) -> str:
     digest = hashlib.sha256()
+    if "observation/state" in observation:
+        for name in ("observation/state", "observation/image", "observation/wrist_image"):
+            value = observation[name]
+            digest.update(name.encode())
+            digest.update(value.dtype.str.encode())
+            digest.update(value.tobytes())
+        digest.update(str(observation.get("prompt", "")).encode())
+        return digest.hexdigest()
     state = observation["state"]
     digest.update(state.dtype.str.encode())
     digest.update(state.tobytes())
@@ -35,6 +43,29 @@ def _observation_sha256(observation: dict) -> str:
         digest.update(image.tobytes())
     digest.update(str(observation.get("prompt", "")).encode())
     return digest.hexdigest()
+
+
+def _validate_smoke_observation(observation: object, profile_name: str) -> dict:
+    profile = get_policy_profile(profile_name)
+    if profile.env != "LIBERO":
+        return validate_policy_observation(observation)
+    if not isinstance(observation, dict) or set(observation) != {
+        "observation/state",
+        "observation/image",
+        "observation/wrist_image",
+        "prompt",
+    }:
+        raise ValueError("LIBERO observation keys do not match the policy contract")
+    state = observation["observation/state"]
+    if not isinstance(state, np.ndarray) or state.shape != (8,) or not np.isfinite(state).all():
+        raise ValueError("LIBERO state must be finite with shape (8,)")
+    for name in ("observation/image", "observation/wrist_image"):
+        image = observation[name]
+        if not isinstance(image, np.ndarray) or image.shape != (224, 224, 3) or image.dtype != np.uint8:
+            raise ValueError(f"{name} must be uint8 HWC with shape (224, 224, 3)")
+    if not isinstance(observation["prompt"], str) or not observation["prompt"].strip():
+        raise ValueError("LIBERO prompt must be a nonempty string")
+    return observation
 
 
 def _load_policy_observation(path: Path, profile_name: str) -> tuple[dict, str]:
@@ -111,6 +142,14 @@ def run_policy_smoke(
         if not profile_name.startswith("pi05_") or backend != "pytorch":
             raise ValueError("fixed replay is limited to the π₀.₅ PyTorch profile")
         observation, capture_source_sha = _load_policy_observation(observation_path, profile_name)
+    elif profile.env == "LIBERO":
+        image = np.zeros((224, 224, 3), dtype=np.uint8)
+        observation = {
+            "observation/state": np.zeros(8, dtype=np.float64),
+            "observation/image": image,
+            "observation/wrist_image": image.copy(),
+            "prompt": "do something",
+        }
     else:
         image = np.zeros((3, 224, 224), dtype=np.uint8)
         observation = {
@@ -131,7 +170,7 @@ def run_policy_smoke(
     try:
         validate_server_metadata(policy.get_server_metadata(), profile, source_sha, backend)
 
-        validate_policy_observation(observation)
+        _validate_smoke_observation(observation, profile_name)
         observation_sha256 = _observation_sha256(observation)
         request = dict(observation)
         if fixed_noise_seed is not None:
@@ -162,7 +201,11 @@ def run_policy_smoke(
             "backend": backend,
             "source_sha": source_sha,
             "action_shape": list(actions.shape),
-            "camera_views": list(POLICY_CAMERA_VIEWS),
+            "camera_views": (
+                ["observation/image", "observation/wrist_image"]
+                if profile.env == "LIBERO"
+                else list(POLICY_CAMERA_VIEWS)
+            ),
             "observation_sha256": observation_sha256,
             "cold_latency_ms": latencies_ms[0],
             "warmup_requests": warmup_requests,

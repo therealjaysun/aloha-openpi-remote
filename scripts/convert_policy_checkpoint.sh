@@ -66,6 +66,10 @@ case "$profile" in
         hf_repo=TrossenRoboticsCommunity/pi05-block-transfer-trossen-ai-openpi
         hf_revision=40aee785d8907e868976454a3ca51c76175f6d4c
         ;;
+    pi05_libero)
+        checkpoint_label=pi05_libero
+        config_name=pi05_libero
+        ;;
     *) echo 'Unsupported conversion profile.' >&2; exit 2 ;;
 esac
 
@@ -84,6 +88,13 @@ chmod 700 "$state_dir" "$repo/.runtime" "$repo/.runtime/conversion"
 exec 9>"$state_dir/conversion.lock"
 flock -n 9 || { echo 'Another checkpoint conversion is active.' >&2; exit 1; }
 source_input="$parent/$checkpoint_label"
+if [[ "$profile" == pi05_libero && ! -e "$source_input" && ! -L "$source_input" ]]; then
+    env OPENPI_DATA_HOME="$data_home" "$repo/.venv/bin/python" - <<'PY'
+from openpi.shared.download import maybe_download
+
+maybe_download("gs://openpi-assets/checkpoints/pi05_libero")
+PY
+fi
 if [[ -n "${hf_repo-}" && ! -e "$source_input" && ! -L "$source_input" ]]; then
     download_root="$parent/.${checkpoint_label}.download.$hf_revision"
     [[ ! -L "$download_root" ]] || { echo 'Checkpoint download staging path is unsafe.' >&2; exit 1; }

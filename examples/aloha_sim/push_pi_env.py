@@ -37,7 +37,6 @@ from tools.remote_aloha.scenarios import SETTLE_STEPS
 from tools.remote_aloha.scenarios import TABLETOP_SHA256
 from tools.remote_aloha.scenarios import TARGET_CONTACT_BITS
 from tools.remote_aloha.scenarios import TARGET_DOT_RADIUS
-from tools.remote_aloha.scenarios import TARGET_DOT_SPACING
 from tools.remote_aloha.scenarios import TARGET_HALF_HEIGHT
 from tools.remote_aloha.scenarios import VISUAL_CONTACT_BITS
 from tools.remote_aloha.scenarios import VISUAL_GEOM_GROUP
@@ -56,6 +55,7 @@ from tools.remote_aloha.scenarios import layout_hash
 from tools.remote_aloha.scenarios import quaternion_euler
 from tools.remote_aloha.scenarios import sample_layout
 from tools.remote_aloha.scenarios import scene_hash
+from tools.remote_aloha.scenarios import target_outline_points
 from tools.remote_aloha.scenarios import update_participation
 
 _BASE_XML = "bimanual_viperx_transfer_cube.xml"
@@ -77,37 +77,6 @@ def _numbers(*values: float) -> str:
     return " ".join(f"{value:.9g}" for value in values)
 
 
-def _target_outline_points(body: BodyDescriptor) -> tuple[tuple[float, float], ...]:
-    points = set()
-    for part in body.parts:
-        left, right = part.x - part.half_x, part.x + part.half_x
-        bottom, top = part.y - part.half_y, part.y + part.half_y
-        edges = (
-            ((left, bottom), (left, top), (-1, 0)),
-            ((right, bottom), (right, top), (1, 0)),
-            ((left, bottom), (right, bottom), (0, -1)),
-            ((left, top), (right, top), (0, 1)),
-        )
-        for start, end, normal in edges:
-            length = math.hypot(end[0] - start[0], end[1] - start[1])
-            intervals = max(1, math.ceil(length / TARGET_DOT_SPACING))
-            for index in range(intervals + 1):
-                fraction = index / intervals
-                x = start[0] + fraction * (end[0] - start[0])
-                y = start[1] + fraction * (end[1] - start[1])
-                probe_x = x + normal[0] * 1e-7
-                probe_y = y + normal[1] * 1e-7
-                if any(
-                    other.x - other.half_x <= probe_x <= other.x + other.half_x
-                    and other.y - other.half_y <= probe_y <= other.y + other.half_y
-                    for other in body.parts
-                    if other is not part
-                ):
-                    continue
-                points.add((round(x, 9), round(y, 9)))
-    return tuple(sorted(points))
-
-
 def _add_target(worldbody: ET.Element, body: BodyDescriptor) -> None:
     target = ET.SubElement(
         worldbody,
@@ -116,7 +85,7 @@ def _add_target(worldbody: ET.Element, body: BodyDescriptor) -> None:
         pos=_numbers(body.target_x, body.target_y, 0),
         euler=_numbers(0, 0, body.target_yaw),
     )
-    for index, (x, y) in enumerate(_target_outline_points(body)):
+    for index, (x, y) in enumerate(target_outline_points(body)):
         ET.SubElement(
             target,
             "geom",

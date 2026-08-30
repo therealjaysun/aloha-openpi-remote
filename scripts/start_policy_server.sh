@@ -46,6 +46,10 @@ case "$profile" in
         environment=ALOHA
         prompt=(--default-prompt="grab and handover the red cube")
         ;;
+    pi05_libero)
+        environment=LIBERO
+        prompt=()
+        ;;
     *)
         echo 'Invalid OPENPI_POLICY_PROFILE.' >&2
         exit 1

@@ -35,7 +35,7 @@ def test_policy_server_host_and_gpu_metadata_patch_is_localized() -> None:
     assert "pytorch_compile_mode=None" in source
     assert 'pytorch_denoise_compile_mode="default" if train_config.model.pi05 else None' in source
     assert "compact_masked_images" in source
-    assert '"action_dimension": 14' in source
+    assert '"action_dimension": action_dimension' in source
 
 
 def test_wsl_start_wrapper_has_exact_profile_routes_and_loopback() -> None:
@@ -44,6 +44,8 @@ def test_wsl_start_wrapper_has_exact_profile_routes_and_loopback() -> None:
     assert "environment=ALOHA_SIM" in source
     assert "pi05_aloha_base)" in source
     assert "pi05_trossen_block_transfer)" in source
+    assert "pi05_libero)" in source
+    assert "environment=LIBERO" in source
     assert "environment=ALOHA" in source
     assert 'prompt=(--default-prompt="Transfer cube")' in source
     assert '[[ "$host" == 127.0.0.1 ]]' in source
@@ -79,6 +81,7 @@ def test_wsl_start_wrapper_has_exact_profile_routes_and_loopback() -> None:
     client = Path("tools/remote_aloha/policy_smoke.py").read_text(encoding="utf-8")
     assert '"images": {name: image for name in POLICY_CAMERA_VIEWS}' in client
     assert 'observation["prompt"] = profile.default_prompt' in client
+    assert 'profile.env == "LIBERO"' in client
     assert "policy.close()" in client
 
     policy = Path("src/openpi/policies/policy.py").read_text(encoding="utf-8")

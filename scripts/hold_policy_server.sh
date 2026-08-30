@@ -8,7 +8,7 @@ expected_sha="${3-}"
 run_id="${4-}"
 
 [[ "$(uname -s)" == Linux && "$(uname -r)" == *[Mm]icrosoft* ]] || exit 1
-[[ "$profile" == pi0_aloha_sim || "$profile" == pi05_aloha_base || "$profile" == pi05_trossen_block_transfer ]] || exit 2
+[[ "$profile" == pi0_aloha_sim || "$profile" == pi05_aloha_base || "$profile" == pi05_trossen_block_transfer || "$profile" == pi05_libero ]] || exit 2
 [[ "$port" =~ ^[0-9]+$ ]] && (( port >= 1 && port <= 65535 )) || exit 2
 [[ "$expected_sha" =~ ^[0-9a-f]{40}$ ]] || exit 2
 [[ "$run_id" =~ ^[0-9a-f]{32}$ && "${OPENPI_HOLDER_RUN_ID-}" == "$run_id" ]] || exit 2

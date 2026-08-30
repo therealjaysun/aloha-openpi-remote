@@ -1,12 +1,12 @@
 import collections
 import dataclasses
+import json
 import logging
 import math
 import pathlib
+import time
 
 import imageio
-from libero.libero import benchmark
-from libero.libero import get_libero_path
 from libero.libero.envs import OffScreenRenderEnv
 import numpy as np
 from openpi_client import image_tools
@@ -36,6 +36,9 @@ class Args:
     )
     num_steps_wait: int = 10  # Number of steps to wait for objects to stabilize i n sim
     num_trials_per_task: int = 50  # Number of rollouts per task
+    scenario: str = ""  # Project scenario: push_pi or push_p_i. Empty keeps the upstream benchmark path.
+    duration_seconds: int = 30  # Policy-action time for project scenarios.
+    smoke: bool = False  # Run project scenarios for 6 seconds instead of duration_seconds.
 
     #################################################################################################################
     # Utils
@@ -46,10 +49,16 @@ class Args:
 
 
 def eval_libero(args: Args) -> None:
+    if args.scenario:
+        _eval_push_pi(args)
+        return
+
     # Set random seed
     np.random.seed(args.seed)
 
     # Initialize LIBERO task suite
+    from libero.libero import benchmark
+
     benchmark_dict = benchmark.get_benchmark_dict()
     task_suite = benchmark_dict[args.task_suite_name]()
     num_tasks_in_suite = task_suite.n_tasks
@@ -110,36 +119,12 @@ def eval_libero(args: Args) -> None:
                         t += 1
                         continue
 
-                    # Get preprocessed image
-                    # IMPORTANT: rotate 180 degrees to match train preprocessing
-                    img = np.ascontiguousarray(obs["agentview_image"][::-1, ::-1])
-                    wrist_img = np.ascontiguousarray(obs["robot0_eye_in_hand_image"][::-1, ::-1])
-                    img = image_tools.convert_to_uint8(
-                        image_tools.resize_with_pad(img, args.resize_size, args.resize_size)
-                    )
-                    wrist_img = image_tools.convert_to_uint8(
-                        image_tools.resize_with_pad(wrist_img, args.resize_size, args.resize_size)
-                    )
+                    element, img = _policy_element(obs, str(task_description), args.resize_size)
 
                     # Save preprocessed image for replay video
                     replay_images.append(img)
 
                     if not action_plan:
-                        # Finished executing previous action chunk -- compute new chunk
-                        # Prepare observations dict
-                        element = {
-                            "observation/image": img,
-                            "observation/wrist_image": wrist_img,
-                            "observation/state": np.concatenate(
-                                (
-                                    obs["robot0_eef_pos"],
-                                    _quat2axisangle(obs["robot0_eef_quat"]),
-                                    obs["robot0_gripper_qpos"],
-                                )
-                            ),
-                            "prompt": str(task_description),
-                        }
-
                         # Query model to get action
                         action_chunk = client.infer(element)["actions"]
                         assert (
@@ -186,8 +171,101 @@ def eval_libero(args: Args) -> None:
     logging.info(f"Total episodes: {total_episodes}")
 
 
+def _policy_element(obs, prompt: str, resize_size: int):
+    # IMPORTANT: rotate 180 degrees to match LIBERO training preprocessing.
+    image = np.ascontiguousarray(obs["agentview_image"][::-1, ::-1])
+    wrist = np.ascontiguousarray(obs["robot0_eye_in_hand_image"][::-1, ::-1])
+    image = image_tools.convert_to_uint8(image_tools.resize_with_pad(image, resize_size, resize_size))
+    wrist = image_tools.convert_to_uint8(image_tools.resize_with_pad(wrist, resize_size, resize_size))
+    return {
+        "observation/image": image,
+        "observation/wrist_image": wrist,
+        "observation/state": np.concatenate(
+            (obs["robot0_eef_pos"], _quat2axisangle(obs["robot0_eef_quat"]), obs["robot0_gripper_qpos"])
+        ),
+        "prompt": prompt,
+    }, image
+
+
+def _eval_push_pi(args: Args) -> None:
+    from examples.libero.push_pi_env import CONTROL_HZ
+    from examples.libero.push_pi_env import create_env
+
+    seconds = 6 if args.smoke else args.duration_seconds
+    if not 1 <= seconds <= 300:
+        raise ValueError("duration_seconds must be between 1 and 300")
+    policy_steps = seconds * CONTROL_HZ
+    env, prompt = create_env(
+        args.scenario,
+        resolution=LIBERO_ENV_RESOLUTION,
+        seed=args.seed,
+        horizon=policy_steps + args.num_steps_wait + 1,
+    )
+    client = _websocket_client_policy.WebsocketClientPolicy(args.host, args.port)
+    output = pathlib.Path(args.video_out_path)
+    output.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    video_path = output / f"{stamp}_{args.scenario}_{seconds}s.mp4"
+    result_path = video_path.with_suffix(".json")
+    action_plan = collections.deque()
+    frames = []
+    latencies_ms = []
+    sticky_success = False
+    best_coverage = 0.0
+    final_coverage = {}
+    try:
+        obs = env.reset()
+        for _ in range(args.num_steps_wait):
+            obs, _, _, _ = env.step(LIBERO_DUMMY_ACTION)
+        for _ in tqdm.tqdm(range(policy_steps), desc=args.scenario):
+            element, image = _policy_element(obs, prompt, args.resize_size)
+            frames.append(image)
+            if not action_plan:
+                started = time.perf_counter_ns()
+                action_chunk = np.asarray(client.infer(element)["actions"])
+                latencies_ms.append((time.perf_counter_ns() - started) / 1_000_000)
+                if action_chunk.ndim != 2 or action_chunk.shape[1] != 7 or len(action_chunk) < args.replan_steps:
+                    raise ValueError("LIBERO policy actions must be a finite chunk with shape (N, 7)")
+                if not np.issubdtype(action_chunk.dtype, np.floating) or not np.isfinite(action_chunk).all():
+                    raise ValueError("LIBERO policy actions must be finite floating values")
+                action_plan.extend(action_chunk[: args.replan_steps])
+            action = np.asarray(action_plan.popleft())
+            if action.shape != (7,) or not np.isfinite(action).all():
+                raise ValueError("applied LIBERO action must be finite with shape (7,)")
+            obs, _, done, _ = env.step(action.tolist())
+            final_coverage = env.env.coverage()
+            best_coverage = max(best_coverage, final_coverage["overall"])
+            sticky_success = sticky_success or bool(done)
+    finally:
+        client.close()
+        env.close()
+
+    imageio.mimwrite(video_path, frames, fps=CONTROL_HZ)
+    result = {
+        "scenario": args.scenario,
+        "seed": args.seed,
+        "policy_steps": len(frames),
+        "policy_seconds": len(frames) / CONTROL_HZ,
+        "control_hz": CONTROL_HZ,
+        "settle_steps": args.num_steps_wait,
+        "success": sticky_success,
+        "best_coverage": best_coverage,
+        "final_coverage": final_coverage,
+        "policy_requests": len(latencies_ms),
+        "policy_latency_ms": {
+            "mean": float(np.mean(latencies_ms)),
+            "p95": float(np.percentile(latencies_ms, 95)),
+        },
+        "video": str(video_path),
+    }
+    result_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(json.dumps(result, sort_keys=True))
+
+
 def _get_libero_env(task, resolution, seed):
     """Initializes and returns the LIBERO environment, along with the task description."""
+    from libero.libero import get_libero_path
+
     task_description = task.language
     task_bddl_file = pathlib.Path(get_libero_path("bddl_files")) / task.problem_folder / task.bddl_file
     env_args = {"bddl_file_name": task_bddl_file, "camera_heights": resolution, "camera_widths": resolution}
