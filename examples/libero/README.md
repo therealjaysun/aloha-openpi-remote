@@ -2,19 +2,21 @@
 
 This example runs the LIBERO benchmark: https://github.com/Lifelong-Robot-Learning/LIBERO
 
-## Push-PI scenarios
+## Custom scenarios
 
-The project adds two single-Panda scenarios without modifying the LIBERO submodule. Both reuse the existing Push-PI
-geometry and dotted targets:
+The project adds single-Panda scenarios without modifying the LIBERO submodule. The Push-PI tasks reuse the existing
+letter geometry and dotted targets; `coke_taylor` uses the fixed portrait layout documented with its image assets:
 
 ```bash
 # 6-second (120-action) connected smokes
 python examples/libero/main.py --args.scenario push_pi --args.smoke
 python examples/libero/main.py --args.scenario push_p_i --args.smoke
+python examples/libero/main.py --args.scenario coke_taylor --args.smoke
 
 # 30-second (600-action) runs; 30 seconds is the default
 python examples/libero/main.py --args.scenario push_pi
 python examples/libero/main.py --args.scenario push_p_i
+python examples/libero/main.py --args.scenario coke_taylor
 
 # Five-minute caps (6,000 actions)
 python examples/libero/main.py --args.scenario push_pi --args.duration-seconds 300

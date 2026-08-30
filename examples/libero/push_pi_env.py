@@ -17,6 +17,7 @@ from libero.libero.envs.regions import REGION_SAMPLERS
 from libero.libero.envs.regions import MultiRegionRandomSampler
 from libero.libero.envs.regions import TableRegionSampler
 from robosuite.models.objects import CompositeObject
+from robosuite.utils.mjcf_utils import CustomMaterial
 
 from tools.remote_aloha.scenarios import GEOM_CONDIM
 from tools.remote_aloha.scenarios import GEOM_DENSITY
@@ -46,6 +47,19 @@ LIBERO_PI_MIN_SEPARATION = 2 * LIBERO_PI_PLACEMENT_MARGIN + 0.02
 LIBERO_PI_REGION_HALF_RANGE = 0.001
 LIBERO_AGENTVIEW_RESOLUTION = 256
 LIBERO_AGENTVIEW_PIXEL_MARGIN = 4
+LIBERO_PORTRAIT_HALF_SIZE = (0.10, 0.075)
+LIBERO_PORTRAIT_HALF_THICKNESS = 0.001
+LIBERO_COKE_CAN_RADIUS = 0.033
+LIBERO_COKE_CAN_HALF_HEIGHT = 0.061
+LIBERO_COKE_CAN_CENTER = (0.18, 0.0)
+LIBERO_PORTRAIT_CENTERS = {
+    "taylor_swift": (-0.20, 0.12),
+    "ian_mckellen": (-0.20, -0.12),
+    "ed_sheeran": (0.02, 0.18),
+    "emma_stone": (0.02, 0.0),
+    "snoop_dogg": (0.02, -0.18),
+}
+_PORTRAIT_ASSET_DIR = pathlib.Path(__file__).parent / "assets" / "rt2_portraits"
 # Pinned LIBERO tabletop agentview world-to-pixel transform at 256x256.
 _AGENTVIEW_TRANSFORM = (
     (-99.5837977, 309.019317, -80.4181527, 195.088575),
@@ -64,6 +78,11 @@ SCENARIOS = {
         ((P_BODY, "p_1", "p_target_1"), (I_BODY, "i_1", "i_target_1")),
         get_scenario("push_letters_single").prompt.replace("Using only the left arm", "Using the LIBERO arm"),
     ),
+    "coke_taylor": (
+        "CokeOnTaylorLibero",
+        (),
+        "Put the Coke can on Taylor Swift",
+    ),
 }
 
 
@@ -77,6 +96,7 @@ REGION_SAMPLERS.update(
     {
         SCENARIOS["push_pi"][0].lower(): {"table": _SeededTableRegionSampler},
         SCENARIOS["push_p_i"][0].lower(): {"table": TableRegionSampler},
+        SCENARIOS["coke_taylor"][0].lower(): {"table": _SeededTableRegionSampler},
     }
 )
 
@@ -145,6 +165,79 @@ class _Target(CompositeObject):
         self.object_properties = _PROPERTIES
 
 
+class _Portrait(CompositeObject):
+    image_file = ""
+
+    def __init__(self, name="portrait", joints=None):
+        super().__init__(
+            name=name,
+            total_size=(*LIBERO_PORTRAIT_HALF_SIZE, LIBERO_PORTRAIT_HALF_THICKNESS),
+            geom_types=["box"],
+            geom_sizes=[(*LIBERO_PORTRAIT_HALF_SIZE, LIBERO_PORTRAIT_HALF_THICKNESS)],
+            geom_locations=[(0.0, 0.0, _TABLE_HALF_HEIGHT + LIBERO_PORTRAIT_HALF_THICKNESS)],
+            geom_names=["photo"],
+            geom_rgbas=[(1.0, 1.0, 1.0, 1.0)],
+            geom_materials=["portrait"],
+            geom_frictions=[GEOM_FRICTION],
+            geom_condims=[GEOM_CONDIM],
+            density=GEOM_DENSITY,
+            solref=GEOM_SOLREF,
+            solimp=GEOM_SOLIMP,
+            locations_relative_to_center=True,
+            joints=joints,
+            obj_types="all",
+            duplicate_collision_geoms=False,
+        )
+        self.append_material(
+            CustomMaterial(
+                texture=None,
+                tex_name="portrait_texture",
+                mat_name="portrait",
+                tex_attrib={"type": "2d", "file": str(_PORTRAIT_ASSET_DIR / self.image_file)},
+                mat_attrib={"reflectance": "0", "shininess": "0", "specular": "0", "texrepeat": "1 1"},
+            )
+        )
+        self.category_name = "_".join(re.sub(r"([A-Z0-9])", r" \1", self.__class__.__name__).split()).lower()
+        self.rotation = (0.0, 0.0)
+        self.rotation_axis = "z"
+        self.object_properties = _PROPERTIES
+
+
+@register_object
+class CokeCan(CompositeObject):
+    def __init__(self, name="coke_can", joints="default"):
+        super().__init__(
+            name=name,
+            total_size=(LIBERO_COKE_CAN_RADIUS, LIBERO_COKE_CAN_RADIUS, LIBERO_COKE_CAN_HALF_HEIGHT),
+            geom_types=["cylinder", "cylinder", "cylinder"],
+            geom_sizes=[
+                (LIBERO_COKE_CAN_RADIUS, LIBERO_COKE_CAN_HALF_HEIGHT),
+                (LIBERO_COKE_CAN_RADIUS * 1.02, 0.001),
+                (LIBERO_COKE_CAN_RADIUS * 1.02, 0.001),
+            ],
+            geom_locations=[
+                (0.0, 0.0, 0.0),
+                (0.0, 0.0, LIBERO_COKE_CAN_HALF_HEIGHT),
+                (0.0, 0.0, -LIBERO_COKE_CAN_HALF_HEIGHT),
+            ],
+            geom_names=["body", "top", "bottom"],
+            geom_rgbas=[(0.78, 0.01, 0.02, 1.0), (0.75, 0.75, 0.75, 1.0), (0.75, 0.75, 0.75, 1.0)],
+            geom_frictions=[GEOM_FRICTION] * 3,
+            geom_condims=[GEOM_CONDIM] * 3,
+            density=[900.0, None, None],
+            solref=GEOM_SOLREF,
+            solimp=GEOM_SOLIMP,
+            locations_relative_to_center=True,
+            joints=joints,
+            obj_types=["all", "visual", "visual"],
+            duplicate_collision_geoms=False,
+        )
+        self.category_name = "coke_can"
+        self.rotation = (0.0, 0.0)
+        self.rotation_axis = "z"
+        self.object_properties = _PROPERTIES
+
+
 def _register(name: str, base: type[CompositeObject], descriptor: BodyDescriptor) -> type[CompositeObject]:
     return register_object(type(name, (base,), {"descriptor": descriptor}))
 
@@ -155,6 +248,17 @@ IBlock = _register("IBlock", _Block, I_BODY)
 PiTarget = _register("PiTarget", _Target, PI_BODY)
 PTarget = _register("PTarget", _Target, P_BODY)
 ITarget = _register("ITarget", _Target, I_BODY)
+
+
+def _register_portrait(name: str, image_file: str) -> type[CompositeObject]:
+    return register_object(type(name, (_Portrait,), {"image_file": image_file}))
+
+
+TaylorSwiftPhoto = _register_portrait("TaylorSwiftPhoto", "taylor_swift.png")
+IanMckellenPhoto = _register_portrait("IanMckellenPhoto", "ian_mckellen.png")
+EdSheeranPhoto = _register_portrait("EdSheeranPhoto", "ed_sheeran.png")
+EmmaStonePhoto = _register_portrait("EmmaStonePhoto", "emma_stone.png")
+SnoopDoggPhoto = _register_portrait("SnoopDoggPhoto", "snoop_dogg.png")
 
 
 class _PushPiTask(TASK_MAPPING["libero_tabletop_manipulation"]):
@@ -204,6 +308,39 @@ class PushLettersLibero(_PushPiTask):
     body_pairs = SCENARIOS["push_p_i"][1]
 
 
+@register_problem
+class CokeOnTaylorLibero(TASK_MAPPING["libero_tabletop_manipulation"]):
+    tracked = (("coke_can_1", "coke_can"), *((f"{name}_photo_1", name) for name in LIBERO_PORTRAIT_CENTERS))
+
+    def _state(self, body_name: str, descriptor_name: str) -> BodyState:
+        body_id = self.obj_body_id[body_name]
+        x, y, z = (float(value) for value in self.sim.data.body_xpos[body_id])
+        qw, qx, qy, qz = (float(value) for value in self.sim.data.body_xquat[body_id])
+        return BodyState(descriptor_name, x, y, z, qw, qx, qy, qz)
+
+    def layout(self) -> dict[str, dict[str, object]]:
+        values = {}
+        for body_name, descriptor_name in self.tracked:
+            state = self._state(body_name, descriptor_name)
+            values[body_name] = {**dataclasses.asdict(state), "yaw_radians": quaternion_euler(state)[2]}
+        return values
+
+    def coverage(self) -> dict[str, float]:
+        can = self._state("coke_can_1", "coke_can")
+        target = self._state("taylor_swift_photo_1", "taylor_swift")
+        target_top = target.z + _TABLE_HALF_HEIGHT + 2 * LIBERO_PORTRAIT_HALF_THICKNESS
+        centered = (
+            abs(can.x - target.x) <= LIBERO_PORTRAIT_HALF_SIZE[0] - LIBERO_COKE_CAN_RADIUS
+            and abs(can.y - target.y) <= LIBERO_PORTRAIT_HALF_SIZE[1] - LIBERO_COKE_CAN_RADIUS
+        )
+        placed = centered and abs(can.z - LIBERO_COKE_CAN_HALF_HEIGHT - target_top) <= 0.02
+        value = float(placed)
+        return {"taylor_swift": value, "overall": value}
+
+    def _check_success(self):
+        return self.coverage()["overall"] == 1.0
+
+
 _BDDL = {
     "push_pi": """(define (problem PushPiLibero)
   (:domain robosuite)
@@ -238,6 +375,37 @@ _BDDL = {
   )
   (:goal (And (On p_1 p_target_1) (On i_1 i_target_1)))
 )""",
+    "coke_taylor": """(define (problem CokeOnTaylorLibero)
+  (:domain robosuite)
+  (:language Put the Coke can on Taylor Swift)
+  (:regions
+    (taylor_swift_region (:target main_table) (:ranges ((-0.201 0.119 -0.199 0.121))) (:yaw_rotation ((0 0))))
+    (ian_mckellen_region (:target main_table) (:ranges ((-0.201 -0.121 -0.199 -0.119))) (:yaw_rotation ((0 0))))
+    (ed_sheeran_region (:target main_table) (:ranges ((0.019 0.179 0.021 0.181))) (:yaw_rotation ((0 0))))
+    (emma_stone_region (:target main_table) (:ranges ((0.019 -0.001 0.021 0.001))) (:yaw_rotation ((0 0))))
+    (snoop_dogg_region (:target main_table) (:ranges ((0.019 -0.181 0.021 -0.179))) (:yaw_rotation ((0 0))))
+    (coke_can_region (:target main_table) (:ranges ((0.179 -0.001 0.181 0.001))) (:yaw_rotation ((0 0))))
+  )
+  (:fixtures
+    main_table - table
+    taylor_swift_photo_1 - taylor_swift_photo
+    ian_mckellen_photo_1 - ian_mckellen_photo
+    ed_sheeran_photo_1 - ed_sheeran_photo
+    emma_stone_photo_1 - emma_stone_photo
+    snoop_dogg_photo_1 - snoop_dogg_photo
+  )
+  (:objects coke_can_1 - coke_can)
+  (:obj_of_interest coke_can_1 taylor_swift_photo_1 ian_mckellen_photo_1 ed_sheeran_photo_1 emma_stone_photo_1 snoop_dogg_photo_1)
+  (:init
+    (On taylor_swift_photo_1 main_table_taylor_swift_region)
+    (On ian_mckellen_photo_1 main_table_ian_mckellen_region)
+    (On ed_sheeran_photo_1 main_table_ed_sheeran_region)
+    (On emma_stone_photo_1 main_table_emma_stone_region)
+    (On snoop_dogg_photo_1 main_table_snoop_dogg_region)
+    (On coke_can_1 main_table_coke_can_region)
+  )
+  (:goal (And (On coke_can_1 taylor_swift_photo_1)))
+)""",
 }
 
 
@@ -269,13 +437,44 @@ def push_pi_layout(seed: int) -> dict[str, object]:
     return layout
 
 
-def _agentview_contains(center: tuple[float, float]) -> bool:
+def coke_taylor_layout() -> dict[str, object]:
+    layout = {
+        "arrangement": {
+            "top_row": ["taylor_swift", "ian_mckellen"],
+            "bottom_row": ["ed_sheeran", "emma_stone", "snoop_dogg"],
+        },
+        "can_xy": list(LIBERO_COKE_CAN_CENTER),
+        "portrait_asset_sha256": {
+            name: hashlib.sha256((_PORTRAIT_ASSET_DIR / f"{name}.png").read_bytes()).hexdigest()
+            for name in LIBERO_PORTRAIT_CENTERS
+        },
+        "portrait_xy": {name: list(center) for name, center in LIBERO_PORTRAIT_CENTERS.items()},
+    }
+    layout["layout_hash"] = hashlib.sha256(
+        json.dumps(layout, separators=(",", ":"), sort_keys=True).encode()
+    ).hexdigest()
+    return layout
+
+
+def scenario_metadata(scenario: str, seed: int) -> dict[str, object] | None:
+    if scenario == "push_pi":
+        return push_pi_layout(seed)
+    if scenario == "coke_taylor":
+        return coke_taylor_layout()
+    if scenario == "push_p_i":
+        return None
+    raise ValueError(f"scenario must be one of: {', '.join(SCENARIOS)}")
+
+
+def _agentview_contains(
+    center: tuple[float, float], radius: float = LIBERO_PI_PLACEMENT_MARGIN, z: float = 0.912
+) -> bool:
     for index in range(32):
         angle = 2 * math.pi * index / 32
         world = (
-            center[0] + LIBERO_PI_PLACEMENT_MARGIN * math.cos(angle),
-            center[1] + LIBERO_PI_PLACEMENT_MARGIN * math.sin(angle),
-            0.912,
+            center[0] + radius * math.cos(angle),
+            center[1] + radius * math.sin(angle),
+            z,
             1.0,
         )
         projected = [
@@ -327,7 +526,7 @@ def create_env(scenario: str, *, resolution: int, seed: int, horizon: int):
     temporary = tempfile.TemporaryDirectory(prefix="libero-push-pi-")
     bddl_path = pathlib.Path(temporary.name) / f"{scenario}.bddl"
     bddl_path.write_text(scenario_bddl(scenario, seed), encoding="utf-8")
-    layout = push_pi_layout(seed) if scenario == "push_pi" else None
+    layout = scenario_metadata(scenario, seed)
     if scenario == "push_pi":
         # ponytail: class-scoped pose config assumes sequential environment construction; pass task context if parallel creation is added.
         PiBlock.layout_yaw = layout["block_yaw_radians"]
@@ -340,15 +539,51 @@ def create_env(scenario: str, *, resolution: int, seed: int, horizon: int):
     )
     env.seed(seed)
     env.push_pi_temporary_directory = temporary
-    env.push_pi_layout = layout
+    env.scenario_layout = layout
     return env, prompt
 
 
 def snapshot_layout(environment) -> dict[str, object]:
     actual = environment.env.layout()
-    planned = environment.push_pi_layout
+    planned = environment.scenario_layout
     if planned is None:
         return actual
+    if "portrait_xy" in planned:
+        validation = {
+            "agentview_visible": all(
+                _agentview_contains(tuple(center), math.hypot(*LIBERO_PORTRAIT_HALF_SIZE))
+                for center in LIBERO_PORTRAIT_CENTERS.values()
+            )
+            and _agentview_contains(LIBERO_COKE_CAN_CENTER, LIBERO_COKE_CAN_RADIUS, 0.98),
+            "can_xy_error": math.dist(planned["can_xy"], (actual["coke_can_1"]["x"], actual["coke_can_1"]["y"])),
+            "can_yaw_error": abs(_wrapped_angle(actual["coke_can_1"]["yaw_radians"])),
+            "portrait_xy_error": {
+                name: math.dist(center, (actual[f"{name}_photo_1"]["x"], actual[f"{name}_photo_1"]["y"]))
+                for name, center in planned["portrait_xy"].items()
+            },
+            "portrait_yaw_error": {
+                name: abs(_wrapped_angle(actual[f"{name}_photo_1"]["yaw_radians"])) for name in planned["portrait_xy"]
+            },
+            "within_table": all(
+                abs(center[axis]) + LIBERO_PORTRAIT_HALF_SIZE[axis] <= LIBERO_PI_TABLE_HALF_SIZE[axis]
+                for center in LIBERO_PORTRAIT_CENTERS.values()
+                for axis in (0, 1)
+            )
+            and all(
+                abs(LIBERO_COKE_CAN_CENTER[axis]) + LIBERO_COKE_CAN_RADIUS <= LIBERO_PI_TABLE_HALF_SIZE[axis]
+                for axis in (0, 1)
+            ),
+        }
+        if not (
+            validation["agentview_visible"]
+            and validation["within_table"]
+            and validation["can_xy_error"] <= 0.002
+            and validation["can_yaw_error"] <= 1e-6
+            and max(validation["portrait_xy_error"].values()) <= 0.002
+            and max(validation["portrait_yaw_error"].values()) <= 1e-6
+        ):
+            raise ValueError("actual LIBERO Coke-on-Taylor layout failed fixed pose validation")
+        return {**actual, "validation": validation}
     block = actual["pi_1"]
     target = actual["pi_target_1"]
     block_xy = (block["x"], block["y"])
@@ -388,12 +623,14 @@ def scenario_hash(scenario: str) -> str:
         bddl = _BDDL[scenario]
     except KeyError as error:
         raise ValueError(f"scenario must be one of: {', '.join(SCENARIOS)}") from error
-    scene = f"{bddl}\0{LIBERO_TARGET_DOT_RADIUS}\0{LIBERO_TARGET_DOT_SPACING}"
+    extra = json.dumps(coke_taylor_layout(), separators=(",", ":"), sort_keys=True) if scenario == "coke_taylor" else ""
+    scene = f"{bddl}\0{LIBERO_TARGET_DOT_RADIUS}\0{LIBERO_TARGET_DOT_SPACING}\0{extra}"
     return hashlib.sha256(scene.encode()).hexdigest()
 
 
 def self_check() -> None:
-    assert set(SCENARIOS) == {"push_pi", "push_p_i"}
+    assert set(SCENARIOS) == {"push_pi", "push_p_i", "coke_taylor"}
+    assert SCENARIOS["coke_taylor"][2] == "Put the Coke can on Taylor Swift"
     assert CONTROL_HZ * 6 == 120
     assert CONTROL_HZ * 30 == 600
     assert CONTROL_HZ * 300 == 6000
@@ -414,6 +651,30 @@ def self_check() -> None:
         for axis in (0, 1)
     )
     assert len({layout["layout_hash"] for layout in layouts}) == 12
+    coke_layout = coke_taylor_layout()
+    assert coke_layout["arrangement"] == {
+        "top_row": ["taylor_swift", "ian_mckellen"],
+        "bottom_row": ["ed_sheeran", "emma_stone", "snoop_dogg"],
+    }
+    assert len(set(coke_layout["portrait_asset_sha256"].values())) == 5
+    assert all(len(value) == 64 for value in coke_layout["portrait_asset_sha256"].values())
+    assert all(
+        _agentview_contains(center, math.hypot(*LIBERO_PORTRAIT_HALF_SIZE))
+        for center in LIBERO_PORTRAIT_CENTERS.values()
+    )
+    assert _agentview_contains(LIBERO_COKE_CAN_CENTER, LIBERO_COKE_CAN_RADIUS, 0.98)
+    centers = tuple(LIBERO_PORTRAIT_CENTERS.values())
+    assert all(
+        abs(first[0] - second[0]) >= 2 * LIBERO_PORTRAIT_HALF_SIZE[0]
+        or abs(first[1] - second[1]) >= 2 * LIBERO_PORTRAIT_HALF_SIZE[1]
+        for index, first in enumerate(centers)
+        for second in centers[index + 1 :]
+    )
+    assert all(
+        abs(LIBERO_COKE_CAN_CENTER[0] - center[0]) >= LIBERO_PORTRAIT_HALF_SIZE[0] + LIBERO_COKE_CAN_RADIUS
+        or abs(LIBERO_COKE_CAN_CENTER[1] - center[1]) >= LIBERO_PORTRAIT_HALF_SIZE[1] + LIBERO_COKE_CAN_RADIUS
+        for center in centers
+    )
     assert all(len(scenario_hash(name)) == 64 for name in SCENARIOS)
 
 

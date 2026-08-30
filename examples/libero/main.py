@@ -35,7 +35,7 @@ class Args:
     )
     num_steps_wait: int = 10  # Number of steps to wait for objects to stabilize i n sim
     num_trials_per_task: int = 50  # Number of rollouts per task
-    scenario: str = ""  # Project scenario: push_pi or push_p_i. Empty keeps the upstream benchmark path.
+    scenario: str = ""  # Project scenario name. Empty keeps the upstream benchmark path.
     duration_seconds: int = 30  # Policy-action time for project scenarios.
     smoke: bool = False  # Run project scenarios for 6 seconds instead of duration_seconds.
 
@@ -190,8 +190,8 @@ def _policy_element(obs, prompt: str, resize_size: int):
 def _eval_push_pi(args: Args) -> None:
     from examples.libero.push_pi_env import CONTROL_HZ
     from examples.libero.push_pi_env import create_env
-    from examples.libero.push_pi_env import push_pi_layout
     from examples.libero.push_pi_env import scenario_hash
+    from examples.libero.push_pi_env import scenario_metadata
     from examples.libero.push_pi_env import snapshot_layout
     from tools.libero.run import run_scenario
 
@@ -211,7 +211,7 @@ def _eval_push_pi(args: Args) -> None:
         create_env=create_env,
         policy_element=_policy_element,
         scene_hash=scenario_hash(args.scenario),
-        scene_metadata=push_pi_layout(args.seed) if args.scenario == "push_pi" else None,
+        scene_metadata=scenario_metadata(args.scenario, args.seed),
         layout_snapshot=snapshot_layout,
     )
     print(json.dumps(result, sort_keys=True))
