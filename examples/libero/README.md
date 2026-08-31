@@ -12,11 +12,13 @@ letter geometry and dotted targets; `coke_taylor` seed-shuffles its five portrai
 python examples/libero/main.py --args.scenario push_pi --args.smoke
 python examples/libero/main.py --args.scenario push_p_i --args.smoke
 python examples/libero/main.py --args.scenario coke_taylor --args.smoke
+python examples/libero/main.py --args.scenario coke_snoop --args.smoke
 
 # 30-second (600-action) runs; 30 seconds is the default
 python examples/libero/main.py --args.scenario push_pi
 python examples/libero/main.py --args.scenario push_p_i
 python examples/libero/main.py --args.scenario coke_taylor
+python examples/libero/main.py --args.scenario coke_snoop
 
 # Five-minute caps (6,000 actions)
 python examples/libero/main.py --args.scenario push_pi --args.duration-seconds 300

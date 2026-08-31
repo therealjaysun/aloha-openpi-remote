@@ -87,6 +87,11 @@ SCENARIOS = {
         (),
         "Put the red can on Taylor Swift.",
     ),
+    "coke_snoop": (
+        "CokeOnSnoopLibero",
+        (),
+        "put the red can on snoop dogg.",
+    ),
 }
 
 
@@ -101,6 +106,7 @@ REGION_SAMPLERS.update(
         SCENARIOS["push_pi"][0].lower(): {"table": _SeededTableRegionSampler},
         SCENARIOS["push_p_i"][0].lower(): {"table": TableRegionSampler},
         SCENARIOS["coke_taylor"][0].lower(): {"table": _SeededTableRegionSampler},
+        SCENARIOS["coke_snoop"][0].lower(): {"table": _SeededTableRegionSampler},
     }
 )
 
@@ -293,9 +299,9 @@ class PushLettersLibero(_PushPiTask):
     body_pairs = SCENARIOS["push_p_i"][1]
 
 
-@register_problem
-class CokeOnTaylorLibero(TASK_MAPPING["libero_tabletop_manipulation"]):
+class _CokePortraitLibero(TASK_MAPPING["libero_tabletop_manipulation"]):
     tracked = (("coke_can_1", "coke_can"), *((f"{name}_photo_1", name) for name in LIBERO_PORTRAIT_CENTERS))
+    target_portrait = "taylor_swift"
 
     def _reset_internal(self):
         super()._reset_internal()
@@ -317,7 +323,7 @@ class CokeOnTaylorLibero(TASK_MAPPING["libero_tabletop_manipulation"]):
 
     def coverage(self) -> dict[str, float]:
         can = self._state("coke_can_1", "coke_can")
-        target = self._state("taylor_swift_photo_1", "taylor_swift")
+        target = self._state(f"{self.target_portrait}_photo_1", self.target_portrait)
         target_top = target.z + _TABLE_HALF_HEIGHT + 2 * LIBERO_PORTRAIT_HALF_THICKNESS
         centered = (
             abs(can.x - target.x) <= LIBERO_PORTRAIT_HALF_SIZE[0] - LIBERO_COKE_CAN_RADIUS
@@ -325,10 +331,20 @@ class CokeOnTaylorLibero(TASK_MAPPING["libero_tabletop_manipulation"]):
         )
         placed = centered and abs(can.z - LIBERO_COKE_CAN_HALF_HEIGHT - target_top) <= 0.02
         value = float(placed)
-        return {"taylor_swift": value, "overall": value}
+        return {self.target_portrait: value, "overall": value}
 
     def _check_success(self):
         return self.coverage()["overall"] == 1.0
+
+
+@register_problem
+class CokeOnTaylorLibero(_CokePortraitLibero):
+    pass
+
+
+@register_problem
+class CokeOnSnoopLibero(_CokePortraitLibero):
+    target_portrait = "snoop_dogg"
 
 
 _BDDL = {
@@ -393,6 +409,12 @@ _BDDL = {
   (:goal (And (On coke_can_1 taylor_swift_photo_1)))
 )""",
 }
+_BDDL["coke_snoop"] = (
+    _BDDL["coke_taylor"]
+    .replace("CokeOnTaylorLibero", "CokeOnSnoopLibero")
+    .replace("Put the red can on Taylor Swift.", "put the red can on snoop dogg.")
+    .replace("(On coke_can_1 taylor_swift_photo_1)))", "(On coke_can_1 snoop_dogg_photo_1)))")
+)
 
 
 def push_pi_layout(seed: int) -> dict[str, object]:
@@ -453,7 +475,7 @@ def coke_taylor_layout(seed: int) -> dict[str, object]:
 def scenario_metadata(scenario: str, seed: int) -> dict[str, object] | None:
     if scenario == "push_pi":
         return push_pi_layout(seed)
-    if scenario == "coke_taylor":
+    if scenario in {"coke_taylor", "coke_snoop"}:
         return coke_taylor_layout(seed)
     if scenario == "push_p_i":
         return None
@@ -492,7 +514,7 @@ def scenario_bddl(scenario: str, seed: int) -> str:
         template = _BDDL[scenario]
     except KeyError as error:
         raise ValueError(f"scenario must be one of: {', '.join(SCENARIOS)}") from error
-    if scenario == "coke_taylor":
+    if scenario in {"coke_taylor", "coke_snoop"}:
         portrait_regions = []
         for name, (x, y) in coke_taylor_layout(seed)["portrait_xy"].items():
             portrait_regions.append(
@@ -620,15 +642,19 @@ def _wrapped_angle(angle: float) -> float:
 
 def scenario_hash(scenario: str, seed: int) -> str:
     extra = (
-        json.dumps(coke_taylor_layout(seed), separators=(",", ":"), sort_keys=True) if scenario == "coke_taylor" else ""
+        json.dumps(coke_taylor_layout(seed), separators=(",", ":"), sort_keys=True)
+        if scenario in {"coke_taylor", "coke_snoop"}
+        else ""
     )
     scene = f"{scenario_bddl(scenario, seed)}\0{LIBERO_TARGET_DOT_RADIUS}\0{LIBERO_TARGET_DOT_SPACING}\0{extra}"
     return hashlib.sha256(scene.encode()).hexdigest()
 
 
 def self_check() -> None:
-    assert set(SCENARIOS) == {"push_pi", "push_p_i", "coke_taylor"}
+    assert set(SCENARIOS) == {"push_pi", "push_p_i", "coke_taylor", "coke_snoop"}
     assert SCENARIOS["coke_taylor"][2] == "Put the red can on Taylor Swift."
+    assert SCENARIOS["coke_snoop"][2] == "put the red can on snoop dogg."
+    assert "(:goal (And (On coke_can_1 snoop_dogg_photo_1)))" in scenario_bddl("coke_snoop", 0)
     assert CONTROL_HZ * 6 == 120
     assert CONTROL_HZ * 30 == 600
     assert CONTROL_HZ * 300 == 6000

@@ -38,6 +38,7 @@ _PACKAGE_NAMES = {
     "robosuite",
 }
 _LIBERO_TASK_TO_SCENARIO = {
+    "libero/coke_snoop": "coke_snoop",
     "libero/coke_taylor": "coke_taylor",
     "libero/push_pi": "push_pi",
     "libero/push_p_i": "push_p_i",

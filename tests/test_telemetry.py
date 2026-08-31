@@ -291,7 +291,10 @@ def test_publishable_custom_scenario_keeps_safe_identity_counts_and_omits_privat
     assert "desktop-name" not in encoded
 
 
-@pytest.mark.parametrize(("task", "scenario"), [("libero/push_pi", "push_pi"), ("libero/coke_taylor", "coke_taylor")])
+@pytest.mark.parametrize(
+    ("task", "scenario"),
+    [("libero/push_pi", "push_pi"), ("libero/coke_taylor", "coke_taylor"), ("libero/coke_snoop", "coke_snoop")],
+)
 def test_publishable_libero_summary_keeps_two_cameras_and_seven_joint_trace(task: str, scenario: str) -> None:
     raw = aggregate_events(
         [
