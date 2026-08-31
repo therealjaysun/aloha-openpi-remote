@@ -60,7 +60,7 @@ LIBERO_PORTRAIT_CENTERS = {
     "taylor_swift": (-0.20, 0.12),
     "ian_mckellen": (-0.20, -0.12),
     "ed_sheeran": (0.02, 0.18),
-    "emma_stone": (0.02, 0.0),
+    "mindy_kaling": (0.02, 0.0),
     "snoop_dogg": (0.02, -0.18),
 }
 _PORTRAIT_ASSET_DIR = pathlib.Path(__file__).parent / "assets" / "rt2_portraits"
@@ -242,7 +242,7 @@ def _register_portrait(name: str, image_file: str) -> type[CompositeObject]:
 TaylorSwiftPhoto = _register_portrait("TaylorSwiftPhoto", "taylor_swift.png")
 IanMckellenPhoto = _register_portrait("IanMckellenPhoto", "ian_mckellen.png")
 EdSheeranPhoto = _register_portrait("EdSheeranPhoto", "ed_sheeran.png")
-EmmaStonePhoto = _register_portrait("EmmaStonePhoto", "emma_stone.png")
+MindyKalingPhoto = _register_portrait("MindyKalingPhoto", "mindy_kaling.png")
 SnoopDoggPhoto = _register_portrait("SnoopDoggPhoto", "snoop_dogg.png")
 
 
@@ -377,16 +377,16 @@ _BDDL = {
     taylor_swift_photo_1 - taylor_swift_photo
     ian_mckellen_photo_1 - ian_mckellen_photo
     ed_sheeran_photo_1 - ed_sheeran_photo
-    emma_stone_photo_1 - emma_stone_photo
+    mindy_kaling_photo_1 - mindy_kaling_photo
     snoop_dogg_photo_1 - snoop_dogg_photo
   )
   (:objects coke_can_1 - coke_can)
-  (:obj_of_interest coke_can_1 taylor_swift_photo_1 ian_mckellen_photo_1 ed_sheeran_photo_1 emma_stone_photo_1 snoop_dogg_photo_1)
+  (:obj_of_interest coke_can_1 taylor_swift_photo_1 ian_mckellen_photo_1 ed_sheeran_photo_1 mindy_kaling_photo_1 snoop_dogg_photo_1)
   (:init
     (On taylor_swift_photo_1 main_table_taylor_swift_region)
     (On ian_mckellen_photo_1 main_table_ian_mckellen_region)
     (On ed_sheeran_photo_1 main_table_ed_sheeran_region)
-    (On emma_stone_photo_1 main_table_emma_stone_region)
+    (On mindy_kaling_photo_1 main_table_mindy_kaling_region)
     (On snoop_dogg_photo_1 main_table_snoop_dogg_region)
     (On coke_can_1 main_table_coke_can_region)
   )
