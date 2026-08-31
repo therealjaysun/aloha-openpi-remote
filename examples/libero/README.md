@@ -5,7 +5,7 @@ This example runs the LIBERO benchmark: https://github.com/Lifelong-Robot-Learni
 ## Custom scenarios
 
 The project adds single-Panda scenarios without modifying the LIBERO submodule. The Push-PI tasks reuse the existing
-letter geometry and dotted targets; `coke_taylor` uses the fixed portrait layout documented with its image assets:
+letter geometry and dotted targets; `coke_taylor` seed-shuffles its five portrait slots using the documented image assets:
 
 ```bash
 # 6-second (120-action) connected smokes

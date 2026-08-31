@@ -210,7 +210,7 @@ def _eval_push_pi(args: Args) -> None:
         dummy_action=LIBERO_DUMMY_ACTION,
         create_env=create_env,
         policy_element=_policy_element,
-        scene_hash=scenario_hash(args.scenario),
+        scene_hash=scenario_hash(args.scenario, args.seed),
         scene_metadata=scenario_metadata(args.scenario, args.seed),
         layout_snapshot=snapshot_layout,
     )

@@ -369,11 +369,7 @@ _BDDL = {
   (:domain robosuite)
   (:language Put the red can on Taylor Swift.)
   (:regions
-    (taylor_swift_region (:target main_table) (:ranges ((-0.201 0.119 -0.199 0.121))) (:yaw_rotation ((0 0))))
-    (ian_mckellen_region (:target main_table) (:ranges ((-0.201 -0.121 -0.199 -0.119))) (:yaw_rotation ((0 0))))
-    (ed_sheeran_region (:target main_table) (:ranges ((0.019 0.179 0.021 0.181))) (:yaw_rotation ((0 0))))
-    (emma_stone_region (:target main_table) (:ranges ((0.019 -0.001 0.021 0.001))) (:yaw_rotation ((0 0))))
-    (snoop_dogg_region (:target main_table) (:ranges ((0.019 -0.181 0.021 -0.179))) (:yaw_rotation ((0 0))))
+{portrait_regions}
     (coke_can_region (:target main_table) (:ranges ((0.179 -0.001 0.181 0.001))) (:yaw_rotation ((0 0))))
   )
   (:fixtures
@@ -427,11 +423,16 @@ def push_pi_layout(seed: int) -> dict[str, object]:
     return layout
 
 
-def coke_taylor_layout() -> dict[str, object]:
+def coke_taylor_layout(seed: int) -> dict[str, object]:
+    if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed <= 2**32 - 1:
+        raise ValueError("LIBERO layout seed must be an unsigned 32-bit integer")
+    names = list(LIBERO_PORTRAIT_CENTERS)
+    random.Random(seed).shuffle(names)
+    portrait_xy = dict(zip(names, LIBERO_PORTRAIT_CENTERS.values(), strict=True))
     layout = {
         "arrangement": {
-            "top_row": ["taylor_swift", "ian_mckellen"],
-            "bottom_row": ["ed_sheeran", "emma_stone", "snoop_dogg"],
+            "top_row": names[:2],
+            "bottom_row": names[2:],
         },
         "can_dimensions_m": {"diameter": 2 * LIBERO_COKE_CAN_RADIUS, "height": 2 * LIBERO_COKE_CAN_HALF_HEIGHT},
         "can_profile_sides": LIBERO_COKE_CAN_PROFILE_SIDES,
@@ -441,7 +442,7 @@ def coke_taylor_layout() -> dict[str, object]:
             name: hashlib.sha256((_PORTRAIT_ASSET_DIR / f"{name}.png").read_bytes()).hexdigest()
             for name in LIBERO_PORTRAIT_CENTERS
         },
-        "portrait_xy": {name: list(center) for name, center in LIBERO_PORTRAIT_CENTERS.items()},
+        "portrait_xy": {name: list(center) for name, center in portrait_xy.items()},
     }
     layout["layout_hash"] = hashlib.sha256(
         json.dumps(layout, separators=(",", ":"), sort_keys=True).encode()
@@ -453,7 +454,7 @@ def scenario_metadata(scenario: str, seed: int) -> dict[str, object] | None:
     if scenario == "push_pi":
         return push_pi_layout(seed)
     if scenario == "coke_taylor":
-        return coke_taylor_layout()
+        return coke_taylor_layout(seed)
     if scenario == "push_p_i":
         return None
     raise ValueError(f"scenario must be one of: {', '.join(SCENARIOS)}")
@@ -491,6 +492,14 @@ def scenario_bddl(scenario: str, seed: int) -> str:
         template = _BDDL[scenario]
     except KeyError as error:
         raise ValueError(f"scenario must be one of: {', '.join(SCENARIOS)}") from error
+    if scenario == "coke_taylor":
+        portrait_regions = []
+        for name, (x, y) in coke_taylor_layout(seed)["portrait_xy"].items():
+            portrait_regions.append(
+                f"    ({name}_region (:target main_table) (:ranges (({x - 0.001:.3f} {y - 0.001:.3f} "
+                f"{x + 0.001:.3f} {y + 0.001:.3f}))) (:yaw_rotation ((0 0))))"
+            )
+        return template.format(portrait_regions="\n".join(portrait_regions))
     if scenario != "push_pi":
         return template
     layout = push_pi_layout(seed)
@@ -573,7 +582,7 @@ def snapshot_layout(environment) -> dict[str, object]:
             and max(validation["portrait_xy_error"].values()) <= 0.002
             and max(validation["portrait_yaw_error"].values()) <= 1e-6
         ):
-            raise ValueError("actual LIBERO Coke-on-Taylor layout failed fixed pose validation")
+            raise ValueError("actual LIBERO Coke-on-Taylor layout failed seeded pose validation")
         return {**actual, "validation": validation}
     block = actual["pi_1"]
     target = actual["pi_target_1"]
@@ -609,13 +618,11 @@ def _wrapped_angle(angle: float) -> float:
     return math.atan2(math.sin(angle), math.cos(angle))
 
 
-def scenario_hash(scenario: str) -> str:
-    try:
-        bddl = _BDDL[scenario]
-    except KeyError as error:
-        raise ValueError(f"scenario must be one of: {', '.join(SCENARIOS)}") from error
-    extra = json.dumps(coke_taylor_layout(), separators=(",", ":"), sort_keys=True) if scenario == "coke_taylor" else ""
-    scene = f"{bddl}\0{LIBERO_TARGET_DOT_RADIUS}\0{LIBERO_TARGET_DOT_SPACING}\0{extra}"
+def scenario_hash(scenario: str, seed: int) -> str:
+    extra = (
+        json.dumps(coke_taylor_layout(seed), separators=(",", ":"), sort_keys=True) if scenario == "coke_taylor" else ""
+    )
+    scene = f"{scenario_bddl(scenario, seed)}\0{LIBERO_TARGET_DOT_RADIUS}\0{LIBERO_TARGET_DOT_SPACING}\0{extra}"
     return hashlib.sha256(scene.encode()).hexdigest()
 
 
@@ -642,11 +649,13 @@ def self_check() -> None:
         for axis in (0, 1)
     )
     assert len({layout["layout_hash"] for layout in layouts}) == 12
-    coke_layout = coke_taylor_layout()
-    assert coke_layout["arrangement"] == {
-        "top_row": ["taylor_swift", "ian_mckellen"],
-        "bottom_row": ["ed_sheeran", "emma_stone", "snoop_dogg"],
-    }
+    coke_layouts = [coke_taylor_layout(seed) for seed in range(5)]
+    assert len({layout["layout_hash"] for layout in coke_layouts}) == 5
+    assert (
+        len({tuple(layout["arrangement"]["top_row"] + layout["arrangement"]["bottom_row"]) for layout in coke_layouts})
+        == 5
+    )
+    coke_layout = coke_layouts[0]
     assert coke_layout["lighting"] == {"ambient": 0.25, "diffuse": 1.0}
     assert coke_layout["can_dimensions_m"] == {"diameter": 0.044, "height": 0.122}
     assert coke_layout["can_profile_sides"] == 8
@@ -669,7 +678,7 @@ def self_check() -> None:
         or abs(LIBERO_COKE_CAN_CENTER[1] - center[1]) >= LIBERO_PORTRAIT_HALF_SIZE[1] + LIBERO_COKE_CAN_RADIUS
         for center in centers
     )
-    assert all(len(scenario_hash(name)) == 64 for name in SCENARIOS)
+    assert all(len(scenario_hash(name, 0)) == 64 for name in SCENARIOS)
 
 
 if __name__ == "__main__":
