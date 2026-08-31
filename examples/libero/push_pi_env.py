@@ -53,7 +53,7 @@ LIBERO_PORTRAIT_HALF_THICKNESS = 0.001
 LIBERO_COKE_CAN_RADIUS = 0.022
 LIBERO_COKE_CAN_HALF_HEIGHT = 0.061
 LIBERO_COKE_CAN_PROFILE_SIDES = 8
-LIBERO_COKE_CAN_CENTER = (0.18, 0.0)
+LIBERO_COKE_CAN_CENTER = (-0.11, 0.0)
 LIBERO_COKE_LIGHT_AMBIENT = 0.25
 LIBERO_COKE_LIGHT_DIFFUSE = 1.0
 LIBERO_PORTRAIT_CENTERS = {
@@ -370,7 +370,7 @@ _BDDL = {
   (:language Put the red can on Taylor Swift.)
   (:regions
 {portrait_regions}
-    (coke_can_region (:target main_table) (:ranges ((0.179 -0.001 0.181 0.001))) (:yaw_rotation ((0 0))))
+    (coke_can_region (:target main_table) (:ranges ((-0.111 -0.001 -0.109 0.001))) (:yaw_rotation ((0 0))))
   )
   (:fixtures
     main_table - table
